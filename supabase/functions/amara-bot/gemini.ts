@@ -284,16 +284,20 @@ export async function geminiVideoTranscribe(
     generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
   };
 
-  const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) return "";
-  const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-  return text === "[no speech]" ? "" : text;
+  const keys = getGeminiKeys();
+  for (const key of keys) {
+    const res = await fetch(`${GEMINI_URL}?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 429) { console.warn("Gemini video key quota exceeded, trying next..."); continue; }
+    if (!res.ok) return "";
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+    return text === "[no speech]" ? "" : text;
+  }
+  return "";
 }
 
 // Build a step-specific vision verification prompt that requests structured JSON output

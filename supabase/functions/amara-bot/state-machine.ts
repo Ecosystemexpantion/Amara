@@ -48,9 +48,12 @@ export async function routeMessage(
       try {
         const downloaded = await downloadFile(fileId);
         const transcript = await geminiVideoTranscribe(downloaded.bytes, downloaded.mimeType);
-        if (transcript) textPayload = `[Screen recording] ${transcript}`;
-        // If no transcript, both textPayload and photoPayload remain null —
-        // the day handler will re-send the current step instructions.
+        if (transcript) {
+          textPayload = `[Screen recording] ${transcript}`;
+        } else {
+          await sendMessage(chatId, "Got your recording! 📱 For this step I need a screenshot — just take a screenshot and send it to me 📸");
+          return;
+        }
       } catch (e) {
         console.error("Video processing error:", e);
         await sendMessage(chatId, "Couldn't process that video 😊 — try sending a screenshot instead 📸");

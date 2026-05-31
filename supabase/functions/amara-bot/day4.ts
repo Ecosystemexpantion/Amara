@@ -250,6 +250,10 @@ async function sendGrandFinale(student: Student, chatId: number): Promise<void> 
 }
 
 async function handleFailed(student: Student, chatId: number, reason: string, retryMsg: string): Promise<void> {
+  if (reason === "verification_unavailable") {
+    await sendMessage(chatId, "Photo check had a small hiccup 😊 — please send that screenshot again!");
+    return;
+  }
   const attempts = student.screenshot_attempts + 1;
   if (attempts >= 3) {
     await resetScreenshotAttempts(student.id);
