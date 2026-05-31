@@ -112,14 +112,12 @@ export async function getFilePath(fileId: string): Promise<string> {
   return data.result.file_path as string;
 }
 
-// Send a voice note via Fish Audio TTS (Chinese AI, English interface at fish.audio).
+// Send a voice note via Unreal Speech TTS (250k chars/month free, returns raw MP3 bytes).
 // Falls back to plain sendMessage if key is missing or on any error.
 export async function sendVoiceNote(chatId: number | string, text: string): Promise<void> {
-  const FISHAUDIO_API_KEY = Deno.env.get("FISHAUDIO_API_KEY");
-  // Voice reference ID — pick a voice from fish.audio marketplace and paste its ID here
-  const FISHAUDIO_VOICE_ID = Deno.env.get("FISHAUDIO_VOICE_ID") ?? "";
+  const UNREALSPEECH_API_KEY = Deno.env.get("UNREALSPEECH_API_KEY");
 
-  if (!FISHAUDIO_API_KEY) {
+  if (!UNREALSPEECH_API_KEY) {
     await sendMessage(chatId, text);
     return;
   }
@@ -142,26 +140,17 @@ export async function sendVoiceNote(chatId: number | string, text: string): Prom
   try {
     await sendChatAction(chatId, "record_voice");
 
-    const body: Record<string, unknown> = {
-      text: plain,
-      format: "mp3",
-      mp3_bitrate: 128,
-      normalize: true,
-      latency: "normal",
-    };
-    if (FISHAUDIO_VOICE_ID) body.reference_id = FISHAUDIO_VOICE_ID;
-
-    const res = await fetch("https://api.fish.audio/v1/tts", {
+    const res = await fetch("https://api.v7.unrealspeech.com/stream", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${FISHAUDIO_API_KEY}`,
+        "Authorization": `Bearer ${UNREALSPEECH_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ Text: plain, VoiceId: "Scarlett", Bitrate: "128k", Speed: "0", Pitch: "1" }),
     });
 
     if (!res.ok) {
-      console.error(`Fish Audio TTS ${res.status}: ${await res.text()}`);
+      console.error(`Unreal Speech TTS ${res.status}: ${await res.text()}`);
       await sendMessage(chatId, text);
       return;
     }

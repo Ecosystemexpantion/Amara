@@ -34,8 +34,7 @@ jobs:
           if [ -n "$GEMINI_API_KEY_3" ]; then supabase secrets set GEMINI_API_KEY_3=$GEMINI_API_KEY_3; fi
           if [ -n "$GEMINI_API_KEY_4" ]; then supabase secrets set GEMINI_API_KEY_4=$GEMINI_API_KEY_4; fi
           if [ -n "$GEMINI_API_KEY_5" ]; then supabase secrets set GEMINI_API_KEY_5=$GEMINI_API_KEY_5; fi
-          if [ -n "$FISHAUDIO_API_KEY" ]; then supabase secrets set FISHAUDIO_API_KEY=$FISHAUDIO_API_KEY; fi
-          if [ -n "$FISHAUDIO_VOICE_ID" ]; then supabase secrets set FISHAUDIO_VOICE_ID=$FISHAUDIO_VOICE_ID; fi
+          if [ -n "$UNREALSPEECH_API_KEY" ]; then supabase secrets set UNREALSPEECH_API_KEY=$UNREALSPEECH_API_KEY; fi
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -43,8 +42,7 @@ jobs:
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
           GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
           GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
-          FISHAUDIO_API_KEY: ${{ secrets.FISHAUDIO_API_KEY }}
-          FISHAUDIO_VOICE_ID: ${{ secrets.FISHAUDIO_VOICE_ID }}
+          UNREALSPEECH_API_KEY: ${{ secrets.UNREALSPEECH_API_KEY }}
 
       - name: Deploy amara-bot function
         run: supabase functions deploy amara-bot --no-verify-jwt
