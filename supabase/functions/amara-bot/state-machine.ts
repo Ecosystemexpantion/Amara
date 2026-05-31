@@ -139,7 +139,7 @@ Answer warmly. If they have questions about the business or what's coming next, 
 Remind them their next day unlocks at ${unlockInfo} and tell them what exciting things are coming.`,
       student.id
     );
-    await sendMessage(chatId, reply);
+    await sendVoiceNote(chatId, reply);
   } else {
     await sendMessage(
       chatId,
@@ -167,7 +167,7 @@ Their setup:
 Answer their questions about growing their business, scaling sales, getting more traffic, etc. Be a supportive mentor.`,
       student.id
     );
-    await sendMessage(chatId, reply);
+    await sendVoiceNote(chatId, reply);
   } else {
     await sendMessage(
       chatId,

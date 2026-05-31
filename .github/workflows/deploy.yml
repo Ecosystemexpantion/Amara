@@ -34,6 +34,7 @@ jobs:
           if [ -n "$GEMINI_API_KEY_3" ]; then supabase secrets set GEMINI_API_KEY_3=$GEMINI_API_KEY_3; fi
           if [ -n "$GEMINI_API_KEY_4" ]; then supabase secrets set GEMINI_API_KEY_4=$GEMINI_API_KEY_4; fi
           if [ -n "$GEMINI_API_KEY_5" ]; then supabase secrets set GEMINI_API_KEY_5=$GEMINI_API_KEY_5; fi
+          if [ -n "$ELEVENLABS_API_KEY" ]; then supabase secrets set ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY; fi
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -41,6 +42,7 @@ jobs:
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
           GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
           GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
 
       - name: Deploy amara-bot function
         run: supabase functions deploy amara-bot --no-verify-jwt
