@@ -23,8 +23,9 @@ export async function routeMessage(
       await sendChatAction(chatId, "typing");
       try {
         const { bytes, mimeType } = await downloadFile(msg.voice.file_id);
-        textPayload = await geminiAudio(bytes, mimeType);
-        if (textPayload) textPayload = `[Voice message] ${textPayload}`;
+        const transcribed = await geminiAudio(bytes, mimeType);
+        if (transcribed) textPayload = `[Voice message] ${transcribed}`;
+        // textPayload stays null if transcription returned empty (silent clip, background noise, etc.)
       } catch (e) {
         console.error("Voice transcription error:", e);
         await sendMessage(chatId, "I couldn't catch that voice note 😊 — just type it out for me and I'll respond!");

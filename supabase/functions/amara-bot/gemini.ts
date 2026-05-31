@@ -71,7 +71,8 @@ export async function geminiChat(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini chat error ${res.status}: ${errText}`);
+    console.error(`Gemini chat error ${res.status}: ${errText}`);
+    return "I dey here! 😊 Small network issue — try again in a moment.";
   }
 
   const data = await res.json();

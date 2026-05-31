@@ -28,6 +28,7 @@ jobs:
         run: |
           supabase secrets set TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
           supabase secrets set GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          supabase secrets set GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
           supabase secrets set ADMIN_CHAT_ID=5870771695
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
