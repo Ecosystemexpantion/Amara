@@ -180,7 +180,11 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   }
 
   const prompt = buildVerificationPrompt(
-    "Does this screenshot show a Payhip seller or creator dashboard? Look for the Payhip logo, seller account navigation, sales stats, or creator dashboard."
+    "Does this screenshot show a Payhip SELLER/CREATOR dashboard? Study it carefully:\n" +
+    "- If you see 'Join as an Affiliate' form → student is on the WRONG page (affiliate signup, not seller)\n" +
+    "- If you see a generic Payhip account registration form → student needs to complete signup\n" +
+    "- If you see a Payhip seller dashboard with menu items like Products, Sales, Customers → CORRECT\n" +
+    "For guidance: tell the student EXACTLY which page they are on and what specific link or button to click next."
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
@@ -255,21 +259,22 @@ async function handleFailedScreenshot(
     return;
   }
   const attempts = student.screenshot_attempts + 1;
-
   if (attempts >= 3) {
     await resetScreenshotAttempts(student.id);
     await notifyAdmin(
       `⚠️ <b>STUDENT STUCK</b>\n\nName: ${student.full_name}\nDay: ${student.current_day}, Step: ${student.current_step}\nAfter 3 attempts. Reason: ${reason}`
     );
-    await sendMessage(
-      chatId,
-      `No wahala! Let me explain it a different way 😊\n\n${retryMessage}`
-    );
   } else {
     await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
-    await sendMessage(
-      chatId,
-      `Hmm, that's not quite it — no worries! 😊\n\n${retryMessage}`
-    );
   }
+  // Use AI to craft a specific, warm response based on what vision actually saw
+  const history = await getRecentConversation(student.id, 3);
+  const reply = await geminiChat(
+    history,
+    `[screenshot analysis]`,
+    `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMessage}".
+In Amara's warm, friendly style: tell the student EXACTLY what you can see in their screenshot (be specific about what page/screen it is), then give them PRECISE step-by-step instructions on what to click or do next to get to the right place. Don't be generic — be like a friend looking at their phone screen and guiding them.`,
+    student.id
+  );
+  await sendMessage(chatId, reply);
 }
