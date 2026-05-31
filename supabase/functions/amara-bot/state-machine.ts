@@ -21,11 +21,14 @@ export async function routeMessage(
     if (msg.voice) {
       // Download and transcribe voice message
       await sendChatAction(chatId, "typing");
-      const { bytes, mimeType } = await downloadFile(msg.voice.file_id);
-      textPayload = await geminiAudio(bytes, mimeType);
-      // Prefix so handlers know it came from voice
-      if (textPayload) {
-        textPayload = `[Voice message] ${textPayload}`;
+      try {
+        const { bytes, mimeType } = await downloadFile(msg.voice.file_id);
+        textPayload = await geminiAudio(bytes, mimeType);
+        if (textPayload) textPayload = `[Voice message] ${textPayload}`;
+      } catch (e) {
+        console.error("Voice transcription error:", e);
+        await sendMessage(chatId, "I couldn't catch that voice note 😊 — just type it out for me and I'll respond!");
+        return;
       }
     } else if (msg.photo && msg.photo.length > 0) {
       // Download the largest photo
@@ -42,14 +45,12 @@ export async function routeMessage(
       await sendChatAction(chatId, "typing");
       try {
         const downloaded = await downloadFile(fileId);
-        photoPayload = downloaded; // used by screenshot verification steps
+        photoPayload = downloaded;
         const transcript = await geminiVideoTranscribe(downloaded.bytes, downloaded.mimeType);
-        if (transcript) {
-          textPayload = `[Screen recording] ${transcript}`;
-        }
+        if (transcript) textPayload = `[Screen recording] ${transcript}`;
       } catch (e) {
         console.error("Video processing error:", e);
-        await sendMessage(chatId, "Hmm, couldn't process that video 😊 — try a screenshot instead 📸");
+        await sendMessage(chatId, "Couldn't process that video 😊 — try sending a screenshot instead 📸");
         return;
       }
     } else if (msg.document || msg.sticker) {
