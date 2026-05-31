@@ -156,6 +156,16 @@ export async function geminiChat(
   return "I dey here! Try again in a moment 😊";
 }
 
+function parseVisionText(rawText: string): ScreenshotResult {
+  const jsonStr = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  try {
+    return JSON.parse(jsonStr) as ScreenshotResult;
+  } catch {
+    const verified = /\b(yes|correct|verified|true|confirmed|i can see)\b/i.test(rawText);
+    return { verified, reason: rawText.slice(0, 200), extracted: {} };
+  }
+}
+
 export async function geminiVision(
   imageBytes: Uint8Array,
   mimeType: string,
@@ -163,63 +173,66 @@ export async function geminiVision(
 ): Promise<ScreenshotResult> {
   const base64 = uint8ToBase64(imageBytes);
 
+  // Try Groq vision first — uses same GROQ_API_KEY, much higher quota than Gemini free tier
+  const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+  if (GROQ_API_KEY) {
+    try {
+      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: "llama-3.2-11b-vision-preview",
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+              { type: "text", text: verificationPrompt },
+            ],
+          }],
+          temperature: 0.1,
+          max_tokens: 600,
+        }),
+      });
+      if (groqRes.ok) {
+        const groqData = await groqRes.json();
+        const rawText: string = groqData.choices?.[0]?.message?.content?.trim() ?? "";
+        if (rawText) return parseVisionText(rawText);
+      } else {
+        console.warn(`Groq vision error ${groqRes.status}: ${await groqRes.text()}`);
+      }
+    } catch (e) {
+      console.error("Groq vision exception:", e);
+    }
+  }
+
+  // Fallback: Gemini key rotation
   const body = {
-    contents: [
-      {
-        parts: [
-          { inline_data: { mime_type: mimeType, data: base64 } },
-          { text: verificationPrompt },
-        ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 600,
-      candidateCount: 1,
-    },
+    contents: [{ parts: [
+      { inline_data: { mime_type: mimeType, data: base64 } },
+      { text: verificationPrompt },
+    ]}],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 600, candidateCount: 1 },
   };
 
-  // Try each Gemini key in order — rotates automatically on 429 quota errors
   const keys = getGeminiKeys();
-  let data: unknown = null;
   for (const key of keys) {
     const res = await fetch(`${GEMINI_URL}?key=${key}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (res.status === 429) {
-      console.warn(`Gemini vision key quota exceeded, trying next key...`);
-      continue;
-    }
+    if (res.status === 429) { console.warn("Gemini vision key quota exceeded, trying next..."); continue; }
     if (!res.ok) {
-      const errText = await res.text();
-      console.error(`Gemini vision error ${res.status} (mime: ${mimeType}): ${errText}`);
+      console.error(`Gemini vision error ${res.status} (mime: ${mimeType}): ${await res.text()}`);
       return { verified: false, reason: "verification_unavailable", extracted: {} };
     }
-    data = await res.json();
-    break;
-  }
-  if (!data) {
-    console.error("All Gemini vision keys exhausted");
-    return { verified: false, reason: "verification_unavailable", extracted: {} };
+    const data = await res.json();
+    const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+    return parseVisionText(rawText);
   }
 
-  const rawText: string = (data as any).candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-
-  // Strip markdown code fences
-  const jsonStr = rawText
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
-  try {
-    return JSON.parse(jsonStr) as ScreenshotResult;
-  } catch {
-    // Fallback: infer from text
-    const verified = /\b(yes|correct|verified|true|confirmed|i can see)\b/i.test(rawText);
-    return { verified, reason: rawText.slice(0, 200), extracted: {} };
-  }
+  console.error("All vision providers exhausted");
+  return { verified: false, reason: "verification_unavailable", extracted: {} };
 }
 
 // Voice transcription — uses Groq Whisper if GROQ_API_KEY is set, falls back to Gemini
