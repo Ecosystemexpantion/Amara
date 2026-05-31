@@ -36,7 +36,7 @@ async function handleStep1(student: Student, chatId: number, text: string | null
 - BOT_TOKEN: their Telegram bot token (${student.bot_token ? "already collected: " + student.bot_token.slice(0, 15) + "..." : "need to add"})
 - GEMINI_API_KEY: from Google AI Studio (aistudio.google.com)
 - SUPABASE_URL: auto-injected usually
-- SUPABASE_SERVICE_ROLE_KEY: from Supabase Settings → API → service_role`);
+- SUPABASE_SERVICE_ROLE_KEY: from Supabase Settings → API → service_role`, student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, envVarInstructions);
@@ -99,7 +99,7 @@ Their bot token starts with: ${botToken.slice(0, 20)}...
 Their Supabase URL is: ${student.supabase_url ?? "not yet captured — they need to find it from their Supabase project URL"}
 The webhook URL format: ${webhookUrl}
 The curl command to run: curl -X POST "https://api.telegram.org/bot${botToken}/setWebhook" -d '{"url":"${webhookUrl}"}'
-Guide them step by step. If they don't have curl, suggest using a browser or Postman.`);
+Guide them step by step. If they don't have curl, suggest using a browser or Postman.`, student.id);
     await sendMessage(chatId, reply);
   } else {
     await sendMessage(chatId, "Set your Telegram webhook and send me a screenshot, or just say <b>\"done\"</b> when it's set! 🔗");
@@ -111,7 +111,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to test their Telegram bot by sending it a message and showing a screenshot of it responding.");
+      const reply = await geminiChat(history, text, "Student needs to test their Telegram bot by sending it a message and showing a screenshot of it responding.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Open your bot on Telegram, send it a message, and send me a screenshot of it replying 📸");
@@ -225,7 +225,8 @@ async function handleStep6(student: Student, chatId: number, text: string | null
 - Their own AI sales bot running 24/7
 - A certificate of completion
 
-Celebrate with them! Answer any questions they have about growing their business, getting more sales, sharing their pages, etc. Be warm, fun and encouraging. They're now a full EEM26 member! 🎉`
+Celebrate with them! Answer any questions they have about growing their business, getting more sales, sharing their pages, etc. Be warm, fun and encouraging. They're now a full EEM26 member! 🎉`,
+      student.id
     );
     await sendMessage(chatId, reply);
   }

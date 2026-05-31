@@ -56,7 +56,8 @@ async function handleStep1(student: Student, chatId: number, text: string | null
   const answer = await geminiChat(
     history,
     text,
-    "The student is on Day 1, Step 1. They may have questions about the EEM26 business model (AAM and SRE systems). Answer their question warmly, then remind them to say 'ready' when they want to start their first task."
+    "The student is on Day 1, Step 1. They may have questions about the EEM26 business model (AAM and SRE systems). Answer their question warmly, then remind them to say 'ready' when they want to start their first task.",
+    student.id
   );
   await sendMessage(chatId, answer);
 }
@@ -73,7 +74,7 @@ async function handleStep2(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student is on Day 1 Step 2 — they need a Selar creator account. If they say they already have one, tell them great and ask for a screenshot of their dashboard. Otherwise answer briefly and redirect to send a screenshot.");
+      const reply = await geminiChat(history, text, "Student is on Day 1 Step 2 — they need a Selar creator account. If they say they already have one, tell them great and ask for a screenshot of their dashboard. Otherwise answer briefly and redirect to send a screenshot.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and send me a screenshot 📸\n\n(If you already have a Selar account, just send me a screenshot of your dashboard)");
@@ -110,7 +111,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student is on Day 1 Step 3 — they need to complete Selar registration and send a screenshot of their Selar creator dashboard.");
+      const reply = await geminiChat(history, text, "Student is on Day 1 Step 3 — they need to complete Selar registration and send a screenshot of their Selar creator dashboard.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Complete the Selar registration, then send me a screenshot of your Selar dashboard 📸");
@@ -166,7 +167,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, `Student is on Day 1 Step 4 — they need to create a Payhip account using the special link (https://payhip.com/auth/register/af650fe07ce1c3c) and send their Payhip store link + a screenshot of their dashboard. ${student.payhip_link ? "They already sent their Payhip link: " + student.payhip_link + ". Now waiting for the dashboard screenshot." : "They haven't sent their Payhip link yet."}`);
+      const reply = await geminiChat(history, text, `Student is on Day 1 Step 4 — they need to create a Payhip account using the special link (https://payhip.com/auth/register/af650fe07ce1c3c) and send their Payhip store link + a screenshot of their dashboard. ${student.payhip_link ? "They already sent their Payhip link: " + student.payhip_link + ". Now waiting for the dashboard screenshot." : "They haven't sent their Payhip link yet."}`, student.id);
       await sendMessage(chatId, reply);
     } else {
       if (!student.payhip_link) {

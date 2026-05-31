@@ -1,4 +1,5 @@
 import type { ConversationMessage, ScreenshotResult } from "./types.ts";
+import { saveConversation } from "./db.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const GEMINI_URL =
@@ -29,7 +30,8 @@ function uint8ToBase64(bytes: Uint8Array): string {
 export async function geminiChat(
   history: ConversationMessage[],
   userMessage: string,
-  stepContext?: string
+  stepContext?: string,
+  studentId?: string
 ): Promise<string> {
   const systemText = stepContext
     ? `${AMARA_SYSTEM_PROMPT}\n\nCurrent step context: ${stepContext}`
@@ -37,9 +39,20 @@ export async function geminiChat(
 
   const contents: unknown[] = [];
 
-  // Build alternating user/model history (max 10 messages)
+  // Build a strictly alternating user/model sequence from recent history.
+  // Walk backwards keeping only messages that alternate, ending with "model"
+  // so the new "user" message can follow without triggering a Gemini 400 error.
+  // (The DB often has only user messages; this handles that gracefully.)
   const recent = history.slice(-10);
-  for (const msg of recent) {
+  const alternating: ConversationMessage[] = [];
+  let wantRole: "user" | "assistant" = "assistant";
+  for (let i = recent.length - 1; i >= 0; i--) {
+    if (recent[i].role === wantRole) {
+      alternating.unshift(recent[i]);
+      wantRole = wantRole === "user" ? "assistant" : "user";
+    }
+  }
+  for (const msg of alternating) {
     contents.push({
       role: msg.role === "user" ? "user" : "model",
       parts: [{ text: msg.message }],
@@ -76,7 +89,11 @@ export async function geminiChat(
   }
 
   const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "I dey here! Try again in a moment 😊";
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "I dey here! Try again in a moment 😊";
+  if (studentId) {
+    saveConversation(studentId, "assistant", text).catch(() => {});
+  }
+  return text;
 }
 
 export async function geminiVision(

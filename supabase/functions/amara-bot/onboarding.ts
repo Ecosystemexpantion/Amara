@@ -69,7 +69,8 @@ export async function handleOnboarding(
         const reply = await geminiChat(
           history,
           t,
-          "You just introduced yourself as Amara the EEM26 coach and asked the student for their full name. They replied with something that doesn't look like a name. Understand what they said, respond naturally and warmly, then ask again for their full name (exactly as it will appear on their certificate)."
+          "You just introduced yourself as Amara the EEM26 coach and asked the student for their full name. They replied with something that doesn't look like a name. Understand what they said, respond naturally and warmly, then ask again for their full name (exactly as it will appear on their certificate).",
+          student.id
         );
         await sendMessage(chatId, reply);
       }
@@ -88,7 +89,8 @@ export async function handleOnboarding(
         const reply = await geminiChat(
           history,
           t,
-          `You are Amara collecting onboarding details. You already have the student's name: ${student.full_name}. You asked for their email address. They sent something that isn't a valid email. Understand what they said, respond naturally, and redirect them to share their email address. Be warm and helpful, not robotic.`
+          `You are Amara collecting onboarding details. You already have the student's name: ${student.full_name}. You asked for their email address. They sent something that isn't a valid email. Understand what they said, respond naturally, and redirect them to share their email address. Be warm and helpful, not robotic.`,
+          student.id
         );
         await sendMessage(chatId, reply);
       }
@@ -104,7 +106,8 @@ export async function handleOnboarding(
         const reply = await geminiChat(
           history,
           t,
-          `You are Amara collecting onboarding details for ${student.full_name}. You asked for their phone number with country code (e.g. +2348012345678). They sent something that doesn't look like a phone number. Understand what they said and naturally redirect them to provide their phone number. Be warm, not robotic.`
+          `You are Amara collecting onboarding details for ${student.full_name}. You asked for their phone number with country code (e.g. +2348012345678). They sent something that doesn't look like a phone number. Understand what they said and naturally redirect them to provide their phone number. Be warm, not robotic.`,
+          student.id
         );
         await sendMessage(chatId, reply);
       }

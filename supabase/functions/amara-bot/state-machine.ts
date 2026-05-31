@@ -133,7 +133,8 @@ async function handleDayWait(
       `The student has completed Day ${student.current_day} and is waiting for Day ${nextDay} to unlock at ${unlockInfo}.
 They may have questions or just be chatting.
 Answer warmly. If they have questions about the business or what's coming next, answer enthusiastically about what Day ${nextDay} involves.
-Remind them their next day unlocks at ${unlockInfo} and tell them what exciting things are coming.`
+Remind them their next day unlocks at ${unlockInfo} and tell them what exciting things are coming.`,
+      student.id
     );
     await sendMessage(chatId, reply);
   } else {
@@ -160,7 +161,8 @@ Their setup:
 - AI sales bot: running 24/7
 - Certificate: ${student.certificate_issued ? "issued ✅" : "pending"}
 
-Answer their questions about growing their business, scaling sales, getting more traffic, etc. Be a supportive mentor.`
+Answer their questions about growing their business, scaling sales, getting more traffic, etc. Be a supportive mentor.`,
+      student.id
     );
     await sendMessage(chatId, reply);
   } else {

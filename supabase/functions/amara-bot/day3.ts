@@ -58,7 +58,7 @@ async function handleStep1(student: Student, chatId: number, text: string | null
 4. Choose a username (suggest: "${(student.full_name ?? "").split(" ")[0].toLowerCase()}eem26bot")
 5. Copy and paste the bot TOKEN they receive
 
-If they're asking a question, answer it. Always ask them to paste the bot token when ready.`);
+If they're asking a question, answer it. Always ask them to paste the bot token when ready.`, student.id);
   await sendMessage(chatId, reply);
 }
 
@@ -76,7 +76,7 @@ async function handleStep2(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to go to supabase.com and sign up using their GitHub account, then send a screenshot of their dashboard.");
+      const reply = await geminiChat(history, text, "Student needs to go to supabase.com and sign up using their GitHub account, then send a screenshot of their dashboard.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Go to <a href=\"https://supabase.com\">supabase.com</a> → Sign up with GitHub → send me a screenshot of your dashboard 📸");
@@ -104,7 +104,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to create a new Supabase project named EEM26Bot (free tier) and wait for it to be ready, then send a screenshot.");
+      const reply = await geminiChat(history, text, "Student needs to create a new Supabase project named EEM26Bot (free tier) and wait for it to be ready, then send a screenshot.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Create your EEM26Bot project on Supabase, wait for it to be ready, then send a screenshot 📸");
@@ -132,7 +132,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to go to Settings → API in their Supabase project and send a screenshot showing the Project URL and API keys.");
+      const reply = await geminiChat(history, text, "Student needs to go to Settings → API in their Supabase project and send a screenshot showing the Project URL and API keys.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Settings → API → take a screenshot showing your Project URL and keys, then send it to me 📸");
@@ -174,7 +174,7 @@ async function handleStep5(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to paste the SQL into their Supabase SQL Editor and run it, then send a screenshot showing success.");
+      const reply = await geminiChat(history, text, "Student needs to paste the SQL into their Supabase SQL Editor and run it, then send a screenshot showing success.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Paste the SQL into the Supabase SQL Editor → Run → screenshot the result 📸");
@@ -258,7 +258,7 @@ Then guide them to set environment variables in the function settings.`;
       context = "Student is deploying their EEM26 bot to Supabase. Ask them if they have a computer or just a phone so you can guide them the right way. Be encouraging and patient — this is the most technical step and you're right here with them!";
     }
 
-    const reply = await geminiChat(history, text, context);
+    const reply = await geminiChat(history, text, context, student.id);
     await sendMessage(chatId, reply);
   }
 }

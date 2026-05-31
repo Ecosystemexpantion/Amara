@@ -66,7 +66,7 @@ async function handleStep1(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student is on Day 2 Step 1. They need to create a GitHub account at github.com/signup and send a screenshot. Answer any question and redirect them.");
+      const reply = await geminiChat(history, text, "Student is on Day 2 Step 1. They need to create a GitHub account at github.com/signup and send a screenshot. Answer any question and redirect them.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Go to <a href=\"https://github.com/signup\">github.com/signup</a> and send me a screenshot when you're on the signup page 📸");
@@ -136,7 +136,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to click '+' → 'New repository' on GitHub and send a screenshot of the Create New Repository page.");
+      const reply = await geminiChat(history, text, "Student needs to click '+' → 'New repository' on GitHub and send a screenshot of the Create New Repository page.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Click <b>+</b> → <b>New repository</b> on GitHub, then send me a screenshot of that page 📸");
@@ -163,7 +163,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to create the EEM26page repository on GitHub and send a screenshot.");
+      const reply = await geminiChat(history, text, "Student needs to create the EEM26page repository on GitHub and send a screenshot.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Create the <code>EEM26page</code> repository and send me a screenshot 📸");
@@ -211,7 +211,7 @@ async function handleStep5(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to upload the index.html file to their EEM26page GitHub repo.");
+      const reply = await geminiChat(history, text, "Student needs to upload the index.html file to their EEM26page GitHub repo.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Add File → Upload Files → drag index.html → Commit changes — then send me a screenshot 📸");
@@ -239,7 +239,7 @@ async function handleStep6(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to enable GitHub Pages for the EEM26page repo under Settings → Pages → Branch: main → Save.");
+      const reply = await geminiChat(history, text, "Student needs to enable GitHub Pages for the EEM26page repo under Settings → Pages → Branch: main → Save.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Settings → Pages → Source: Deploy from branch → Branch: main → Save, then send me a screenshot 📸");
@@ -280,7 +280,7 @@ async function handleStep7(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to create the EEM26premium GitHub repo.");
+      const reply = await geminiChat(history, text, "Student needs to create the EEM26premium GitHub repo.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Create the <code>EEM26premium</code> repository and send me a screenshot 📸");
@@ -327,7 +327,7 @@ async function handleStep8(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to upload index.html to the EEM26premium repo.");
+      const reply = await geminiChat(history, text, "Student needs to upload index.html to the EEM26premium repo.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Upload the index.html to EEM26premium → Commit changes → send screenshot 📸");
@@ -355,7 +355,7 @@ async function handleStep9(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to enable GitHub Pages for EEM26premium.");
+      const reply = await geminiChat(history, text, "Student needs to enable GitHub Pages for EEM26premium.", student.id);
       await sendMessage(chatId, reply);
     } else {
       await sendMessage(chatId, "Settings → Pages → Branch: main → Save, then send me a screenshot 📸");
