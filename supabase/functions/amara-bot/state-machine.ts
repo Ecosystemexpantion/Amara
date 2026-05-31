@@ -1,6 +1,6 @@
 import { sendMessage, sendChatAction, downloadFile } from "./telegram.ts";
 import { saveConversation, getRecentConversation } from "./db.ts";
-import { geminiAudio, geminiChat, geminiVideoTranscribe } from "./gemini.ts";
+import { geminiAudio, geminiChat, geminiVideoTranscribe, geminiVisionGuide } from "./gemini.ts";
 import { handleOnboarding } from "./onboarding.ts";
 import { handleDay1 } from "./day1.ts";
 import { handleDay2 } from "./day2.ts";
@@ -82,7 +82,7 @@ export async function routeMessage(
 
     // Check if student is waiting for next day to unlock
     if (student.current_step === 0 && student.current_day >= 1 && student.current_day <= 3) {
-      await handleDayWait(student, chatId, cleanText);
+      await handleDayWait(student, chatId, cleanText, photoPayload);
       return;
     }
 
@@ -105,7 +105,7 @@ export async function routeMessage(
         break;
       default:
         // Program complete
-        await handleCompleted(student, chatId, cleanText);
+        await handleCompleted(student, chatId, cleanText, photoPayload);
     }
   } catch (e) {
     console.error("routeMessage error:", e);
@@ -119,7 +119,8 @@ export async function routeMessage(
 async function handleDayWait(
   student: Student,
   chatId: number,
-  text: string | null
+  text: string | null,
+  photo: { bytes: Uint8Array; mimeType: string } | null = null
 ): Promise<void> {
   const nextDay = student.current_day + 1;
   let unlockInfo = "tomorrow at 8AM Nigeria time";
@@ -128,6 +129,17 @@ async function handleDayWait(
     const unlockDate = new Date(student.next_day_unlocks_at);
     const nigeriaTime = new Date(unlockDate.getTime() + 60 * 60 * 1000);
     unlockInfo = `tomorrow at ${nigeriaTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} Nigeria time`;
+  }
+
+  if (photo) {
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      `Student has completed Day ${student.current_day} of the EEM26 program and is waiting for Day ${nextDay} to unlock at ${unlockInfo}. They may be reviewing something they set up or exploring. Guide them based on what you can see.`,
+      text ?? undefined
+    );
+    await sendMessage(chatId, guidance);
+    return;
   }
 
   if (text) {
@@ -152,8 +164,19 @@ Remind them their next day unlocks at ${unlockInfo} and tell them what exciting 
 async function handleCompleted(
   student: Student,
   chatId: number,
-  text: string | null
+  text: string | null,
+  photo: { bytes: Uint8Array; mimeType: string } | null = null
 ): Promise<void> {
+  if (photo) {
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      `Student is an EEM26 graduate — they completed the full 4-day program. Their setup: sales pages (${student.sales_page_link ?? "live"}), Payhip store (${student.payhip_link ?? "active"}), AI sales bot running 24/7. They may be showing you something about their business or asking for help with growth.`,
+      text ?? undefined
+    );
+    await sendMessage(chatId, guidance);
+    return;
+  }
   if (text) {
     const history = await getRecentConversation(student.id, 8);
     const reply = await geminiChat(history, text,

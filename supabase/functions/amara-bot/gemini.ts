@@ -27,7 +27,7 @@ Your personality:
 - You keep students on track — if they go off topic, gently redirect them
 - You never write long paragraphs — break everything into short punchy lines
 
-Voice notes: You CAN and DO send voice notes. When a student asks for a voice note, just reply warmly and naturally as you always do — the system automatically converts your text reply into audio. NEVER announce "voice note sent". NEVER say you cannot send voice notes. Just reply normally and it becomes audio automatically.
+Screenshots: When a student seems confused, lost, or unsure about WHERE to click or HOW to navigate, ask them to send you a screenshot so you can see exactly what's on their screen and guide them step by step — like a friend looking over their shoulder.
 
 Current context: You are guiding a paid student through their 4-day EEM26 business setup program. They have already purchased the Tech Stack package. Your job is to make sure they complete every step successfully.`;
 
@@ -265,6 +265,102 @@ export async function geminiVision(
 
   console.error("All vision providers exhausted");
   return { verified: false, reason: "verification_unavailable", guidance: undefined, extracted: {} };
+}
+
+// Read a screenshot and return warm, natural-language guidance (not JSON verification)
+export async function geminiVisionGuide(
+  imageBytes: Uint8Array,
+  mimeType: string,
+  stepContext: string,
+  studentQuestion?: string
+): Promise<string> {
+  const questionPart = studentQuestion
+    ? `The student also said: "${studentQuestion}"`
+    : "The student sent this screenshot — guide them based on what you see.";
+
+  const prompt = `${AMARA_SYSTEM_PROMPT}
+
+You are looking directly at a student's phone or computer screen.
+
+What this student is currently working on: ${stepContext}
+${questionPart}
+
+Look at this screenshot carefully and respond as Amara:
+1. Tell them EXACTLY what screen/page you can see — be specific (website name, page title, which section they are in)
+2. Tell them exactly what to click or tap next — name the button, its color, its location ("top right corner", "blue button at the bottom", "under the Settings menu")
+3. If what they need is NOT visible on screen, tell them to scroll (say which direction) and describe what to look for
+4. If they are on a completely wrong page or site, tell them the exact URL or steps to navigate back on track
+5. Maximum 4 short punchy sentences — like a friend watching their screen and guiding them step by step
+
+Respond in Amara's warm, natural style with Nigerian Pidgin where it fits.`;
+
+  const base64 = uint8ToBase64(imageBytes);
+  const body = {
+    contents: [{ parts: [
+      { inline_data: { mime_type: mimeType, data: base64 } },
+      { text: prompt },
+    ]}],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 400, candidateCount: 1 },
+  };
+
+  const keys = getGeminiKeys();
+  for (const key of keys) {
+    for (const model of GEMINI_VISION_MODELS) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.status === 429) { console.warn(`geminiVisionGuide quota: ${model}`); continue; }
+        if (!res.ok) { console.warn(`geminiVisionGuide ${res.status} (${model})`); continue; }
+        const data = await res.json();
+        const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+        if (text) return text;
+      } catch (e) {
+        console.error(`geminiVisionGuide exception (${model}):`, e);
+      }
+    }
+  }
+
+  // Groq vision fallback
+  const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+  if (GROQ_API_KEY) {
+    const groqModels = [
+      "meta-llama/llama-4-scout-17b-16e-instruct",
+      "llama-3.2-90b-vision-preview",
+      "llama-3.2-11b-vision-preview",
+    ];
+    for (const model of groqModels) {
+      try {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "user", content: [
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+              { type: "text", text: prompt },
+            ]}],
+            temperature: 0.7,
+            max_tokens: 400,
+          }),
+        });
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          const text: string = groqData.choices?.[0]?.message?.content?.trim() ?? "";
+          if (text) return text;
+        } else if (groqRes.status !== 429) {
+          console.warn(`geminiVisionGuide Groq ${groqRes.status} (${model})`);
+        }
+      } catch (e) {
+        console.error(`geminiVisionGuide Groq exception (${model}):`, e);
+      }
+    }
+  }
+
+  return "I can see your screenshot! 😊 Can you tell me which step you're having trouble with? I'll guide you through it!";
 }
 
 // Voice transcription — uses Groq Whisper if GROQ_API_KEY is set, falls back to Gemini

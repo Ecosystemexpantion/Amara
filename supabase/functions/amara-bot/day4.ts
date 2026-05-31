@@ -1,6 +1,6 @@
 import { sendMessage, sendChatAction, sendDocument } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, getRecentConversation } from "./db.ts";
-import { geminiVision, geminiChat, buildVerificationPrompt } from "./gemini.ts";
+import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { generateCertificate } from "./certificate.ts";
 import { notifyAdmin } from "./admin.ts";
 import type { Student, TelegramMessage } from "./types.ts";
@@ -215,7 +215,17 @@ async function handleStep5(student: Student, chatId: number, text: string | null
 }
 
 // Step 6: Grand finale (already handled in step 5, but catch any messages)
-async function handleStep6(student: Student, chatId: number, text: string | null, _photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
+async function handleStep6(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
+  if (photo) {
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      `Student has COMPLETED the full EEM26 program — Day 4 is done! They have two live sales pages, Selar, Payhip (${student.payhip_link ?? "linked"}), their own AI bot, and a certificate. They are now a full EEM26 graduate. Celebrate what you can see and answer any questions.`,
+      text ?? undefined
+    );
+    await sendMessage(chatId, guidance);
+    return;
+  }
   if (text) {
     const history = await getRecentConversation(student.id, 6);
     const reply = await geminiChat(history, text,

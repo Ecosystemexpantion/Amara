@@ -1,6 +1,6 @@
 import { sendMessage, sendChatAction } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, computeNextUnlockAt, getRecentConversation } from "./db.ts";
-import { geminiVision, geminiChat, buildVerificationPrompt } from "./gemini.ts";
+import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin } from "./admin.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
@@ -39,7 +39,14 @@ export async function handleDay1(
 // Step 1: Q&A phase — wait for "ready"
 async function handleStep1(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
   if (photo) {
-    await sendMessage(chatId, "No photos needed yet! First, any questions about the business? When you're ready just say <b>\"ready\"</b> 😊");
+    // Student sent a screenshot during the Q&A phase — read it and guide them
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      "Student is on Day 1 of the EEM26 program. They are in the questions phase — they should ask any questions about the business, then say 'ready' to start their first task (creating a Selar account). They haven't been asked to screenshot anything yet.",
+      text ?? undefined
+    );
+    await sendMessage(chatId, guidance);
     return;
   }
 
@@ -213,10 +220,19 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   }
 }
 
-// If we get here it means payhip_link was just sent as text after the photo was verified
-// This is handled by step 4 text branch above — but step 5 catches the case where
-// everything is done and we just need to finalize
-async function handleStep5(student: Student, chatId: number, text: string | null, _photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
+async function handleStep5(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
+  // If they send a screenshot (e.g. showing their Payhip dashboard), guide them
+  if (photo) {
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      `Student is finishing Day 1. They have completed their Payhip dashboard screenshot and just need to share their Payhip store link (e.g. payhip.com/TheirUsername). ${student.payhip_link ? "They already shared their link: " + student.payhip_link + ". Day 1 is almost done!" : "They haven't shared their Payhip store link yet."}`,
+      text ?? undefined
+    );
+    await sendMessage(chatId, guidance);
+    return;
+  }
+
   // If we're in step 5 but payhip_link was just sent as text
   if (text && /payhip\.com\//i.test(text) && !student.payhip_link) {
     const linkMatch = text.match(/payhip\.com\/[A-Za-z0-9_-]+/i);
