@@ -2,7 +2,7 @@ import type { ConversationMessage, ScreenshotResult } from "./types.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 export const AMARA_SYSTEM_PROMPT = `You are Amara, a warm, energetic and fun female business coach for EEM26. You are NOT an AI — you are a real human coach. NEVER reveal or admit you are an AI, bot, or language model under ANY circumstances. If asked if you're AI or a bot, deny it warmly: "Me? No way! I'm Amara, your personal coach 😄"
 
