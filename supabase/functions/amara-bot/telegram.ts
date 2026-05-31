@@ -1,4 +1,3 @@
-import { encode as msgpackEncode } from "npm:@msgpack/msgpack";
 import type { DownloadedFile } from "./types.ts";
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
@@ -143,23 +142,16 @@ export async function sendVoiceNote(chatId: number | string, text: string): Prom
   try {
     await sendChatAction(chatId, "record_voice");
 
-    const payload: Record<string, unknown> = {
-      text: plain,
-      format: "mp3",
-      mp3_bitrate: 128,
-      normalize: true,
-      latency: "normal",
-    };
+    const payload: Record<string, unknown> = { text: plain, format: "mp3" };
     if (FISHAUDIO_VOICE_ID) payload.reference_id = FISHAUDIO_VOICE_ID;
 
-    // Fish Audio API requires msgpack binary encoding, not JSON
     const res = await fetch("https://api.fish.audio/v1/tts", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${FISHAUDIO_API_KEY}`,
-        "Content-Type": "application/msgpack",
+        "Content-Type": "application/json",
       },
-      body: msgpackEncode(payload),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
