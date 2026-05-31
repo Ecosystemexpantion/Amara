@@ -109,7 +109,8 @@ export async function geminiVision(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini vision error ${res.status}: ${errText}`);
+    console.error(`Gemini vision error ${res.status} (mime: ${mimeType}): ${errText}`);
+    return { verified: false, reason: "verification_unavailable", extracted: {} };
   }
 
   const data = await res.json();

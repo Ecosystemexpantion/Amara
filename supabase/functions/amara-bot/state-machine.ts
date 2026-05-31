@@ -38,16 +38,18 @@ export async function routeMessage(
     } else if (msg.text) {
       textPayload = msg.text.trim();
     } else if (msg.video || msg.video_note) {
-      // Screen recording or round video — use visually for screenshot steps,
-      // and transcribe speech for conversational steps
+      // Screen recording or round video — transcribe speech only.
+      // We do NOT pass video bytes as photoPayload because Gemini vision only accepts images,
+      // not video inline_data. Handlers will ask for a screenshot if photo is required.
       const fileId = msg.video?.file_id ?? msg.video_note?.file_id;
       if (!fileId) return;
       await sendChatAction(chatId, "typing");
       try {
         const downloaded = await downloadFile(fileId);
-        photoPayload = downloaded;
         const transcript = await geminiVideoTranscribe(downloaded.bytes, downloaded.mimeType);
         if (transcript) textPayload = `[Screen recording] ${transcript}`;
+        // If no transcript, both textPayload and photoPayload remain null —
+        // the day handler will re-send the current step instructions.
       } catch (e) {
         console.error("Video processing error:", e);
         await sendMessage(chatId, "Couldn't process that video 😊 — try sending a screenshot instead 📸");
