@@ -1,4 +1,4 @@
-import { sendMessage, sendChatAction, sendDocument, sendVoiceNote } from "./telegram.ts";
+import { sendMessage, sendChatAction, sendDocument, sendAmaraReply } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, getRecentConversation } from "./db.ts";
 import { geminiVision, geminiChat, buildVerificationPrompt } from "./gemini.ts";
 import { generateCertificate } from "./certificate.ts";
@@ -37,7 +37,7 @@ async function handleStep1(student: Student, chatId: number, text: string | null
 - GEMINI_API_KEY: from Google AI Studio (aistudio.google.com)
 - SUPABASE_URL: auto-injected usually
 - SUPABASE_SERVICE_ROLE_KEY: from Supabase Settings → API → service_role`, student.id);
-      await sendVoiceNote(chatId, reply);
+      await sendAmaraReply(chatId, reply, text, student.screenshot_attempts);
     } else {
       await sendMessage(chatId, envVarInstructions);
     }
@@ -100,7 +100,7 @@ Their Supabase URL is: ${student.supabase_url ?? "not yet captured — they need
 The webhook URL format: ${webhookUrl}
 The curl command to run: curl -X POST "https://api.telegram.org/bot${botToken}/setWebhook" -d '{"url":"${webhookUrl}"}'
 Guide them step by step. If they don't have curl, suggest using a browser or Postman.`, student.id);
-    await sendVoiceNote(chatId, reply);
+    await sendAmaraReply(chatId, reply, text, student.screenshot_attempts);
   } else {
     await sendMessage(chatId, "Set your Telegram webhook and send me a screenshot, or just say <b>\"done\"</b> when it's set! 🔗");
   }
@@ -112,7 +112,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
     if (text) {
       const history = await getRecentConversation(student.id, 6);
       const reply = await geminiChat(history, text, "Student needs to test their Telegram bot by sending it a message and showing a screenshot of it responding.", student.id);
-      await sendVoiceNote(chatId, reply);
+      await sendAmaraReply(chatId, reply, text, student.screenshot_attempts);
     } else {
       await sendMessage(chatId, "Open your bot on Telegram, send it a message, and send me a screenshot of it replying 📸");
     }
@@ -228,7 +228,7 @@ async function handleStep6(student: Student, chatId: number, text: string | null
 Celebrate with them! Answer any questions they have about growing their business, getting more sales, sharing their pages, etc. Be warm, fun and encouraging. They're now a full EEM26 member! 🎉`,
       student.id
     );
-    await sendVoiceNote(chatId, reply);
+    await sendAmaraReply(chatId, reply, text, student.screenshot_attempts);
   }
 }
 

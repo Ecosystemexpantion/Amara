@@ -4,6 +4,36 @@ const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TG_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const TG_FILE_BASE = `https://api.telegram.org/file/bot${BOT_TOKEN}`;
 
+// Returns true if the student's message signals they want voice OR are confused
+function shouldUseVoice(studentText: string | null, screenshotAttempts = 0): boolean {
+  if (screenshotAttempts >= 2) return true; // stuck after multiple failed screenshots
+  if (!studentText) return false;
+  const t = studentText.toLowerCase();
+  return (
+    // explicit voice request
+    /\b(voice\s*note|send\s*(me\s*)?voice|vn\b|audio|speak|say\s*it)\b/.test(t) ||
+    // confusion signals
+    /\b(don'?t?\s*understand|not\s*clear|confus(ed)?|what\s*do\s*you\s*mean|help\s*me|i('?m|\s+am)\s*(lost|confused)|no\s*understand|explain\s*(again|more|better))\b/.test(t) ||
+    // three or more question marks = frustrated/confused
+    (studentText.match(/\?/g) ?? []).length >= 3
+  );
+}
+
+// Smart reply: sends a voice note when student is confused or requests one,
+// otherwise sends a normal text message. Falls back to text on any TTS error.
+export async function sendAmaraReply(
+  chatId: number | string,
+  amaraText: string,
+  studentText: string | null = null,
+  screenshotAttempts = 0
+): Promise<void> {
+  if (shouldUseVoice(studentText, screenshotAttempts)) {
+    await sendVoiceNote(chatId, amaraText);
+  } else {
+    await sendMessage(chatId, amaraText);
+  }
+}
+
 export async function sendMessage(
   chatId: number | string,
   text: string,
