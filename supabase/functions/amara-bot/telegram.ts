@@ -1,3 +1,4 @@
+import { encode as msgpackEncode } from "npm:@msgpack/msgpack";
 import type { DownloadedFile } from "./types.ts";
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
@@ -112,12 +113,14 @@ export async function getFilePath(fileId: string): Promise<string> {
   return data.result.file_path as string;
 }
 
-// Send a voice note via Unreal Speech TTS (250k chars/month free, returns raw MP3 bytes).
+// Send a voice note via Fish Audio TTS.
+// Fish Audio requires msgpack encoding (not JSON) — that's why it failed before.
 // Falls back to plain sendMessage if key is missing or on any error.
 export async function sendVoiceNote(chatId: number | string, text: string): Promise<void> {
-  const UNREALSPEECH_API_KEY = Deno.env.get("UNREALSPEECH_API_KEY");
+  const FISHAUDIO_API_KEY = Deno.env.get("FISHAUDIO_API_KEY");
+  const FISHAUDIO_VOICE_ID = Deno.env.get("FISHAUDIO_VOICE_ID") ?? "";
 
-  if (!UNREALSPEECH_API_KEY) {
+  if (!FISHAUDIO_API_KEY) {
     await sendMessage(chatId, text);
     return;
   }
@@ -140,17 +143,27 @@ export async function sendVoiceNote(chatId: number | string, text: string): Prom
   try {
     await sendChatAction(chatId, "record_voice");
 
-    const res = await fetch("https://api.v7.unrealspeech.com/stream", {
+    const payload: Record<string, unknown> = {
+      text: plain,
+      format: "mp3",
+      mp3_bitrate: 128,
+      normalize: true,
+      latency: "normal",
+    };
+    if (FISHAUDIO_VOICE_ID) payload.reference_id = FISHAUDIO_VOICE_ID;
+
+    // Fish Audio API requires msgpack binary encoding, not JSON
+    const res = await fetch("https://api.fish.audio/v1/tts", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${UNREALSPEECH_API_KEY}`,
-        "Content-Type": "application/json",
+        "Authorization": `Bearer ${FISHAUDIO_API_KEY}`,
+        "Content-Type": "application/msgpack",
       },
-      body: JSON.stringify({ Text: plain, VoiceId: "Scarlett", Bitrate: "128k", Speed: "0", Pitch: "1" }),
+      body: msgpackEncode(payload),
     });
 
     if (!res.ok) {
-      console.error(`Unreal Speech TTS ${res.status}: ${await res.text()}`);
+      console.error(`Fish Audio TTS ${res.status}: ${await res.text()}`);
       await sendMessage(chatId, text);
       return;
     }
