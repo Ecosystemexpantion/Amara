@@ -69,11 +69,6 @@ export async function geminiChat(
       topP: 0.95,
       candidateCount: 1,
     },
-    safetySettings: [
-      { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
-    ],
   };
 
   const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
@@ -85,7 +80,8 @@ export async function geminiChat(
   if (!res.ok) {
     const errText = await res.text();
     console.error(`Gemini chat error ${res.status}: ${errText}`);
-    return "I dey here! 😊 Small network issue — try again in a moment.";
+    // Temporary: surface the error so we can diagnose without server log access
+    return `[DEBUG ${res.status}] ${errText.slice(0, 200)}`;
   }
 
   const data = await res.json();
