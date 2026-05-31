@@ -258,9 +258,16 @@ async function handleFailed(student: Student, chatId: number, reason: string, re
   if (attempts >= 3) {
     await resetScreenshotAttempts(student.id);
     await notifyAdmin(`⚠️ <b>STUDENT STUCK</b>\nName: ${student.full_name}\nDay: 4, Step: ${student.current_step}\nReason: ${reason}`);
-    await sendMessage(chatId, `No wahala! Let me explain it a different way 😊\n\n${retryMsg}`);
   } else {
     await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
-    await sendMessage(chatId, `Hmm, that's not quite it — no worries! 😊\n\nTry again: ${retryMsg}`);
   }
+  const history = await getRecentConversation(student.id, 3);
+  const reply = await geminiChat(
+    history,
+    `[screenshot analysis]`,
+    `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMsg}".
+In Amara's warm, friendly style: tell the student EXACTLY what you can see in their screenshot (be specific about what page/screen it is), then give them PRECISE step-by-step instructions on what to click or do next to get to the right place. Don't be generic — be like a friend looking at their phone screen and guiding them.`,
+    student.id
+  );
+  await sendMessage(chatId, reply);
 }
