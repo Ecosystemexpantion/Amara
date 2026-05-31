@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tech Stack Swipe File — EEM26</title>
+<meta name="description" content="The exact system EEM26 students used to make ₦200K–₦500K monthly. Get instant access now.">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Figtree:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script>
+// Override document.createElement so every iframe gets allow="clipboard-read; clipboard-write"
+// BEFORE Paystack assigns src. The browser locks Permissions Policy at navigation time,
+// so this must happen before src is set — MutationObserver fires too late.
+(function(){
+  var _ce = document.createElement.bind(document);
+  document.createElement = function(tag){
+    var el = _ce(tag);
+    if(typeof tag === 'string' && tag.toLowerCase() === 'iframe'){
+      el.setAttribute('allow', 'clipboard-read; clipboard-write');
+    }
+    return el;
+  };
+})();
+</script>
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --green:#00C853;--green2:#00a844;--gold:#FFD700;--gold2:#F5A623;
+  --red:#FF3D3D;--deep:#050F08;--card:#0A1A0F;--card2:#0d2010;
+  --border:rgba(0,200,83,0.15);--text:#E8F5EE;--muted:#7A9E88;
+}
+html{scroll-behavior:smooth}
+body{background:var(--deep);color:var(--text);font-family:'Figtree',sans-serif;overflow-x:hidden}
+
+.ticker{background:linear-gradient(90deg,#001a08,#003010,#001a08);border-bottom:1px solid var(--border);padding:9px 0;overflow:hidden;white-space:nowrap}
+.ticker-inner{display:inline-block;animation:tick 30s linear infinite;font-size:.75rem;letter-spacing:2px;color:var(--green);font-weight:700}
+@keyframes tick{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
+
+nav{position:sticky;top:0;z-index:100;background:rgba(5,15,8,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:13px 20px}
+.nav-logo{font-family:'Bebas Neue',cursive;font-size:1.3rem;color:var(--green);letter-spacing:3px}
+.nav-btn{background:linear-gradient(135deg,var(--green),var(--green2));color:#000;font-weight:900;font-size:.75rem;letter-spacing:.5px;padding:10px 18px;border-radius:6px;text-decoration:none;transition:all .2s;border:none;cursor:pointer;font-family:'Figtree',sans-serif}
+.nav-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,200,83,.4)}
+
+.hero{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 20px 60px;background:radial-gradient(ellipse 100% 70% at 50% 0%,#003d1a 0%,transparent 65%),var(--deep);position:relative;overflow:hidden}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(0,200,83,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,200,83,.04) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
+.hero-glow{position:absolute;top:-100px;left:50%;transform:translateX(-50%);width:700px;height:500px;background:radial-gradient(ellipse,rgba(0,200,83,.08) 0%,transparent 70%);pointer-events:none}
+
+.proof-bar{display:inline-flex;align-items:center;gap:10px;background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:var(--green);font-size:.72rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:9px 20px;border-radius:20px;margin-bottom:28px;position:relative}
+.live-dot{width:8px;height:8px;background:var(--green);border-radius:50%;animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+
+.hero h1{font-family:'Bebas Neue',cursive;font-size:clamp(3rem,16vw,9rem);line-height:.88;letter-spacing:1px;margin-bottom:10px;position:relative}
+.hero h1 .line1{display:block;color:var(--text)}
+.hero h1 .line2{display:block;background:linear-gradient(135deg,#fff 0%,var(--green) 50%,#00ff88 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero h1 .line3{display:block;color:var(--gold);font-size:clamp(1.4rem,5vw,3.2rem);letter-spacing:6px;margin-top:4px}
+
+.hero-sub{font-size:clamp(.9rem,2.2vw,1.05rem);font-weight:600;color:var(--muted);max-width:500px;margin:20px auto 32px;line-height:1.7}
+.hero-sub strong{color:var(--text)}
+
+.proof-nums{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-bottom:36px}
+.pnum{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;text-align:center;min-width:100px}
+.pnum strong{font-family:'Bebas Neue',cursive;font-size:1.7rem;color:var(--gold);display:block;line-height:1}
+.pnum span{font-size:.6rem;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase}
+
+.cta-stack{display:flex;flex-direction:column;align-items:center;gap:12px}
+.price-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+.old-price{font-size:1rem;color:var(--muted);text-decoration:line-through}
+.new-price{font-family:'Bebas Neue',cursive;font-size:3.2rem;color:var(--gold);line-height:1}
+.save-badge{background:var(--red);color:#fff;font-size:.7rem;font-weight:900;letter-spacing:1px;padding:5px 12px;border-radius:50px}
+
+.dl-btn{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,var(--green),var(--green2));color:#000;font-weight:900;font-size:1rem;padding:20px 44px;border-radius:8px;text-decoration:none;border:none;cursor:pointer;font-family:'Figtree',sans-serif;transition:all .2s;box-shadow:0 0 50px rgba(0,200,83,.35);animation:btnPulse 2.5s ease-in-out infinite}
+.dl-btn:hover{transform:translateY(-3px);box-shadow:0 0 70px rgba(0,200,83,.6);animation:none}
+@keyframes btnPulse{0%,100%{box-shadow:0 0 50px rgba(0,200,83,.35)}50%{box-shadow:0 0 80px rgba(0,200,83,.6)}}
+.btn-note{font-size:.72rem;color:var(--muted);letter-spacing:.5px;text-align:center}
+
+.trust-bar{background:var(--card);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:18px;display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap}
+.trust-item{display:flex;align-items:center;gap:7px;font-size:.75rem;font-weight:700;color:var(--muted)}
+
+.section-tag{font-size:.65rem;font-weight:700;letter-spacing:4px;color:var(--green);text-transform:uppercase;margin-bottom:8px}
+.section-title{font-family:'Bebas Neue',cursive;font-size:clamp(2rem,7vw,3.8rem);line-height:.95;margin-bottom:6px}
+.section-title span{color:var(--gold)}
+.divider-line{width:48px;height:3px;background:linear-gradient(90deg,var(--green),transparent);border-radius:2px;margin:14px 0 24px}
+
+/* VIDEO */
+.video-section{padding:60px 20px;max-width:700px;margin:0 auto}
+.video-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:20px}
+.vc-top{padding:18px 20px 14px;border-bottom:1px solid var(--border)}
+.vc-label{font-size:.62rem;font-weight:700;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin-bottom:6px}
+.vc-title{font-size:.95rem;font-weight:700;line-height:1.4;color:var(--text)}
+.vc-sub{font-size:.8rem;color:var(--muted);margin-top:4px;line-height:1.5}
+.vf-wide{position:relative;padding-top:56.25%}
+.vf-wide iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none}
+.vf-tall{position:relative;aspect-ratio:9/16;max-height:500px}
+.vf-tall iframe{width:100%;height:100%;border:none;display:block}
+
+/* PROOF */
+.sp-strip{padding:60px 20px;background:linear-gradient(180deg,#020c06,#030f07);border-bottom:1px solid rgba(255,215,0,.1)}
+.sp-inner{max-width:700px;margin:0 auto}
+.proof-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:18px}
+.pc-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.pc-avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',cursive;font-size:1.3rem;font-weight:900;flex-shrink:0}
+.pc-name{font-size:.92rem;font-weight:700;margin-bottom:2px}
+.pc-meta{font-size:.7rem;color:var(--muted)}
+.pc-body{padding:20px}
+.pc-story{font-size:.88rem;line-height:1.75;color:#bbb;margin-bottom:18px}
+.pc-story em{color:var(--gold);font-style:normal;font-weight:700}
+.proof-imgs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.proof-imgs img{width:100%;border-radius:10px;border:1px solid var(--border);display:block}
+@media(max-width:420px){.proof-imgs{grid-template-columns:1fr}}
+.pc-footer{padding:12px 20px;border-top:1px solid var(--border);font-size:.72rem;color:var(--muted)}
+
+/* NUMBERS */
+.nums-strip{padding:50px 20px;background:var(--card);border-bottom:1px solid var(--border)}
+.nums-inner{max-width:700px;margin:0 auto}
+.nums-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:28px}
+.num-card{background:linear-gradient(135deg,rgba(0,200,83,.06),rgba(0,200,83,.02));border:1px solid var(--border);border-radius:16px;padding:24px 16px;text-align:center}
+.num-val{font-family:'Bebas Neue',cursive;font-size:2.8rem;color:var(--green);line-height:1;margin-bottom:6px}
+.num-label{font-size:.7rem;color:var(--muted);line-height:1.4}
+
+/* INSIDE */
+.inside-section{padding:60px 20px;max-width:700px;margin:0 auto}
+.stack-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:28px}
+.stack-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;position:relative;overflow:hidden;transition:all .3s}
+.stack-card:hover{border-color:rgba(0,200,83,.5);transform:translateY(-3px);box-shadow:0 16px 50px rgba(0,200,83,.1)}
+.stack-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--green),transparent)}
+.stack-icon{font-size:1.8rem;margin-bottom:12px;display:block}
+.stack-name{font-weight:900;font-size:.88rem;color:var(--green);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.stack-desc{font-size:.82rem;line-height:1.6;color:var(--muted)}
+.stack-val{margin-top:12px;font-size:.7rem;color:var(--gold);font-weight:700}
+.tools-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;margin-top:14px}
+.tools-title{font-size:.75rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--green);margin-bottom:18px}
+.tool-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.tool-row:last-child{border-bottom:none}
+.tdot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+.tname2{font-size:.85rem;font-weight:600;color:var(--text);flex:1}
+.ttag{font-size:.62rem;font-weight:700;background:rgba(0,200,83,.1);color:var(--green);padding:3px 10px;border-radius:50px;white-space:nowrap}
+
+/* TESTI */
+.testi-section{padding:60px 20px;background:linear-gradient(180deg,#030a05,var(--card));border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.testi-inner{max-width:700px;margin:0 auto}
+.testi-grid{display:grid;gap:12px;margin-top:28px}
+.testi-card{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:22px;position:relative}
+.testi-card::before{content:'"';font-family:'Bebas Neue',cursive;font-size:5rem;color:var(--green);position:absolute;top:-12px;left:14px;line-height:1;opacity:.25}
+.testi-stars{color:var(--gold);font-size:.8rem;margin-bottom:6px}
+.testi-text{font-size:.88rem;line-height:1.75;color:#ccc;padding-top:8px}
+.testi-footer{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.tavi{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.85rem;flex-shrink:0}
+.t-name{font-weight:700;font-size:.82rem;color:var(--text)}
+.t-meta{font-size:.68rem;color:var(--muted)}
+
+/* COACHES */
+.coaches-section{padding:60px 20px;max-width:700px;margin:0 auto}
+.coaches-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:28px}
+.coach-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px 16px;text-align:center;transition:all .3s}
+.coach-card:hover{border-color:rgba(0,200,83,.4);transform:translateY(-3px)}
+.coach-av{width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#004D20,var(--green));display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',cursive;font-size:1.6rem;color:#000;margin:0 auto 12px;border:2px solid rgba(0,200,83,.3)}
+.coach-role{font-size:.62rem;letter-spacing:2px;text-transform:uppercase;color:var(--green);font-weight:700;margin-bottom:4px}
+.coach-name{font-weight:900;font-size:.9rem;margin-bottom:6px}
+.coach-desc{font-size:.72rem;color:var(--muted);line-height:1.5}
+
+/* URGENCY */
+.urgency-section{padding:40px 20px;background:rgba(255,61,61,.04);border-top:1px solid rgba(255,61,61,.2);border-bottom:1px solid rgba(255,61,61,.2)}
+.urgency-inner{max-width:600px;margin:0 auto;text-align:center}
+.urgency-title{font-family:'Bebas Neue',cursive;font-size:clamp(2rem,8vw,3.5rem);color:var(--red);margin-bottom:18px}
+.urgency-box{background:rgba(255,61,61,.06);border:1px solid rgba(255,61,61,.2);border-radius:14px;padding:22px;text-align:left}
+.urgency-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,61,61,.1)}
+.urgency-item:last-child{border-bottom:none}
+.u-icon{font-size:1rem;flex-shrink:0;margin-top:2px}
+.u-text{font-size:.88rem;line-height:1.6;color:var(--text)}
+.u-text strong{color:var(--red)}
+
+/* FINAL */
+.final-section{padding:90px 20px;text-align:center;background:radial-gradient(ellipse 80% 60% at 50% 100%,#003d1a 0%,transparent 65%)}
+.final-section h2{font-family:'Bebas Neue',cursive;font-size:clamp(2.5rem,10vw,6rem);line-height:.92;margin-bottom:20px}
+.final-section h2 span{color:var(--green)}
+.final-sub{color:var(--muted);max-width:440px;margin:0 auto 36px;font-size:.92rem;line-height:1.7}
+.timer-wrap{background:rgba(255,61,61,.08);border:2px solid rgba(255,61,61,.3);border-radius:16px;padding:18px 32px;margin-bottom:24px;display:inline-block}
+.timer-label{font-size:.68rem;letter-spacing:3px;text-transform:uppercase;color:var(--red);margin-bottom:10px;font-weight:700}
+.timer-row{display:flex;gap:16px;align-items:center;justify-content:center}
+.t-block{text-align:center}
+.t-num{font-family:'Bebas Neue',cursive;font-size:3.5rem;color:var(--red);line-height:1;text-shadow:0 0 20px rgba(255,61,61,.5)}
+.t-unit{font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.t-sep{font-family:'Bebas Neue',cursive;font-size:3rem;color:var(--red);opacity:.6;padding-bottom:10px}
+.slots-txt{font-size:.82rem;color:var(--red);font-weight:700;letter-spacing:1px;margin-bottom:28px;animation:blink2 1.2s infinite}
+@keyframes blink2{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* FLOAT */
+.float-btn{position:fixed;bottom:20px;right:16px;z-index:200;background:linear-gradient(135deg,var(--green),var(--green2));color:#000;display:flex;align-items:center;gap:8px;padding:13px 20px;border-radius:50px;font-weight:900;font-size:.82rem;text-decoration:none;box-shadow:0 6px 30px rgba(0,200,83,.45);animation:floatPop 2.5s ease-in-out infinite;transition:transform .15s;border:none;cursor:pointer;font-family:'Figtree',sans-serif}
+.float-btn:hover{transform:scale(1.05);animation:none}
+@keyframes floatPop{0%,100%{box-shadow:0 6px 30px rgba(0,200,83,.45)}50%{box-shadow:0 6px 55px rgba(0,200,83,.75)}}
+
+.reveal{opacity:0;transform:translateY(20px);transition:opacity .55s,transform .55s}
+.reveal.visible{opacity:1;transform:none}
+footer{background:#000;text-align:center;padding:16px;font-size:.65rem;color:#333;letter-spacing:1px}
+
+/* TOP TIMER */
+.top-timer{background:rgba(255,61,61,.08);border-bottom:2px solid rgba(255,61,61,.35);padding:14px 20px;text-align:center}
+.top-timer-label{font-size:.6rem;letter-spacing:4px;text-transform:uppercase;color:var(--red);font-weight:700;margin-bottom:8px}
+.top-timer-row{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
+.top-t-block{text-align:center}
+.top-t-num{font-family:'Bebas Neue',cursive;font-size:2.6rem;color:var(--red);line-height:1;text-shadow:0 0 20px rgba(255,61,61,.5)}
+.top-t-unit{font-size:.52rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.top-t-sep{font-family:'Bebas Neue',cursive;font-size:2.2rem;color:var(--red);opacity:.5;padding-bottom:10px}
+.top-timer-slots{font-size:.72rem;color:var(--red);font-weight:700;letter-spacing:1px;animation:blink2 1.2s infinite}
+
+/* FLOATING SLOT TRACKER */
+.float-slot{
+  position:fixed;bottom:70px;left:50%;transform:translateX(-50%);
+  z-index:199;width:calc(100% - 32px);max-width:340px;
+  background:rgba(5,15,8,.96);
+  border:1px solid rgba(0,200,83,.25);
+  border-top:2px solid var(--green);
+  border-radius:10px;
+  padding:6px 10px 5px;
+  backdrop-filter:blur(20px);
+  box-shadow:0 4px 20px rgba(0,0,0,.5),0 0 14px rgba(0,200,83,.07);
+  transition:background .3s, border-color .3s, box-shadow .3s;
+}
+.float-slot.flash{
+  background:rgba(255,61,61,.18) !important;
+  border-color:var(--red) !important;
+  box-shadow:0 0 0 3px rgba(255,61,61,.3), 0 4px 20px rgba(255,61,61,.3) !important;
+  animation:shake .35s ease;
+}
+@keyframes shake{0%,100%{transform:translateX(-50%)}15%,45%,75%{transform:translateX(calc(-50% - 7px))}30%,60%,90%{transform:translateX(calc(-50% + 7px))}}
+.fs-label{font-size:.46rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:5px;text-align:center}
+.fs-dots{display:flex;justify-content:center;gap:3px;flex-wrap:wrap;margin-bottom:4px}
+.fs-dot{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;border:1.5px solid;font-size:.38rem;transition:all .4s}
+.fs-dot.taken{background:rgba(255,61,61,.15);border-color:var(--red);color:var(--red)}
+.fs-dot.taken.just-taken{animation:takenPop .5s ease}
+@keyframes takenPop{0%{transform:scale(1.6);background:rgba(255,61,61,.5)}100%{transform:scale(1)}}
+.fs-dot.you{background:rgba(0,200,83,.2);border-color:var(--green);color:var(--green);font-size:.34rem;animation:youPulse 1.8s infinite}
+.fs-dot.open{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);color:rgba(255,255,255,.18)}
+@keyframes youPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,200,83,.5)}50%{box-shadow:0 0 0 4px rgba(0,200,83,0)}}
+.fs-caption{font-size:.56rem;color:var(--muted);text-align:center;line-height:1.3}
+.fs-caption strong{color:var(--red)}
+.fs-caption .you-note{color:var(--green);font-weight:700}
+.fs-alert{font-size:.62rem;background:rgba(255,61,61,.15);border:1px solid rgba(255,61,61,.4);border-radius:5px;padding:4px 10px;margin-top:5px;color:var(--red);font-weight:900;text-align:center;display:none;letter-spacing:.3px}
+.fs-alert.show{display:block;animation:alertPop .3s ease}
+@keyframes alertPop{0%{transform:scale(.92);opacity:0}60%{transform:scale(1.04)}100%{transform:scale(1);opacity:1}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* EMAIL MODAL */
+.pay-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+.pay-overlay.open{opacity:1;pointer-events:all}
+.pay-modal{background:var(--card);border:1px solid var(--border);border-top:2px solid var(--green);border-radius:16px;padding:32px 24px;max-width:380px;width:100%;text-align:center;position:relative;transform:translateY(20px);transition:transform .25s}
+.pay-overlay.open .pay-modal{transform:none}
+.pay-modal h3{font-family:'Bebas Neue',cursive;font-size:1.8rem;color:var(--text);margin-bottom:6px}
+.pay-modal p{font-size:.8rem;color:var(--muted);margin-bottom:20px;line-height:1.5}
+.pay-modal input[type=email]{width:100%;background:#0d2010;border:1px solid var(--border);color:var(--text);font-family:'Figtree',sans-serif;font-size:.9rem;padding:13px 16px;border-radius:8px;outline:none;margin-bottom:12px;transition:border-color .2s;box-sizing:border-box}
+.pay-modal input[type=email]:focus{border-color:var(--green)}
+.pay-modal input[type=email]::placeholder{color:var(--muted)}
+.pay-modal-btn{width:100%;background:linear-gradient(135deg,var(--green),var(--green2));color:#000;font-weight:900;font-size:.95rem;padding:14px;border-radius:8px;border:none;cursor:pointer;font-family:'Figtree',sans-serif;transition:all .2s}
+.pay-modal-btn:hover{box-shadow:0 6px 20px rgba(0,200,83,.4)}
+.pay-modal-btn:disabled{opacity:.6;cursor:not-allowed}
+.pay-modal-x{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;line-height:1;padding:2px 6px}
+.pay-modal-note{font-size:.68rem;color:var(--muted);margin-top:10px}
+</style>
+</head>
+<body>
+
+<!-- PAYSTACK EMAIL MODAL -->
+<div class="pay-overlay" id="payOverlay">
+  <div class="pay-modal">
+    <button class="pay-modal-x" id="payModalClose">✕</button>
+    <h3>Almost There!</h3>
+    <p>This is the last decision you make manually. After this, your AI handles everything. Enter your email — your access arrives instantly.</p>
+    <input type="email" id="buyerEmail" placeholder="your@email.com" autocomplete="email">
+    <button class="pay-modal-btn" id="payNowBtn">🔒 Pay ₦39,820 Securely</button>
+    <div class="pay-modal-note">🔒 Secured by Paystack &nbsp;·&nbsp; ✅ Instant access after payment</div>
+  </div>
+</div>
+
+<a href="#" class="float-btn buy-trigger">⬇️ Download Now — ₦39,820</a>
+
+<div class="ticker"><div class="ticker-inner">⚡ 219 VIEWS &nbsp;•&nbsp; 42 ORDERS &nbsp;•&nbsp; ₦51M+ IN STUDENT SALES &nbsp;•&nbsp; 4 PERSONAL COACHES &nbsp;•&nbsp; INSTANT ACCESS AFTER PAYMENT &nbsp;•&nbsp; SECURE CHECKOUT VIA PAYSTACK &nbsp;&nbsp;&nbsp;&nbsp; ⚡ 219 VIEWS &nbsp;•&nbsp; 42 ORDERS &nbsp;•&nbsp; ₦51M+ IN STUDENT SALES &nbsp;•&nbsp; 4 PERSONAL COACHES &nbsp;•&nbsp; INSTANT ACCESS AFTER PAYMENT &nbsp;•&nbsp; SECURE CHECKOUT VIA PAYSTACK &nbsp;&nbsp;&nbsp;&nbsp;</div></div>
+
+<nav>
+  <div class="nav-logo">EEM26</div>
+  <a href="#" class="nav-btn buy-trigger">⬇️ Download Now</a>
+</nav>
+
+<!-- TOP TIMER -->
+<div class="top-timer">
+  <div class="top-timer-label">⏳ Your Download Slot Expires In</div>
+  <div class="top-timer-row">
+    <div class="top-t-block"><div class="top-t-num" id="top-mins">04</div><div class="top-t-unit">Minutes</div></div>
+    <div class="top-t-sep">:</div>
+    <div class="top-t-block"><div class="top-t-num" id="top-secs">00</div><div class="top-t-unit">Seconds</div></div>
+    <div class="top-timer-slots" id="slots-left-txt">🔴 10 Slots Left</div>
+  </div>
+</div>
+
+<!-- FLOATING SLOT TRACKER -->
+<div class="float-slot" id="float-slot">
+  <div class="fs-label">15 Download Slots — Live Status</div>
+  <div class="fs-dots" id="fs-dots"></div>
+  <div class="fs-caption" id="fs-caption"></div>
+  <div class="fs-alert" id="fs-alert">⚡ Someone just downloaded — YOUR slot moved!</div>
+</div>
+
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+  <div class="proof-bar reveal"><span class="live-dot"></span>42 Students Already Inside — Slots Closing</div>
+  <h1 class="reveal">
+    <span class="line1">TECH</span>
+    <span class="line2">STACK</span>
+    <span class="line3">— The Swipe File —</span>
+  </h1>
+  <p class="hero-sub reveal">The <strong>exact system</strong> EEM26 students used to make <strong>₦200K–₦500K monthly</strong> — AI tools, premium software, and <strong>4 personal coaches</strong> who set everything up with you until you're making money.</p>
+  <div class="proof-nums reveal">
+    <div class="pnum"><strong>₦51M+</strong><span>Student Sales</span></div>
+    <div class="pnum"><strong>42</strong><span>Orders</span></div>
+    <div class="pnum"><strong>4</strong><span>Coaches</span></div>
+    <div class="pnum"><strong>8+</strong><span>Currencies</span></div>
+  </div>
+  <div class="cta-stack reveal">
+    <div class="price-row">
+      <span class="old-price">₦70,000</span>
+      <span class="new-price">₦39,820</span>
+      <span class="save-badge">43% OFF</span>
+    </div>
+    <a href="#" class="dl-btn buy-trigger">⬇️ Download The Tech Stack Now</a>
+    <div class="btn-note">🔒 Secure Checkout · Paystack & Flutterwave · Instant Access</div>
+  </div>
+</section>
+
+<div class="trust-bar">
+  <div class="trust-item"><span>✅</span> Instant Access</div>
+  <div class="trust-item"><span>🔒</span> Secure Payment</div>
+  <div class="trust-item"><span>👥</span> 4 Personal Coaches</div>
+  <div class="trust-item"><span>🌍</span> 8+ Currencies</div>
+  <div class="trust-item"><span>⚡</span> AI-Powered System</div>
+</div>
+
+<!-- PROOF VIDEO -->
+<div class="video-section">
+  <div class="section-tag reveal">Watch Before You Buy</div>
+  <div class="divider-line reveal"></div>
+  <h2 class="section-title reveal">Coach Victor Withdraws<br><span>₦1,000,000+ Live.</span></h2>
+  <p class="reveal" style="color:var(--muted);font-size:.88rem;line-height:1.7;margin-bottom:24px">Watch this first. Coach Victor shows you the business in action and pulls out a real ₦1,000,000 withdrawal on camera. Not theory. Not screenshots. Live.</p>
+  <div class="video-card reveal">
+    <div class="vc-top">
+      <div class="vc-label">💰 Live Withdrawal — Real Proof</div>
+      <div class="vc-title">Coach Victor — EEM26 Founder</div>
+      <div class="vc-sub">Showing exactly what this business pays. Live. On camera.</div>
+    </div>
+    <div class="vf-wide"><iframe src="https://www.youtube.com/embed/Xp1q8xigFO8" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture" loading="lazy"></iframe></div>
+  </div>
+</div>
+
+<!-- STUDENT PROOF -->
+<section class="sp-strip">
+  <div class="sp-inner">
+    <div class="section-tag reveal">Real Students. Real Results.</div>
+    <div class="divider-line reveal"></div>
+    <h2 class="section-title reveal">Here's What <span>Their Dashboards</span> Look Like</h2>
+    <p class="reveal" style="color:var(--muted);font-size:.88rem;margin-bottom:32px;line-height:1.65">These are not promises. These are real EEM26 students — people who had zero experience, followed the system, and started making real money.</p>
+
+    <div class="proof-card reveal">
+      <div class="pc-header">
+        <div class="pc-avatar" style="background:rgba(255,215,0,.15);color:var(--gold)">HS</div>
+        <div><div class="pc-name">Halima Sada</div><div class="pc-meta">📍 Kano State &nbsp;•&nbsp; Joined via Facebook Ad</div></div>
+      </div>
+      <div class="pc-body">
+        <p class="pc-story">Halima almost didn't click the ad. She had tried so many courses that promised results and delivered nothing. She joined EEM26, followed the setup step by step, and by week three she had her first real withdrawal. Her exact words: <em>"I just wanted you to see what your training did for me."</em></p>
+        <div class="proof-imgs">
+          <img src="https://raw.githubusercontent.com/Ecosystemexpantion/Image/main/Screenshot_20260407_062937_Facebook.jpg" alt="Halima result" loading="lazy">
+          <img src="https://raw.githubusercontent.com/Ecosystemexpantion/Image/main/Screenshot_20260407_062945_Facebook.jpg" alt="Halima earnings" loading="lazy">
+        </div>
+      </div>
+      <div class="pc-footer">✅ Verified Dashboard &nbsp;•&nbsp; Sent directly to EEM26</div>
+    </div>
+
+    <div class="proof-card reveal">
+      <div class="pc-header">
+        <div class="pc-avatar" style="background:rgba(0,200,83,.12);color:var(--green)">EB</div>
+        <div><div class="pc-name">Emmanuel Chukwuemeka Biachi</div><div class="pc-meta">📍 Ibadan &nbsp;•&nbsp; Saw the EEM26 ad on Facebook</div></div>
+      </div>
+      <div class="pc-body">
+        <p class="pc-story">Emmanuel had been trying to make money online for over a year — buying courses that gave theory but no real steps. When he joined EEM26 and followed the system, within his first month he had sales coming in from NGN, XAF, GHS. He sent this dashboard with just one message: <em>"This actually works."</em></p>
+        <div class="proof-imgs">
+          <img src="https://raw.githubusercontent.com/Ecosystemexpantion/Image/main/Screenshot_20260407_062929_Facebook.jpg" alt="Emmanuel result" loading="lazy">
+          <img src="https://raw.githubusercontent.com/Ecosystemexpantion/Image/main/Screenshot_20260407_062921_Facebook.jpg" alt="Emmanuel earnings" loading="lazy">
+        </div>
+      </div>
+      <div class="pc-footer">✅ Verified Dashboard &nbsp;•&nbsp; Sent directly to EEM26</div>
+    </div>
+
+    <div class="proof-card reveal">
+      <div class="pc-header">
+        <div class="pc-avatar" style="background:rgba(245,166,35,.12);color:var(--gold2)">AN</div>
+        <div><div class="pc-name">Ahmad Nasir</div><div class="pc-meta">📍 Kaduna &nbsp;•&nbsp; Found EEM26 through a friend already earning</div></div>
+      </div>
+      <div class="pc-body">
+        <p class="pc-story">Ahmad focused on the affiliate side. While others were still figuring things out, Ahmad was already making sales in multiple currencies — NGN 359,400 in affiliate earnings, 20 sales, XAF and GHS stacked on top. All from a system he built following EEM26 training. Step by step. No shortcuts skipped.</p>
+        <div class="proof-imgs">
+          <img src="https://raw.githubusercontent.com/Ecosystemexpantion/Image/main/IMG-20260402-WA0000.jpg" alt="Ahmad earnings" loading="lazy">
+          <img src="https://raw.githubusercontent.com/Ecosystemexpantion/Image/main/Screenshot_20260406_120038_Chrome%20Beta.jpg" alt="Ahmad sales" loading="lazy">
+        </div>
+      </div>
+      <div class="pc-footer">✅ Verified Affiliate Dashboard &nbsp;•&nbsp; Sent directly to EEM26</div>
+    </div>
+
+    <div class="proof-card reveal">
+      <div class="pc-header">
+        <div class="pc-avatar" style="background:rgba(0,200,83,.1);color:var(--green)">SO</div>
+        <div><div class="pc-name">Samuel Oluranti</div><div class="pc-meta">📍 Ilorin &nbsp;•&nbsp; Joined after seeing EEM26 results in a group</div></div>
+      </div>
+      <div class="pc-body">
+        <p class="pc-story">Samuel was skeptical. He told me that himself. But what got him was seeing the live training — 114 people, students sharing real dashboards with earnings in multiple currencies. He trusted the process. Sales in NGN, GHS, KES and XAF — all from one setup he built in a single weekend.</p>
+        <div class="proof-imgs">
+          <img src="https://raw.githubusercontent.com/Ecosystemexpantion/Image/main/Screenshot_20260407_062913_Facebook.jpg" alt="Samuel result" loading="lazy">
+          <img src="https://raw.githubusercontent.com/Ecosystemexpantion/Image/main/Screenshot_20260405_154148_Chrome%20Beta.jpg" alt="Samuel earnings" loading="lazy">
+        </div>
+      </div>
+      <div class="pc-footer">✅ Verified Dashboard &nbsp;•&nbsp; Sent directly to EEM26</div>
+    </div>
+
+    <div style="text-align:center;margin-top:36px" class="reveal">
+      <a href="#" class="dl-btn buy-trigger">⬇️ I Want This — Download Now</a>
+      <p class="btn-note" style="margin-top:10px">₦39,820 · Instant Access · 4 Coaches Ready</p>
+    </div>
+  </div>
+</section>
+
+<!-- VIDEO TESTIMONIALS -->
+<div class="video-section">
+  <div class="section-tag reveal">Student Videos</div>
+  <div class="divider-line reveal"></div>
+  <h2 class="section-title reveal">Watch Them <span>Tell It Themselves</span></h2>
+  <div class="video-card reveal">
+    <div class="vc-top">
+      <div class="vc-label">🎓 Week 1 — John Adi</div>
+      <div class="vc-title">Zero experience. First week. Watch what happened.</div>
+      <div class="vc-sub">John had never sold anything online before joining EEM26.</div>
+    </div>
+    <div class="vf-tall"><iframe src="https://www.youtube.com/embed/hV3i4sofHU8" allowfullscreen loading="lazy"></iframe></div>
+  </div>
+  <div class="video-card reveal">
+    <div class="vc-top">
+      <div class="vc-label">💰 3-Month Result — Mr. Stanley</div>
+      <div class="vc-title">₦650,000 withdrawn live. In front of 114 people watching.</div>
+      <div class="vc-sub">Not staged. Not edited. 3 months of EEM26 system.</div>
+    </div>
+    <div class="vf-tall"><iframe src="https://www.youtube.com/embed/FM6j3ZunRFw" allowfullscreen loading="lazy"></iframe></div>
+  </div>
+  <div class="video-card reveal">
+    <div class="vc-top">
+      <div class="vc-label">📱 Student Testimony</div>
+      <div class="vc-title">Real results from the EEM26 community.</div>
+    </div>
+    <div class="vf-tall"><iframe src="https://www.youtube.com/embed/v8HTO9E8FdI" allowfullscreen loading="lazy"></iframe></div>
+  </div>
+</div>
+
+<!-- NUMBERS -->
+<div class="nums-strip">
+  <div class="nums-inner">
+    <div class="section-tag reveal">By The Numbers</div>
+    <div class="divider-line reveal"></div>
+    <div class="nums-grid">
+      <div class="num-card reveal"><div class="num-val">₦51M+</div><div class="num-label">Total Student Sales Across All Currencies</div></div>
+      <div class="num-card reveal"><div class="num-val">15+</div><div class="num-label">Premium AI Tools & Digital Systems</div></div>
+      <div class="num-card reveal"><div class="num-val">4</div><div class="num-label">Personal Coaches Assigned To You</div></div>
+      <div class="num-card reveal"><div class="num-val">8+</div><div class="num-label">Currencies Students Are Earning In</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- WHAT'S INSIDE -->
+<div class="inside-section">
+  <div class="section-tag reveal">What You Get</div>
+  <div class="divider-line reveal"></div>
+  <h2 class="section-title reveal">Your Complete <span>Tech Stack</span></h2>
+  <div class="stack-grid">
+    <div class="stack-card reveal"><span class="stack-icon">🤖</span><div class="stack-name">SRE Setup</div><div class="stack-desc">Smart Reply Engine — AI that automates your customer replies and follow-ups so you never miss a sale. We configure this for you.</div><div class="stack-val">Valued at ₦15,000+</div></div>
+    <div class="stack-card reveal"><span class="stack-icon">🎯</span><div class="stack-name">AAM Setup</div><div class="stack-desc">AI Acquisition Model — automated systems that attract and convert leads into paying customers without you lifting a finger.</div><div class="stack-val">Valued at ₦15,000+</div></div>
+    <div class="stack-card reveal"><span class="stack-icon">⚙️</span><div class="stack-name">Integration Setup</div><div class="stack-desc">Step-by-step guidance to connect all your systems. Our team handles everything only we can do on our end.</div><div class="stack-val">Valued at ₦12,000+</div></div>
+    <div class="stack-card reveal"><span class="stack-icon">💎</span><div class="stack-name">Premium Apps</div><div class="stack-desc">Exclusive software most people pay monthly for — yours permanently inside the swipe file.</div><div class="stack-val">Valued at ₦10,000+</div></div>
+    <div class="stack-card reveal"><span class="stack-icon">📦</span><div class="stack-name">Weekly Stacks</div><div class="stack-desc">Ready-made digital products you can resell immediately. Products people buy — you just distribute and collect money.</div><div class="stack-val">Ongoing income</div></div>
+    <div class="stack-card reveal"><span class="stack-icon">🏆</span><div class="stack-name">Done-With-You Setup</div><div class="stack-desc">4 real coaches work with you personally until your setup is complete and generating income. Nobody else offers this.</div><div class="stack-val">Priceless</div></div>
+  </div>
+  <div class="tools-box reveal">
+    <div class="tools-title">🔥 Also Included — Free</div>
+    <div class="tool-row"><div class="tdot"></div><div class="tname2">A-Z Web Design System</div><span class="ttag">Included</span></div>
+    <div class="tool-row"><div class="tdot"></div><div class="tname2">Digital Marketing Masterclass</div><span class="ttag">Included</span></div>
+    <div class="tool-row"><div class="tdot"></div><div class="tname2">Facebook Ads Blueprint</div><span class="ttag">Included</span></div>
+    <div class="tool-row"><div class="tdot"></div><div class="tname2">50+ Money-Making Ebook Library</div><span class="ttag">Included</span></div>
+    <div class="tool-row"><div class="tdot"></div><div class="tname2">ChatGPT Monetization System</div><span class="ttag">Included</span></div>
+    <div class="tool-row"><div class="tdot"></div><div class="tname2">WhatsApp Marketing Engine</div><span class="ttag">Included</span></div>
+    <div class="tool-row"><div class="tdot"></div><div class="tname2">Copywriting Mastery Guide</div><span class="ttag">Included</span></div>
+    <div class="tool-row"><div class="tdot"></div><div class="tname2">AI Sales Integration System</div><span class="ttag">Included</span></div>
+  </div>
+</div>
+
+<!-- TESTIMONIALS -->
+<section class="testi-section">
+  <div class="testi-inner">
+    <div class="section-tag reveal">In Their Own Words</div>
+    <div class="divider-line reveal"></div>
+    <h2 class="section-title reveal">What <span>Students Say</span></h2>
+    <div class="testi-grid">
+      <div class="testi-card reveal">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">I joined EEM26 not knowing what to expect. Within a few weeks I had my system running and made my first real withdrawal. I didn't believe it was this simple until I tried it myself.</p>
+        <div class="testi-footer"><div class="tavi" style="background:rgba(255,215,0,.15);color:var(--gold)">HS</div><div><div class="t-name">Halima Sada</div><div class="t-meta">Kano State · EEM26 Student</div></div></div>
+      </div>
+      <div class="testi-card reveal">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">Honestly this system changed things for me. I followed the steps and started seeing results. The way everything is broken down — anyone can follow it. Anyone.</p>
+        <div class="testi-footer"><div class="tavi" style="background:rgba(0,200,83,.12);color:var(--green)">EB</div><div><div class="t-name">Emmanuel Biachi</div><div class="t-meta">Ibadan · EEM26 Student</div></div></div>
+      </div>
+      <div class="testi-card reveal">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">I was skeptical. But seeing Mr. Stanley withdraw ₦650,000 live during the training — in front of everyone — that was all the proof I needed. I joined immediately. No regrets.</p>
+        <div class="testi-footer"><div class="tavi" style="background:rgba(245,166,35,.12);color:var(--gold2)">AN</div><div><div class="t-name">Ahmad Nasir</div><div class="t-meta">Kaduna · EEM26 Student</div></div></div>
+      </div>
+      <div class="testi-card reveal">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">The system showed us live earnings in NGN, XAF, KES and GHS — all from one setup. I never believed it was possible until I saw it. Now I'm living proof it works.</p>
+        <div class="testi-footer"><div class="tavi" style="background:rgba(0,200,83,.1);color:var(--green)">SO</div><div><div class="t-name">Samuel Oluranti</div><div class="t-meta">Ilorin · EEM26 Student</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COACHES -->
+<div class="coaches-section">
+  <div class="section-tag reveal">Personal Support</div>
+  <div class="divider-line reveal"></div>
+  <h2 class="section-title reveal">Your 4 Personal <span>Coaches</span></h2>
+  <p class="reveal" style="color:var(--muted);font-size:.88rem;line-height:1.7;max-width:500px">This is what makes Tech Stack different. You don't figure it out alone. Four real coaches work with you personally until you're making money.</p>
+  <div class="coaches-grid">
+    <div class="coach-card reveal"><div class="coach-av">V</div><div class="coach-role">Lead Coach</div><div class="coach-name">Coach Victor</div><div class="coach-desc">EEM26 founder. Oversees your entire setup from start to money.</div></div>
+    <div class="coach-card reveal"><div class="coach-av">M</div><div class="coach-role">Coach 2</div><div class="coach-name">Michael Akazua</div><div class="coach-desc">Your SRE and AAM specialist. Configures your AI systems.</div></div>
+    <div class="coach-card reveal"><div class="coach-av">E</div><div class="coach-role">Coach 3</div><div class="coach-name">Ego</div><div class="coach-desc">Integration expert. Connects all your systems step by step.</div></div>
+    <div class="coach-card reveal"><div class="coach-av">T</div><div class="coach-role">Coach 4</div><div class="coach-name">Tochi Okpalauwaeke</div><div class="coach-desc">Ensures your full setup is complete and generating results.</div></div>
+  </div>
+</div>
+
+<!-- URGENCY -->
+<div class="urgency-section">
+  <div class="urgency-inner">
+    <div class="urgency-title reveal">⚠ Your Slot Is Closing</div>
+    <div class="urgency-box reveal">
+      <div class="urgency-item"><div class="u-icon">🚫</div><div class="u-text"><strong>Only 10 download slots exist.</strong> Once the 10th person downloads — this link dies permanently. No exceptions.</div></div>
+      <div class="urgency-item"><div class="u-icon">⏳</div><div class="u-text">The 5-minute timer on your link is real. Every second you wait is a second closer to losing your slot to someone else.</div></div>
+      <div class="urgency-item"><div class="u-icon">💸</div><div class="u-text">While you're thinking, <strong>someone else is downloading.</strong> The students above weren't special. They just acted.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- FINAL CTA -->
+<section class="final-section">
+  <div class="proof-bar" style="margin-bottom:24px"><span class="live-dot"></span>You've Seen The Proof. You've Seen The Results.</div>
+  <h2 class="reveal">WHAT ARE YOU<br><span>WAITING FOR?</span></h2>
+  <p class="final-sub reveal">Your coaches are ready. Your systems are waiting. Coach Victor already showed you what this business pays. The students above showed you it works. Now it's your turn.</p>
+  <div class="timer-wrap reveal">
+    <div class="timer-label">⏳ Link Expires In</div>
+    <div class="timer-row">
+      <div class="t-block"><div class="t-num" id="mins">04</div><div class="t-unit">Minutes</div></div>
+      <div class="t-sep">:</div>
+      <div class="t-block"><div class="t-num" id="secs">00</div><div class="t-unit">Seconds</div></div>
+    </div>
+  </div>
+  <div class="slots-txt reveal">🔴 ONLY 10 SLOTS — 7 REMAINING RIGHT NOW</div>
+  <div class="cta-stack reveal">
+    <div class="price-row">
+      <span class="old-price">₦70,000</span>
+      <span class="new-price">₦39,820</span>
+      <span class="save-badge">TODAY ONLY</span>
+    </div>
+    <a href="#" class="dl-btn buy-trigger">⬇️ Download The Tech Stack Now</a>
+    <div class="btn-note">🔒 Secure Payment via Paystack & Flutterwave &nbsp;·&nbsp; ✅ Instant Access &nbsp;·&nbsp; 📞 4 Coaches Ready</div>
+  </div>
+</section>
+
+<footer>© 2025 Ecosystem Expansion Model (EEM26) · All rights reserved</footer>
+
+<script>
+// ── SLOT TRACKER ──
+const TOTAL_SLOTS = 15;
+const INITIAL_TAKEN = 5;
+let takenCount = INITIAL_TAKEN;
+let youPosition = INITIAL_TAKEN; // 0-indexed, YOU starts at slot 6 (index 5)
+
+function renderSlots() {
+  const container = document.getElementById('fs-dots');
+  const caption = document.getElementById('fs-caption');
+  const slotsLeftTxt = document.getElementById('slots-left-txt');
+  if (!container) return;
+
+  container.innerHTML = '';
+  for (let i = 0; i < TOTAL_SLOTS; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'fs-dot';
+    if (i < takenCount) {
+      dot.classList.add('taken');
+      dot.textContent = '✗';
+    } else if (i === youPosition) {
+      dot.classList.add('you');
+      dot.textContent = 'YOU';
+    } else {
+      dot.classList.add('open');
+      dot.textContent = '✓';
+    }
+    container.appendChild(dot);
+  }
+
+  const remaining = TOTAL_SLOTS - takenCount;
+  if (caption) {
+    if (takenCount < youPosition) {
+      caption.innerHTML = `<strong>${takenCount} slots taken.</strong> <span class="you-note">YOUR slot is next in line.</span> ${remaining} remaining.`;
+    } else {
+      caption.innerHTML = `<strong>${takenCount} slots taken.</strong> <span class="you-note">Secure YOUR slot before it's gone.</span> ${remaining} remaining.`;
+    }
+  }
+  if (slotsLeftTxt) slotsLeftTxt.textContent = `🔴 ${remaining} Slots Left`;
+}
+
+function advanceSlot() {
+  if (takenCount >= TOTAL_SLOTS - 1) return;
+  takenCount++;
+  if (youPosition < takenCount) youPosition = takenCount;
+  renderSlots();
+
+  // Mark the just-taken dot with pop animation
+  const dots = document.querySelectorAll('.fs-dot.taken');
+  const lastTaken = dots[dots.length - 1];
+  if (lastTaken) {
+    lastTaken.classList.add('just-taken');
+    setTimeout(() => lastTaken.classList.remove('just-taken'), 600);
+  }
+
+  // Flash the whole tracker red
+  const floatSlot = document.getElementById('float-slot');
+  if (floatSlot) {
+    floatSlot.classList.add('flash');
+    setTimeout(() => floatSlot.classList.remove('flash'), 800);
+  }
+
+  // Show big alert
+  const alert = document.getElementById('fs-alert');
+  if (alert) {
+    alert.textContent = `🔴 Slot just taken! ${TOTAL_SLOTS - takenCount} remaining — YOUR slot moved!`;
+    alert.classList.remove('show');
+    void alert.offsetWidth;
+    alert.classList.add('show');
+    setTimeout(() => alert.classList.remove('show'), 4000);
+  }
+}
+
+// Schedule: 5s, 10s, 15s, 20s, 25s, 30s, 35s, 40s, 45s, 50s
+renderSlots();
+const slotSchedule = [5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000];
+let scheduleIndex = 0;
+function scheduleNext() {
+  if (scheduleIndex >= slotSchedule.length || takenCount >= TOTAL_SLOTS - 1) return;
+  setTimeout(() => {
+    advanceSlot();
+    scheduleIndex++;
+    scheduleNext();
+  }, slotSchedule[scheduleIndex]);
+}
+scheduleNext();
+
+// ── COUNTDOWN TIMER ──
+let total = 4 * 60;
+const minsEl = document.getElementById('mins');
+const secsEl = document.getElementById('secs');
+const topMins = document.getElementById('top-mins');
+const topSecs = document.getElementById('top-secs');
+const tick = setInterval(() => {
+  if (total <= 0) {
+    clearInterval(tick);
+    [minsEl, secsEl, topMins, topSecs].forEach(el => { if(el) el.textContent = '00'; });
+    return;
+  }
+  total--;
+  const m = String(Math.floor(total/60)).padStart(2,'0');
+  const s = String(total%60).padStart(2,'0');
+  if(minsEl) minsEl.textContent = m;
+  if(secsEl) secsEl.textContent = s;
+  if(topMins) topMins.textContent = m;
+  if(topSecs) topSecs.textContent = s;
+}, 1000);
+
+// ── SCROLL REVEAL ──
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting){ e.target.classList.add('visible'); obs.unobserve(e.target); }
+  });
+}, { threshold: 0.07 });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+// ── PAYSTACK POPUP + EMAILJS CHECKOUT ──
+emailjs.init('P6vjGqbInRNLni8GS');
+
+// ── Modal controls ──
+const payOverlay    = document.getElementById('payOverlay');
+const buyerEmailEl  = document.getElementById('buyerEmail');
+const payNowBtn     = document.getElementById('payNowBtn');
+const payModalClose = document.getElementById('payModalClose');
+
+document.querySelectorAll('.buy-trigger').forEach(el => {
+  el.addEventListener('click', function(e) {
+    e.preventDefault();
+    payOverlay.classList.add('open');
+    setTimeout(() => buyerEmailEl.focus(), 250);
+  });
+});
+
+payModalClose.addEventListener('click', () => payOverlay.classList.remove('open'));
+payOverlay.addEventListener('click', function(e) {
+  if (e.target === payOverlay) payOverlay.classList.remove('open');
+});
+
+buyerEmailEl.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') payNowBtn.click();
+});
+
+// ── Pay button ──
+payNowBtn.addEventListener('click', function() {
+  const email = buyerEmailEl.value.trim();
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  if (!emailOk) {
+    buyerEmailEl.style.borderColor = 'var(--red)';
+    buyerEmailEl.focus();
+    setTimeout(() => { buyerEmailEl.style.borderColor = ''; }, 1800);
+    return;
+  }
+
+  payNowBtn.disabled = true;
+  payNowBtn.textContent = 'Opening Secure Checkout...';
+
+  var handler = PaystackPop.setup({
+    key:      'pk_live_d4b401792b62d34e6664a0180eb4e0eb036ebe16',
+    email:    email,
+    amount:   3982000,
+    currency: 'NGN',
+    ref:      'EEM26_' + Date.now() + '_' + Math.floor(Math.random() * 1e6),
+    label:    'EEM26 Tech Stack',
+    metadata: {
+      custom_fields: [{ display_name: 'Product', variable_name: 'product', value: 'EEM26 Tech Stack' }]
+    },
+    callback: function(response) {
+      payOverlay.classList.remove('open');
+      emailjs.send('service_ab7fo9g', 'template_fnqmdxw', {
+        to_email:     email,
+        user_email:   email,
+        product_name: 'EEM26 Tech Stack',
+        product_link: 'https://ecosystemexpantion.github.io/Product_page/',
+        payment_ref:  response.reference
+      }).finally(function() {
+        window.location.href = 'https://ecosystemexpantion.github.io/Product_page/';
+      });
+    },
+    onClose: function() {
+      payNowBtn.disabled = false;
+      payNowBtn.textContent = '🔒 Pay ₦39,820 Securely';
+    }
+  });
+
+  handler.openIframe();
+});
+</script>
+</body>
+</html>
