@@ -37,6 +37,32 @@ export async function geminiChat(
     ? `${AMARA_SYSTEM_PROMPT}\n\nCurrent step context: ${stepContext}`
     : AMARA_SYSTEM_PROMPT;
 
+  // Prefer Groq Llama for text chat — far higher free-tier quota than Gemini
+  const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+  if (GROQ_API_KEY) {
+    const messages = [
+      { role: "system", content: systemText },
+      ...history.slice(-10).map((m: ConversationMessage) => ({
+        role: m.role === "user" ? "user" : "assistant",
+        content: m.message,
+      })),
+      { role: "user", content: userMessage },
+    ];
+    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages, temperature: 0.9, max_tokens: 350 }),
+    });
+    if (groqRes.ok) {
+      const groqData = await groqRes.json();
+      const groqText = groqData.choices?.[0]?.message?.content?.trim() ?? "I dey here! Try again in a moment 😊";
+      if (studentId) saveConversation(studentId, "assistant", groqText).catch(() => {});
+      return groqText;
+    }
+    console.error(`Groq chat error ${groqRes.status}: ${await groqRes.text()}`);
+    // Fall through to Gemini
+  }
+
   const contents: unknown[] = [];
 
   // Build a strictly alternating user/model sequence from recent history.
@@ -80,8 +106,7 @@ export async function geminiChat(
   if (!res.ok) {
     const errText = await res.text();
     console.error(`Gemini chat error ${res.status}: ${errText}`);
-    // Temporary: surface the error so we can diagnose without server log access
-    return `[DEBUG ${res.status}] ${errText.slice(0, 200)}`;
+    return "I dey here! Try again in a moment 😊";
   }
 
   const data = await res.json();
