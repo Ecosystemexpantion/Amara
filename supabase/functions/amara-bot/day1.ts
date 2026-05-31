@@ -68,38 +68,40 @@ async function sendStep2Prompt(chatId: number): Promise<void> {
   );
 }
 
-// Step 2: Selar registration page screenshot
+// Step 2: Selar screenshot — accept registration page OR existing dashboard
 async function handleStep2(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student is on Day 1 Step 2 — they need to create a Selar creator account and send a screenshot. Answer any question briefly then redirect them to send the screenshot.");
+      const reply = await geminiChat(history, text, "Student is on Day 1 Step 2 — they need a Selar creator account. If they say they already have one, tell them great and ask for a screenshot of their dashboard. Otherwise answer briefly and redirect to send a screenshot.");
       await sendMessage(chatId, reply);
     } else {
-      await sendMessage(chatId, "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and send me a screenshot of the registration page 📸");
+      await sendMessage(chatId, "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and send me a screenshot 📸\n\n(If you already have a Selar account, just send me a screenshot of your dashboard)");
     }
     return;
   }
 
   const prompt = buildVerificationPrompt(
-    "Does this screenshot show the Selar.com registration or signup page? Look for the Selar logo, a registration form, or sign-up fields."
+    "Does this screenshot show anything from Selar.com? This includes: the Selar registration/signup page, the Selar login page, OR the Selar creator/seller dashboard (with products, sales, customers). ANY of these count as valid.",
+    ["page_type: write exactly 'dashboard' if they are logged in showing their creator account stats, write 'registration' if showing a signup or login form"]
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
     await recordStepCompletion(student.id, 1, 2, true);
-    await advanceStep(student.id, 1, 3);
-    await sendMessage(
-      chatId,
-      `You're on the right page! 🎉\n\nNow <b>complete the registration</b> — fill in your details and verify your email.\n\nOnce your account is active and you can see your Selar <b>dashboard</b>, send me a screenshot 📸`
-    );
+    const isDashboard = /dashboard/i.test(result.extracted?.page_type ?? "") || /dashboard/i.test(result.reason ?? "");
+
+    if (isDashboard) {
+      await advanceStep(student.id, 1, 4, { selar_account_created: true });
+      await sendMessage(chatId, `I can see you're already on Selar — amazing! ✅ You don do am! 🙌\n\nNow let's set up your second platform — <b>Payhip</b>. This is also from your Tech Stack 📦`);
+      await new Promise((r) => setTimeout(r, 800));
+      await sendStep4Prompt(chatId);
+    } else {
+      await advanceStep(student.id, 1, 3);
+      await sendMessage(chatId, `You're on the right page! 🎉\n\nNow <b>complete the registration</b> — fill in your details and verify your email.\n\nOnce your account is active and you can see your Selar <b>dashboard</b>, send me a screenshot 📸`);
+    }
   } else {
-    await handleFailedScreenshot(
-      student,
-      chatId,
-      result.reason,
-      "Go to <a href=\"https://selar.com/register\">selar.com/register</a> — make sure it shows the Selar signup page, then screenshot that and send it to me 📸"
-    );
+    await handleFailedScreenshot(student, chatId, result.reason, "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and screenshot the Selar page 📸");
   }
 }
 
@@ -262,7 +264,7 @@ async function handleFailedScreenshot(
     await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
     await sendMessage(
       chatId,
-      `Hmm, that doesn't look quite right 🤔 (${reason})\n\nNo worry — try again! ${retryMessage}`
+      `Hmm, that's not quite it — no worries! 😊\n\n${retryMessage}`
     );
   }
 }

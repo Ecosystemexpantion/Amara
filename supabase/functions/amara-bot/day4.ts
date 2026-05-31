@@ -256,6 +256,6 @@ async function handleFailed(student: Student, chatId: number, reason: string, re
     await sendMessage(chatId, `No wahala! Let me explain it a different way 😊\n\n${retryMsg}`);
   } else {
     await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
-    await sendMessage(chatId, `Hmm, not quite 🤔 (${reason})\n\nTry again! ${retryMsg}`);
+    await sendMessage(chatId, `Hmm, that's not quite it — no worries! 😊\n\nTry again: ${retryMsg}`);
   }
 }
