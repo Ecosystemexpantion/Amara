@@ -2,6 +2,9 @@ name: Deploy Amara Bot
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - claude/amara-eem26-bot-hqB4R
 
 jobs:
   deploy:
