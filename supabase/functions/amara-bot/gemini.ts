@@ -62,7 +62,7 @@ export async function geminiChat(
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
-      body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages, temperature: 0.9, max_tokens: 350 }),
+      body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages, temperature: 0.9, max_tokens: 350 }),
     });
     if (groqRes.ok) {
       const groqData = await groqRes.json();
@@ -70,7 +70,23 @@ export async function geminiChat(
       if (studentId) saveConversation(studentId, "assistant", groqText).catch(() => {});
       return groqText;
     }
-    console.error(`Groq chat error ${groqRes.status}: ${await groqRes.text()}`);
+    // If model not found, retry with older model name
+    if (groqRes.status === 400 || groqRes.status === 404) {
+      const retryRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({ model: "llama3-70b-8192", messages, temperature: 0.9, max_tokens: 350 }),
+      });
+      if (retryRes.ok) {
+        const retryData = await retryRes.json();
+        const retryText = retryData.choices?.[0]?.message?.content?.trim() ?? "I dey here! Try again in a moment 😊";
+        if (studentId) saveConversation(studentId, "assistant", retryText).catch(() => {});
+        return retryText;
+      }
+      console.error(`Groq retry error ${retryRes.status}: ${await retryRes.text()}`);
+    } else {
+      console.error(`Groq chat error ${groqRes.status}: ${await groqRes.text()}`);
+    }
     // Fall through to Gemini
   }
 
@@ -108,24 +124,36 @@ export async function geminiChat(
     },
   };
 
-  const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  // Rotate through all Gemini keys in case primary is at quota
+  const geminiKeys = getGeminiKeys();
+  for (const key of geminiKeys) {
+    const res = await fetch(`${GEMINI_URL}?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error(`Gemini chat error ${res.status}: ${errText}`);
-    return "I dey here! Try again in a moment 😊";
+    if (res.status === 429) {
+      console.warn("Gemini chat key quota exceeded, trying next key...");
+      continue;
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Gemini chat error ${res.status}: ${errText}`);
+      return "I dey here! Try again in a moment 😊";
+    }
+
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "I dey here! Try again in a moment 😊";
+    if (studentId) {
+      saveConversation(studentId, "assistant", text).catch(() => {});
+    }
+    return text;
   }
 
-  const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "I dey here! Try again in a moment 😊";
-  if (studentId) {
-    saveConversation(studentId, "assistant", text).catch(() => {});
-  }
-  return text;
+  console.error("All Gemini chat keys exhausted");
+  return "I dey here! Try again in a moment 😊";
 }
 
 export async function geminiVision(
