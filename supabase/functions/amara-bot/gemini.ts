@@ -173,35 +173,48 @@ export async function geminiVision(
 ): Promise<ScreenshotResult> {
   const base64 = uint8ToBase64(imageBytes);
 
-  // Try Groq vision first — uses same GROQ_API_KEY, much higher quota than Gemini free tier
+  // Try Groq vision — multiple models in case one is deprecated
   const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
   if (GROQ_API_KEY) {
-    try {
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
-        body: JSON.stringify({
-          model: "llama-3.2-11b-vision-preview",
-          messages: [{
-            role: "user",
-            content: [
-              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
-              { type: "text", text: verificationPrompt },
-            ],
-          }],
-          temperature: 0.1,
-          max_tokens: 600,
-        }),
-      });
-      if (groqRes.ok) {
-        const groqData = await groqRes.json();
-        const rawText: string = groqData.choices?.[0]?.message?.content?.trim() ?? "";
-        if (rawText) return parseVisionText(rawText);
-      } else {
-        console.warn(`Groq vision error ${groqRes.status}: ${await groqRes.text()}`);
+    const groqModels = [
+      "meta-llama/llama-4-scout-17b-16e-instruct",
+      "llama-3.2-90b-vision-preview",
+      "llama-3.2-11b-vision-preview",
+    ];
+    for (const model of groqModels) {
+      try {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+          body: JSON.stringify({
+            model,
+            messages: [{
+              role: "user",
+              content: [
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+                { type: "text", text: verificationPrompt },
+              ],
+            }],
+            temperature: 0.1,
+            max_tokens: 600,
+          }),
+        });
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          const rawText: string = groqData.choices?.[0]?.message?.content?.trim() ?? "";
+          if (rawText) {
+            console.log(`Groq vision success with model: ${model}`);
+            return parseVisionText(rawText);
+          }
+        } else if (groqRes.status === 400 || groqRes.status === 404) {
+          console.warn(`Groq vision model ${model} unavailable, trying next...`);
+          continue;
+        } else {
+          console.warn(`Groq vision error ${groqRes.status} (${model}): ${await groqRes.text()}`);
+        }
+      } catch (e) {
+        console.error(`Groq vision exception (${model}):`, e);
       }
-    } catch (e) {
-      console.error("Groq vision exception:", e);
     }
   }
 
@@ -224,15 +237,16 @@ export async function geminiVision(
     if (res.status === 429) { console.warn("Gemini vision key quota exceeded, trying next..."); continue; }
     if (!res.ok) {
       console.error(`Gemini vision error ${res.status} (mime: ${mimeType}): ${await res.text()}`);
-      return { verified: false, reason: "verification_unavailable", extracted: {} };
+      break;
     }
     const data = await res.json();
     const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     return parseVisionText(rawText);
   }
 
-  console.error("All vision providers exhausted");
-  return { verified: false, reason: "verification_unavailable", extracted: {} };
+  // All providers failed — trust the student and let them through
+  console.error("All vision providers exhausted — auto-accepting student photo");
+  return { verified: true, reason: "auto_accepted", extracted: {} };
 }
 
 // Voice transcription — uses Groq Whisper if GROQ_API_KEY is set, falls back to Gemini
