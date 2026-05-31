@@ -130,40 +130,44 @@ export async function geminiVision(
   }
 }
 
+// Voice transcription — uses Groq Whisper if GROQ_API_KEY is set, falls back to Gemini
 export async function geminiAudio(
   audioBytes: Uint8Array,
   mimeType = "audio/ogg"
 ): Promise<string> {
+  const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+
+  if (GROQ_API_KEY) {
+    const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "ogg";
+    const form = new FormData();
+    form.append("file", new Blob([audioBytes], { type: mimeType }), `audio.${ext}`);
+    form.append("model", "whisper-large-v3");
+    form.append("response_format", "text");
+
+    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: form,
+    });
+    if (!res.ok) throw new Error(`Groq transcription error ${res.status}: ${await res.text()}`);
+    return (await res.text()).trim();
+  }
+
+  // Fallback: Gemini audio
   const base64 = uint8ToBase64(audioBytes);
-
   const body = {
-    contents: [
-      {
-        parts: [
-          { inline_data: { mime_type: mimeType, data: base64 } },
-          {
-            text: "Transcribe this voice message accurately. Return only the transcription text, nothing else.",
-          },
-        ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 500,
-    },
+    contents: [{ parts: [
+      { inline_data: { mime_type: mimeType, data: base64 } },
+      { text: "Transcribe this voice message accurately. Return only the transcription text, nothing else." },
+    ]}],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
   };
-
   const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini audio error ${res.status}: ${errText}`);
-  }
-
+  if (!res.ok) throw new Error(`Gemini audio error ${res.status}: ${await res.text()}`);
   const data = await res.json();
   return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
 }
