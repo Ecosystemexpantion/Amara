@@ -1,5 +1,4 @@
 import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib";
-import { SD_ACADEMY_LOGO_B64 } from "./logo.ts";
 import type { Student } from "./types.ts";
 
 function uint8ToBase64(bytes: Uint8Array): string {
@@ -11,12 +10,6 @@ function uint8ToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function base64ToUint8Array(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
 
 export async function generateCertificate(
   student: Student,
@@ -61,22 +54,6 @@ export async function generateCertificate(
   ];
   for (const c of corners) {
     page.drawRectangle({ x: c.x, y: c.y, width: ornSize, height: ornSize, borderColor: gold, borderWidth: 2 });
-  }
-
-  // Header section: SD Digital Academy logo (top left)
-  try {
-    const logoBytes = base64ToUint8Array(SD_ACADEMY_LOGO_B64);
-    const logoImg = await pdfDoc.embedJpg(logoBytes);
-    const logoDims = logoImg.scaleToFit(80, 60);
-    page.drawImage(logoImg, {
-      x: 48,
-      y: height - 48 - logoDims.height,
-      width: logoDims.width,
-      height: logoDims.height,
-    });
-  } catch (e) {
-    console.error("Logo embed error:", e);
-    // Continue without logo
   }
 
   // Organization name (top center)
