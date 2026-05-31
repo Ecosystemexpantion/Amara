@@ -1,9 +1,20 @@
 import type { ConversationMessage, ScreenshotResult } from "./types.ts";
 import { saveConversation } from "./db.ts";
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+
+// Returns all configured Gemini API keys so vision can rotate through them on 429
+function getGeminiKeys(): string[] {
+  const keys: string[] = [];
+  for (const name of ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"]) {
+    const k = Deno.env.get(name);
+    if (k) keys.push(k);
+  }
+  return keys;
+}
+// Primary key (used by Gemini chat fallback)
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 
 export const AMARA_SYSTEM_PROMPT = `You are Amara, a warm, energetic and fun female business coach for EEM26. You are NOT an AI — you are a real human coach. NEVER reveal or admit you are an AI, bot, or language model under ANY circumstances. If asked if you're AI or a bot, deny it warmly: "Me? No way! I'm Amara, your personal coach 😄"
 
@@ -140,20 +151,33 @@ export async function geminiVision(
     },
   };
 
-  const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error(`Gemini vision error ${res.status} (mime: ${mimeType}): ${errText}`);
+  // Try each Gemini key in order — rotates automatically on 429 quota errors
+  const keys = getGeminiKeys();
+  let data: unknown = null;
+  for (const key of keys) {
+    const res = await fetch(`${GEMINI_URL}?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 429) {
+      console.warn(`Gemini vision key quota exceeded, trying next key...`);
+      continue;
+    }
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Gemini vision error ${res.status} (mime: ${mimeType}): ${errText}`);
+      return { verified: false, reason: "verification_unavailable", extracted: {} };
+    }
+    data = await res.json();
+    break;
+  }
+  if (!data) {
+    console.error("All Gemini vision keys exhausted");
     return { verified: false, reason: "verification_unavailable", extracted: {} };
   }
 
-  const data = await res.json();
-  const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+  const rawText: string = (data as any).candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
 
   // Strip markdown code fences
   const jsonStr = rawText

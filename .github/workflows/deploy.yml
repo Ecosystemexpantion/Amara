@@ -29,12 +29,18 @@ jobs:
           supabase secrets set TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
           supabase secrets set GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           supabase secrets set ADMIN_CHAT_ID=5870771695
-          if [ -n "$GROQ_API_KEY" ]; then
-            supabase secrets set GROQ_API_KEY=$GROQ_API_KEY
-          fi
+          if [ -n "$GROQ_API_KEY" ]; then supabase secrets set GROQ_API_KEY=$GROQ_API_KEY; fi
+          if [ -n "$GEMINI_API_KEY_2" ]; then supabase secrets set GEMINI_API_KEY_2=$GEMINI_API_KEY_2; fi
+          if [ -n "$GEMINI_API_KEY_3" ]; then supabase secrets set GEMINI_API_KEY_3=$GEMINI_API_KEY_3; fi
+          if [ -n "$GEMINI_API_KEY_4" ]; then supabase secrets set GEMINI_API_KEY_4=$GEMINI_API_KEY_4; fi
+          if [ -n "$GEMINI_API_KEY_5" ]; then supabase secrets set GEMINI_API_KEY_5=$GEMINI_API_KEY_5; fi
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
 
       - name: Deploy amara-bot function
         run: supabase functions deploy amara-bot --no-verify-jwt
