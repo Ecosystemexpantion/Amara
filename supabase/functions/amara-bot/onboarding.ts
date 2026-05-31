@@ -1,10 +1,33 @@
 import { sendMessage, sendChatAction } from "./telegram.ts";
 import { updateStudent, advanceStep, getRecentConversation } from "./db.ts";
+import { geminiChat } from "./gemini.ts";
 import { notifyAdmin } from "./admin.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[\+\d\s\-\(\)]{7,25}$/;
+
+// Extract a real name from natural language like "My name is Victor" → "Victor"
+function extractName(text: string): string | null {
+  const greetings = /^(hello|hi|hey|good morning|good evening|good afternoon|ok|okay|yes|no|sure|start|begin|help|test|ping|hm+|lol|😊|👋)$/i;
+  if (greetings.test(text.trim())) return null;
+
+  const patterns = [
+    /(?:my name is|i'?m called|call me|i am|i'm|name is|they call me)\s+([A-Za-z][A-Za-z\s]{1,50})/i,
+    /^([A-Za-z][A-Za-z\s]{1,50})$/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const name = match[1].trim();
+      if (name.split(" ").length <= 5 && !greetings.test(name)) {
+        return name;
+      }
+    }
+  }
+  return null;
+}
 
 export async function handleOnboarding(
   _msg: TelegramMessage,
@@ -15,7 +38,7 @@ export async function handleOnboarding(
   await sendChatAction(chatId, "typing");
 
   if (student.current_step !== 1 && (!text || text.trim().length < 1)) {
-    await sendMessage(chatId, "Send me a text message — no photos or files needed right now 😊");
+    await sendMessage(chatId, "Send me a text message — no photos needed right now 😊");
     return;
   }
 
@@ -23,12 +46,10 @@ export async function handleOnboarding(
 
   switch (student.current_step) {
     case 1: {
-      // If more than 1 message in history, the intro was already sent on the first message
-      const history = await getRecentConversation(student.id, 3);
+      const history = await getRecentConversation(student.id, 5);
       const introAlreadySent = history.length > 1;
 
       if (!introAlreadySent) {
-        // First ever message — send intro
         await sendMessage(
           chatId,
           `Hey! I'm <b>Amara</b>, your personal EEM26 setup coach 🎉\n\nI'll be with you every single step for the next 4 days until your business is fully running. This is going to be an amazing journey!\n\nFirst things first — what's your <b>full name</b>? (Your real name, as it will appear on your certificate 🎓)`
@@ -36,46 +57,57 @@ export async function handleOnboarding(
         return;
       }
 
-      // They replied after intro — save as name
-      if (!t || t.length < 2) {
-        await sendMessage(chatId, "What's your full name? 😊 (Just type it for me)");
-        return;
-      }
+      const extractedName = extractName(t);
 
-      await updateStudent(student.id, { full_name: t, current_step: 2 });
-      await sendMessage(
-        chatId,
-        `Beautiful name, <b>${t}</b>! Welcome 👑\n\nNow, what's your <b>email address</b>? I'll use it for your program records.`
-      );
+      if (extractedName) {
+        await updateStudent(student.id, { full_name: extractedName, current_step: 2 });
+        await sendMessage(
+          chatId,
+          `Beautiful name, <b>${extractedName}</b>! Welcome 👑\n\nNow, what's your <b>email address</b>? I'll use it for your program records.`
+        );
+      } else {
+        const reply = await geminiChat(
+          history,
+          t,
+          "You just introduced yourself as Amara the EEM26 coach and asked the student for their full name. They replied with something that doesn't look like a name. Understand what they said, respond naturally and warmly, then ask again for their full name (exactly as it will appear on their certificate)."
+        );
+        await sendMessage(chatId, reply);
+      }
       break;
     }
 
     case 2: {
-      if (!EMAIL_RE.test(t)) {
+      if (EMAIL_RE.test(t)) {
+        await updateStudent(student.id, { email: t, current_step: 3 });
         await sendMessage(
           chatId,
-          `Hmm, that doesn't look like a valid email 🤔\nTry again — something like: <code>yourname@gmail.com</code>`
+          `Got it! ✅\n\nNow your <b>phone number</b> please? Include your country code — e.g. <code>+2348012345678</code>`
         );
-        return;
+      } else {
+        const history = await getRecentConversation(student.id, 5);
+        const reply = await geminiChat(
+          history,
+          t,
+          `You are Amara collecting onboarding details. You already have the student's name: ${student.full_name}. You asked for their email address. They sent something that isn't a valid email. Understand what they said, respond naturally, and redirect them to share their email address. Be warm and helpful, not robotic.`
+        );
+        await sendMessage(chatId, reply);
       }
-      await updateStudent(student.id, { email: t, current_step: 3 });
-      await sendMessage(
-        chatId,
-        `Got it! ✅\n\nNow your <b>phone number</b> please? Include your country code — e.g. <code>+2348012345678</code>`
-      );
       break;
     }
 
     case 3: {
-      if (!PHONE_RE.test(t)) {
-        await sendMessage(
-          chatId,
-          `That doesn't look like a phone number 🤔\nSend it with your country code, like: <code>+2348012345678</code>`
+      if (PHONE_RE.test(t)) {
+        await updateStudent(student.id, { phone: t, current_step: 4 });
+        await sendMessage(chatId, `Perfect! ✅ Last one — which <b>country</b> are you from? 🌍`);
+      } else {
+        const history = await getRecentConversation(student.id, 5);
+        const reply = await geminiChat(
+          history,
+          t,
+          `You are Amara collecting onboarding details for ${student.full_name}. You asked for their phone number with country code (e.g. +2348012345678). They sent something that doesn't look like a phone number. Understand what they said and naturally redirect them to provide their phone number. Be warm, not robotic.`
         );
-        return;
+        await sendMessage(chatId, reply);
       }
-      await updateStudent(student.id, { phone: t, current_step: 4 });
-      await sendMessage(chatId, `Perfect! ✅ Last one — which <b>country</b> are you from? 🌍`);
       break;
     }
 
@@ -84,18 +116,13 @@ export async function handleOnboarding(
         await sendMessage(chatId, "Which country are you from? 🌍");
         return;
       }
-      // Save country and advance to Day 1
       await updateStudent(student.id, { country: t });
-
-      // Get the saved student data for admin notification
       const updatedStudent = { ...student, country: t };
 
-      // Notify admin of new student registration
       await notifyAdmin(
         `🆕 <b>NEW STUDENT REGISTERED</b>\n\nName: ${updatedStudent.full_name}\nEmail: ${updatedStudent.email}\nPhone: ${updatedStudent.phone}\nCountry: ${t}`
       );
 
-      // Transition to Day 1
       await advanceStep(student.id, 1, 1, {});
 
       await sendMessage(
@@ -104,8 +131,6 @@ export async function handleOnboarding(
       );
 
       await new Promise((r) => setTimeout(r, 800));
-
-      // Start Day 1 immediately
       await sendDay1Welcome(chatId);
       break;
     }
