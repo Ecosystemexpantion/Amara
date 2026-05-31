@@ -1,6 +1,6 @@
 import { sendMessage, sendChatAction, downloadFile } from "./telegram.ts";
 import { saveConversation, getRecentConversation } from "./db.ts";
-import { geminiAudio, geminiChat } from "./gemini.ts";
+import { geminiAudio, geminiChat, geminiVideoTranscribe } from "./gemini.ts";
 import { handleOnboarding } from "./onboarding.ts";
 import { handleDay1 } from "./day1.ts";
 import { handleDay2 } from "./day2.ts";
@@ -34,8 +34,26 @@ export async function routeMessage(
       textPayload = msg.caption ?? null;
     } else if (msg.text) {
       textPayload = msg.text.trim();
-    } else if (msg.video || msg.document || msg.sticker) {
-      await sendMessage(chatId, "Send me a text message or photo — that's all I need from you right now 😊");
+    } else if (msg.video || msg.video_note) {
+      // Screen recording or round video — use visually for screenshot steps,
+      // and transcribe speech for conversational steps
+      const fileId = msg.video?.file_id ?? msg.video_note?.file_id;
+      if (!fileId) return;
+      await sendChatAction(chatId, "typing");
+      try {
+        const downloaded = await downloadFile(fileId);
+        photoPayload = downloaded; // used by screenshot verification steps
+        const transcript = await geminiVideoTranscribe(downloaded.bytes, downloaded.mimeType);
+        if (transcript) {
+          textPayload = `[Screen recording] ${transcript}`;
+        }
+      } catch (e) {
+        console.error("Video processing error:", e);
+        await sendMessage(chatId, "Hmm, couldn't process that video 😊 — try a screenshot instead 📸");
+        return;
+      }
+    } else if (msg.document || msg.sticker) {
+      await sendMessage(chatId, "Send me a text message or photo — that's all I need right now 😊");
       return;
     } else {
       return;
@@ -44,7 +62,7 @@ export async function routeMessage(
     // Save user message to conversation history
     const displayText = textPayload ?? (photoPayload ? "[photo]" : "[media]");
     if (displayText !== "[media]") {
-      await saveConversation(student.id, "user", displayText, msg.photo ? "photo" : msg.voice ? "voice" : "text");
+      await saveConversation(student.id, "user", displayText, msg.photo ? "photo" : msg.voice ? "voice" : (msg.video || msg.video_note) ? "video" : "text");
     }
 
     // Show typing indicator

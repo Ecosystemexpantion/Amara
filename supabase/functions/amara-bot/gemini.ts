@@ -168,6 +168,38 @@ export async function geminiAudio(
   return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
 }
 
+export async function geminiVideoTranscribe(
+  videoBytes: Uint8Array,
+  mimeType = "video/mp4"
+): Promise<string> {
+  const base64 = uint8ToBase64(videoBytes);
+
+  const body = {
+    contents: [
+      {
+        parts: [
+          { inline_data: { mime_type: mimeType, data: base64 } },
+          {
+            text: "If there is any spoken content or narration in this video, transcribe it accurately. If there is no spoken content at all, reply with exactly: [no speech]",
+          },
+        ],
+      },
+    ],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
+  };
+
+  const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) return "";
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+  return text === "[no speech]" ? "" : text;
+}
+
 // Build a step-specific vision verification prompt that requests structured JSON output
 export function buildVerificationPrompt(task: string, extractions?: string[]): string {
   const extractionStr = extractions
