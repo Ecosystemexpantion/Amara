@@ -23,9 +23,9 @@ export async function handleOnboarding(
 
   switch (student.current_step) {
     case 1: {
-      // Use conversation history to detect if intro was already sent
+      // If more than 1 message in history, the intro was already sent on the first message
       const history = await getRecentConversation(student.id, 3);
-      const introAlreadySent = history.some((h) => h.role === "assistant");
+      const introAlreadySent = history.length > 1;
 
       if (!introAlreadySent) {
         // First ever message — send intro
