@@ -166,6 +166,14 @@ function parseVisionText(rawText: string): ScreenshotResult {
   }
 }
 
+// Each Gemini model has its own free quota bucket — trying all of them maximises capacity
+const GEMINI_VISION_MODELS = [
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash-8b",
+];
+
 export async function geminiVision(
   imageBytes: Uint8Array,
   mimeType: string,
@@ -173,7 +181,46 @@ export async function geminiVision(
 ): Promise<ScreenshotResult> {
   const base64 = uint8ToBase64(imageBytes);
 
-  // Try Groq vision — multiple models in case one is deprecated
+  const body = {
+    contents: [{ parts: [
+      { inline_data: { mime_type: mimeType, data: base64 } },
+      { text: verificationPrompt },
+    ]}],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 700, candidateCount: 1 },
+  };
+
+  // Try every key × every model — each combination has its own daily quota
+  const keys = getGeminiKeys();
+  for (const key of keys) {
+    for (const model of GEMINI_VISION_MODELS) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.status === 429) {
+          console.warn(`Gemini vision quota: ${model} key[...${key.slice(-6)}]`);
+          continue;
+        }
+        if (!res.ok) {
+          console.warn(`Gemini vision ${res.status} for ${model}: ${await res.text()}`);
+          continue;
+        }
+        const data = await res.json();
+        const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+        if (rawText) {
+          console.log(`Vision OK: ${model}`);
+          return parseVisionText(rawText);
+        }
+      } catch (e) {
+        console.error(`Gemini vision exception (${model}):`, e);
+      }
+    }
+  }
+
+  // All Gemini quota exhausted — try Groq vision as last resort
   const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
   if (GROQ_API_KEY) {
     const groqModels = [
@@ -196,21 +243,17 @@ export async function geminiVision(
               ],
             }],
             temperature: 0.1,
-            max_tokens: 600,
+            max_tokens: 700,
           }),
         });
         if (groqRes.ok) {
           const groqData = await groqRes.json();
           const rawText: string = groqData.choices?.[0]?.message?.content?.trim() ?? "";
-          if (rawText) {
-            console.log(`Groq vision success with model: ${model}`);
-            return parseVisionText(rawText);
-          }
-        } else if (groqRes.status === 400 || groqRes.status === 404) {
-          console.warn(`Groq vision model ${model} unavailable, trying next...`);
-          continue;
+          if (rawText) { console.log(`Groq vision OK: ${model}`); return parseVisionText(rawText); }
+        } else if (groqRes.status === 429) {
+          console.warn(`Groq vision quota: ${model}`);
         } else {
-          console.warn(`Groq vision error ${groqRes.status} (${model}): ${await groqRes.text()}`);
+          console.warn(`Groq vision ${groqRes.status} (${model}): ${await groqRes.text()}`);
         }
       } catch (e) {
         console.error(`Groq vision exception (${model}):`, e);
@@ -218,35 +261,8 @@ export async function geminiVision(
     }
   }
 
-  // Fallback: Gemini key rotation
-  const body = {
-    contents: [{ parts: [
-      { inline_data: { mime_type: mimeType, data: base64 } },
-      { text: verificationPrompt },
-    ]}],
-    generationConfig: { temperature: 0.1, maxOutputTokens: 600, candidateCount: 1 },
-  };
-
-  const keys = getGeminiKeys();
-  for (const key of keys) {
-    const res = await fetch(`${GEMINI_URL}?key=${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 429) { console.warn("Gemini vision key quota exceeded, trying next..."); continue; }
-    if (!res.ok) {
-      console.error(`Gemini vision error ${res.status} (mime: ${mimeType}): ${await res.text()}`);
-      break;
-    }
-    const data = await res.json();
-    const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-    return parseVisionText(rawText);
-  }
-
-  // All providers failed — trust the student and let them through
-  console.error("All vision providers exhausted — auto-accepting student photo");
-  return { verified: true, reason: "auto_accepted", extracted: {} };
+  console.error("All vision providers exhausted");
+  return { verified: false, reason: "verification_unavailable", guidance: undefined, extracted: {} };
 }
 
 // Voice transcription — uses Groq Whisper if GROQ_API_KEY is set, falls back to Gemini
@@ -335,8 +351,8 @@ export function buildVerificationPrompt(task: string, extractions?: string[]): s
 
   return `${task}
 ${extractionStr}
-Answer ONLY in valid JSON format (no markdown, no explanation outside the JSON):
-{"verified": true/false, "reason": "brief explanation of what you see", "extracted": {${
+Look at the screenshot carefully and answer in valid JSON only (no markdown):
+{"verified": true/false, "reason": "describe exactly what you see in the screenshot", "guidance": "if verified=false, tell the student in 1-2 sentences exactly what they need to do or click on to get to the right page, based on what you can see", "extracted": {${
     extractions ? extractions.map((e) => `"${e}": "value or empty string"`).join(", ") : ""
   }}}
 verified=true only if the screenshot clearly shows what was asked.`;

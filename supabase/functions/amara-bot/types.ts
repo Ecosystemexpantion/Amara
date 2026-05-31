@@ -113,6 +113,7 @@ export interface DownloadedFile {
 export interface ScreenshotResult {
   verified: boolean;
   reason: string;
+  guidance?: string;
   extracted?: Record<string, string>;
 }
 

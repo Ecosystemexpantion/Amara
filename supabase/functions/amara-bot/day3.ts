@@ -95,7 +95,7 @@ async function handleStep2(student: Student, chatId: number, text: string | null
       `Supabase account confirmed! ✅\n\nNow create a new project:\n1️⃣ Click <b>"New Project"</b>\n2️⃣ Name it: <code>EEM26Bot</code>\n3️⃣ Set a <b>database password</b> (write it down somewhere safe!)\n4️⃣ Choose the <b>free tier</b>\n5️⃣ Click <b>"Create new project"</b>\n\nIt takes about 2 minutes to set up. Send me a screenshot when the <b>project dashboard is ready</b> (not still loading) 📸`
     );
   } else {
-    await handleFailed(student, chatId, result.reason, "Go to <a href=\"https://supabase.com\">supabase.com</a>, sign in with your GitHub account, and send me a screenshot of the dashboard 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://supabase.com\">supabase.com</a>, sign in with your GitHub account, and send me a screenshot of the dashboard 📸");
   }
 }
 
@@ -123,7 +123,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
       `Project is ready! 🚀\n\nNow get your API keys:\n1️⃣ In your Supabase project, click <b>⚙️ Settings</b> (bottom left)\n2️⃣ Click <b>"API"</b>\n3️⃣ You'll see your <b>Project URL</b> and <b>API keys</b>\n\nSend me a screenshot of that page — I'll extract what we need 📸\n\n(No worries, it's safe to share this with me!)`
     );
   } else {
-    await handleFailed(student, chatId, result.reason, "Create the EEM26Bot project (free tier) and wait for the loading to finish, then screenshot the full dashboard 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Create the EEM26Bot project (free tier) and wait for the loading to finish, then screenshot the full dashboard 📸");
   }
 }
 
@@ -165,7 +165,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
       `Now create your bot's database:\n1️⃣ In your Supabase project, click <b>"SQL Editor"</b> in the left menu\n2️⃣ Click <b>"New query"</b>\n3️⃣ Paste the entire SQL from the file I just sent\n4️⃣ Click <b>"Run"</b>\n\nYou should see "Tables created successfully!" — send me a screenshot 📸`
     );
   } else {
-    await handleFailed(student, chatId, result.reason, "Go to Settings → API in your Supabase project. Make sure you can see the Project URL and the anon key, then screenshot and send 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to Settings → API in your Supabase project. Make sure you can see the Project URL and the anon key, then screenshot and send 📸");
   }
 }
 
@@ -201,7 +201,7 @@ async function handleStep5(student: Student, chatId: number, text: string | null
       `Your bot code is ready! 🎉 Now let's deploy it.\n\nYou'll need the <b>Supabase CLI</b> on your phone or computer. Here's the deployment guide:\n\n<b>Step 1 — Install Supabase CLI</b>\nIf you have a computer, open terminal and run:\n<code>npm install -g supabase</code>\n\nIf you're on a phone only, I'll guide you through the Supabase dashboard instead.\n\nWhich do you have — <b>computer</b> or <b>phone only</b>? Tell me and I'll guide you the right way! 📱💻`
     );
   } else {
-    await handleFailed(student, chatId, result.reason, "Paste the SQL file content into SQL Editor → Run → screenshot the result showing 'Tables created successfully' 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Paste the SQL file content into SQL Editor → Run → screenshot the result showing 'Tables created successfully' 📸");
   }
 }
 

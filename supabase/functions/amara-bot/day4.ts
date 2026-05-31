@@ -55,7 +55,7 @@ async function handleStep1(student: Student, chatId: number, text: string | null
       `Environment variables set! ✅\n\nNow let's connect your bot to Telegram by setting the <b>webhook</b>.\n\nRun this command (replace YOUR_PROJECT_REF with your Supabase project reference):\n\n<code>curl -X POST "https://api.telegram.org/bot${student.bot_token?.slice(0, 20) ?? "YOUR_BOT_TOKEN"}...YOUR_BOT_TOKEN/setWebhook" -H "Content-Type: application/json" -d '{"url": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/my-bot"}'</code>\n\nOr just send me the word <b>"done"</b> if you've already set it up — I'll walk you through it! 😊`
     );
   } else {
-    await handleFailed(student, chatId, result.reason, "Go to Supabase → Edge Functions → your function → Secrets/Environment Variables, set them, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to Supabase → Edge Functions → your function → Secrets/Environment Variables, set them, then screenshot 📸");
   }
 }
 
@@ -132,7 +132,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
     await new Promise((r) => setTimeout(r, 1500));
     await handleStep4Celebration(student, chatId);
   } else {
-    await handleFailed(student, chatId, result.reason, "Open your bot on Telegram, send it a test message, and send me a screenshot of it replying 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Open your bot on Telegram, send it a test message, and send me a screenshot of it replying 📸");
   }
 }
 

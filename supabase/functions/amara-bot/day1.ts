@@ -102,7 +102,7 @@ async function handleStep2(student: Student, chatId: number, text: string | null
       await sendMessage(chatId, `You're on the right page! 🎉\n\nNow <b>complete the registration</b> — fill in your details and verify your email.\n\nOnce your account is active and you can see your Selar <b>dashboard</b>, send me a screenshot 📸`);
     }
   } else {
-    await handleFailedScreenshot(student, chatId, result.reason, "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and screenshot the Selar page 📸");
+    await handleFailedScreenshot(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and screenshot the Selar page 📸");
   }
 }
 

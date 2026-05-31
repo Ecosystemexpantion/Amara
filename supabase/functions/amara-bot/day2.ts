@@ -91,7 +91,7 @@ async function handleStep1(student: Student, chatId: number, text: string | null
     );
     await advanceStep(student.id, 2, 2, rawUsername ? { github_username: rawUsername } : {});
   } else {
-    await handleFailed(student, chatId, result.reason, "Go to <a href=\"https://github.com/signup\">github.com/signup</a>, create your account, then send me a screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://github.com/signup\">github.com/signup</a>, create your account, then send me a screenshot 📸");
   }
 }
 
@@ -127,7 +127,7 @@ async function handleStep2(student: Student, chatId: number, text: string | null
       `Account confirmed! ✅\n\nNow create your first repo:\n1️⃣ Click the <b>+</b> button at the top right of GitHub\n2️⃣ Click <b>"New repository"</b>\n\nSend me a screenshot when you see the "Create new repository" page 📸`
     );
   } else {
-    await handleFailed(student, chatId, result.reason, "What first name do you want to use in your GitHub username? Just type it for me.");
+    await handleFailed(student, chatId, result.reason, result.guidance || "What first name do you want to use in your GitHub username? Just type it for me.");
   }
 }
 
@@ -154,7 +154,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
     );
     await advanceStep(student.id, 2, 4);
   } else {
-    await handleFailed(student, chatId, result.reason, "Click <b>+</b> at the top right of GitHub, then <b>\"New repository\"</b>, and send me a screenshot of that page 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Click <b>+</b> at the top right of GitHub, then <b>\"New repository\"</b>, and send me a screenshot of that page 📸");
   }
 }
 
@@ -202,7 +202,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     );
     await advanceStep(student.id, 2, 5);
   } else {
-    await handleFailed(student, chatId, result.reason, "Fill in the repo name as exactly <code>EEM26page</code>, make it Public, check the README box, then create it and screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Fill in the repo name as exactly <code>EEM26page</code>, make it Public, check the README box, then create it and screenshot 📸");
   }
 }
 
@@ -230,7 +230,7 @@ async function handleStep5(student: Student, chatId: number, text: string | null
     );
     await advanceStep(student.id, 2, 6);
   } else {
-    await handleFailed(student, chatId, result.reason, "Go to your EEM26page repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to your EEM26page repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸");
   }
 }
 
@@ -271,7 +271,7 @@ async function handleStep6(student: Student, chatId: number, text: string | null
     );
     await advanceStep(student.id, 2, 7);
   } else {
-    await handleFailed(student, chatId, result.reason, "Go to Settings → Pages, set Branch to 'main', save, and screenshot the page 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to Settings → Pages, set Branch to 'main', save, and screenshot the page 📸");
   }
 }
 
@@ -318,7 +318,7 @@ async function handleStep7(student: Student, chatId: number, text: string | null
     );
     await advanceStep(student.id, 2, 8);
   } else {
-    await handleFailed(student, chatId, result.reason, "Create a new repo named exactly <code>EEM26premium</code> → Public → Add README → Create, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Create a new repo named exactly <code>EEM26premium</code> → Public → Add README → Create, then screenshot 📸");
   }
 }
 
@@ -346,7 +346,7 @@ async function handleStep8(student: Student, chatId: number, text: string | null
     );
     await advanceStep(student.id, 2, 9);
   } else {
-    await handleFailed(student, chatId, result.reason, "Go to the EEM26premium repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to the EEM26premium repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸");
   }
 }
 
@@ -388,7 +388,7 @@ async function handleStep9(student: Student, chatId: number, text: string | null
       `✅ <b>DAY 2 COMPLETE</b>\n\nStudent: ${student.full_name}\nCountry: ${student.country}\nNormal page: ${normalUrl}\nPremium page: ${premiumUrl}`
     );
   } else {
-    await handleFailed(student, chatId, result.reason, "Settings → Pages → Branch: main → Save in the EEM26premium repo, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Settings → Pages → Branch: main → Save in the EEM26premium repo, then screenshot 📸");
   }
 }
 
