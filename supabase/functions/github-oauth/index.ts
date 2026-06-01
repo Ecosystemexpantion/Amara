@@ -1,4 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { NORMAL_TEMPLATE } from "./templates/normal_template.ts";
+import { PREMIUM_TEMPLATE } from "./templates/premium_template.ts";
 
 // ---------------------------------------------------------------------------
 // Supabase client (service role — full access)
@@ -457,12 +459,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   try {
     // -----------------------------------------------------------------------
-    // Step 5: Load HTML templates (bundled with this function at deploy time)
+    // Step 5: Load HTML templates (compiled into the bundle as TS imports)
     // -----------------------------------------------------------------------
-    const [normalHtmlRaw, premiumHtmlRaw] = await Promise.all([
-      Deno.readTextFile(new URL("./templates/index_normal.html", import.meta.url)),
-      Deno.readTextFile(new URL("./templates/index_premium.html", import.meta.url)),
-    ]);
+    const normalHtmlRaw = NORMAL_TEMPLATE;
+    const premiumHtmlRaw = PREMIUM_TEMPLATE;
 
     // -----------------------------------------------------------------------
     // Step 6: Apply modifier
