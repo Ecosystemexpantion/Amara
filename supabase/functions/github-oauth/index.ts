@@ -457,25 +457,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   try {
     // -----------------------------------------------------------------------
-    // Step 5: Fetch HTML templates from GitHub raw URLs
+    // Step 5: Load HTML templates (bundled with this function at deploy time)
     // -----------------------------------------------------------------------
-    const BASE_RAW =
-      "https://raw.githubusercontent.com/Ecosystemexpantion/Amara/main/supabase/functions/amara-bot/templates";
-
-    const [normalRes, premiumRes] = await Promise.all([
-      fetch(`${BASE_RAW}/index_normal.html`),
-      fetch(`${BASE_RAW}/index_premium.html`),
-    ]);
-
-    if (!normalRes.ok || !premiumRes.ok) {
-      throw new Error(
-        `Template fetch failed: normal=${normalRes.status} premium=${premiumRes.status}`
-      );
-    }
-
     const [normalHtmlRaw, premiumHtmlRaw] = await Promise.all([
-      normalRes.text(),
-      premiumRes.text(),
+      Deno.readTextFile(new URL("./templates/index_normal.html", import.meta.url)),
+      Deno.readTextFile(new URL("./templates/index_premium.html", import.meta.url)),
     ]);
 
     // -----------------------------------------------------------------------
