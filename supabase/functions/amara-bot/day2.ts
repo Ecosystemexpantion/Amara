@@ -1,6 +1,6 @@
 import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
 import { advanceStep, getRecentConversation } from "./db.ts";
-import { geminiChat } from "./gemini.ts";
+import { geminiChat, geminiVisionGuide } from "./gemini.ts";
 import { buildGitHubAuthUrl } from "./github.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
@@ -15,7 +15,7 @@ export async function handleDay2(
 
   switch (student.current_step) {
     case 1: await handleStep1(student, chatId, text); break;
-    case 2: await handleStep2(student, chatId, text); break;
+    case 2: await handleStep2(student, chatId, text, photo); break;
     default: await resendOAuthLink(student, chatId);
   }
 }
@@ -52,19 +52,43 @@ async function handleStep1(student: Student, chatId: number, text: string | null
 }
 
 // Step 2: Waiting for the OAuth callback (github-oauth function will advance to step 0)
-// If student messages here, remind them and resend the link
-async function handleStep2(student: Student, chatId: number, text: string | null): Promise<void> {
-  // If github_access_token is already set, the callback completed but step wasn't advanced
-  // (shouldn't happen, but guard it)
+async function handleStep2(
+  student: Student,
+  chatId: number,
+  text: string | null,
+  photo: { bytes: Uint8Array; mimeType: string } | null
+): Promise<void> {
   if (student.github_access_token) {
-    await typeMessage(chatId, `Your GitHub is already connected! 🎉 Your sales pages are being set up — check back in a moment and I'll have both live links for you!`);
+    await typeMessage(chatId, `Your GitHub is already connected! 🎉 Your sales pages are being set up — I'll have both live links for you in a moment!`);
     return;
   }
 
   const oauthUrl = buildGitHubAuthUrl(String(chatId));
 
-  if (text && /\b(done|connected|authorized|finished|complete)\b/i.test(text)) {
-    await typeMessage(chatId, `Almost there! If you completed the authorization, GitHub is sending me the confirmation now — just give it a few seconds! ⏳\n\nIf you're still seeing a GitHub page, tap Authorize to complete it 👆`);
+  // Student sent a screenshot — look at it and give specific guidance
+  if (photo) {
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      `Student is doing Day 2 of EEM26. They tapped a GitHub OAuth link and are trying to connect their GitHub account so Amara can automatically create their two sales pages.
+
+      What they need to do: On the GitHub authorization page, they should tap the green "Authorize [app name]" button. That's the ONLY thing they need to do — just tap that green button and Amara handles everything else automatically.
+
+      If the screenshot shows the GitHub "Authorize" page: tell them they're in exactly the right place, just tap that big green "Authorize" button and Amara will take it from there — they don't need to do anything else!
+
+      If it shows a GitHub login page: tell them to log in first, then they'll see the Authorize button.
+
+      If it shows something else: guide them warmly toward finding the green Authorize button.
+
+      Be warm and specific — like a friend looking at their screen. Keep it short (2-3 sentences max).`,
+      text ?? undefined
+    );
+    await sendMessage(chatId, guidance);
+    return;
+  }
+
+  if (text && /\b(done|connected|authorized|finished|complete|tapped|clicked)\b/i.test(text)) {
+    await typeMessage(chatId, `Checking now... ⏳ If you tapped the Authorize button, I should get the confirmation in just a few seconds! Give it a moment 😊`);
     return;
   }
 
@@ -73,14 +97,15 @@ async function handleStep2(student: Student, chatId: number, text: string | null
     const reply = await geminiChat(
       history,
       text,
-      `Student is waiting to connect their GitHub account via the OAuth link. They haven't connected yet. Answer their question briefly, then remind them to tap the authorization link. Link: ${oauthUrl}`,
+      `Student is on Day 2 of EEM26. They tapped the GitHub OAuth link and should be on the authorization page. They just need to tap the green "Authorize" button — Amara handles EVERYTHING else automatically (creates repos, uploads files, enables Pages). Answer their question warmly and briefly, then guide them to tap Authorize. OAuth link if they lost it: ${oauthUrl}`,
       student.id
     );
     await sendMessage(chatId, reply);
+    return;
   }
 
-  // Always re-send the link so it's easy to find
-  await typeMessage(chatId, `Still waiting for your GitHub connection 🔗\n\nTap the link below to authorize:\n<a href="${oauthUrl}">👉 Connect GitHub here</a>\n\nOnce you tap and authorize, I'll automatically create your sales pages! 🚀`);
+  // No text, no photo — just resend the link
+  await typeMessage(chatId, `Still waiting for your GitHub connection 🔗\n\nTap the link below, then tap the green <b>Authorize</b> button — I'll create your sales pages automatically after that! 🚀\n\n<a href="${oauthUrl}">👉 Connect GitHub here</a>`);
 }
 
 async function resendOAuthLink(student: Student, chatId: number): Promise<void> {
