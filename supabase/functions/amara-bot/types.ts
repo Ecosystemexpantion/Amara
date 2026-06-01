@@ -23,6 +23,8 @@ export interface Student {
   supabase_url: string | null;
   supabase_anon_key: string | null;
   status: string;
+  device_type: 'phone' | 'laptop' | 'unknown';
+  tech_level: 'technical' | 'non_technical' | 'unknown';
   certificate_issued: boolean;
   certificate_issued_at: string | null;
   screenshot_attempts: number;

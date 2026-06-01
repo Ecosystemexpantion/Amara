@@ -193,10 +193,26 @@ async function handleStep5(student: Student, chatId: number, text: string | null
     await new Promise((r) => setTimeout(r, 400));
 
     await typeMessage(chatId, `Your bot code is ready! 🤖 This is your SRE — Smart Reply Engine from your Tech Stack 📦 It'll work 24/7 for you once we deploy it.`);
-    await typeMessage(chatId, `To deploy it, tell me: do you have a <b>computer/laptop</b> or are you on <b>phone only</b>? Tell me and I'll guide you the exact right way! 📱💻`);
+    await sendDeployInstructions(student, chatId);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Paste the SQL file content into SQL Editor → Run → screenshot the result showing 'Tables created successfully' 📸",
       photo, "Student needs to run the SQL in Supabase SQL Editor and show a success result. Guide them based on what you can see on screen.");
+  }
+}
+
+// Send deployment instructions based on stored device type
+async function sendDeployInstructions(student: Student, chatId: number): Promise<void> {
+  const device = student.device_type;
+  if (device === 'laptop') {
+    await typeMessage(chatId, `Since you're on a <b>laptop 💻</b>, we'll deploy using the Supabase CLI — it's quick!`);
+    await typeMessage(chatId, `Open your terminal and run these one by one:\n<code>npm install -g supabase</code>\n<code>supabase login</code> (opens browser)\n<code>mkdir -p supabase/functions/my-bot</code>\n(then copy your index.ts into that folder)`);
+    await typeMessage(chatId, `Then run:\n<code>supabase link --project-ref YOUR_PROJECT_REF</code>\n<code>supabase functions deploy my-bot --no-verify-jwt</code>\n\nYour project ref is in your Supabase URL (e.g. <code>abcdefghijklmnop</code>). Send me a screenshot when deployed! 📸`);
+  } else if (device === 'phone') {
+    await typeMessage(chatId, `Since you're on a <b>phone 📱</b>, we'll deploy straight from the Supabase Dashboard — no terminal needed!`);
+    await typeMessage(chatId, `1️⃣ Go to <a href="https://supabase.com">supabase.com</a> and open your EEM26Bot project\n2️⃣ Tap <b>Edge Functions</b> in the left menu\n3️⃣ Tap <b>"Create a new function"</b>\n4️⃣ Name it: <code>my-bot</code>`);
+    await typeMessage(chatId, `5️⃣ Copy ALL the code from the <b>index.ts</b> file I sent you and paste it into the editor\n6️⃣ Tap <b>Deploy</b>\n\nSend me a screenshot when the function shows as deployed! 📸`);
+  } else {
+    await typeMessage(chatId, `To deploy it, tell me: do you have a <b>computer/laptop</b> or are you on <b>phone only</b>? I'll guide you the exact right way! 📱💻`);
   }
 }
 
@@ -228,27 +244,32 @@ async function handleStep6(student: Student, chatId: number, text: string | null
     const history = await getRecentConversation(student.id, 8);
     const lowerText = text.toLowerCase();
 
+    const mentionsLaptop = lowerText.includes("computer") || lowerText.includes("laptop") || lowerText.includes("pc");
+    const mentionsPhone = lowerText.includes("phone") || lowerText.includes("mobile");
+    const effectiveDevice = mentionsLaptop ? 'laptop'
+      : mentionsPhone ? 'phone'
+      : student.device_type !== 'unknown' ? student.device_type
+      : null;
+
     let context = "";
-    if (lowerText.includes("computer") || lowerText.includes("laptop") || lowerText.includes("pc")) {
-      context = `Student has a computer. Guide them through deploying the bot using Supabase CLI:
+    if (effectiveDevice === 'laptop') {
+      context = `Student has a laptop/computer. Guide them through deploying the bot using Supabase CLI:
 1. Install CLI: npm install -g supabase
 2. Login: supabase login (will open browser)
-3. Create the function folder and copy the index.ts file: mkdir -p supabase/functions/my-bot && cp index.ts supabase/functions/my-bot/
-4. Link project: supabase link --project-ref [their-project-ref from Supabase dashboard URL]
+3. Create folder: mkdir -p supabase/functions/my-bot and copy index.ts inside
+4. Link project: supabase link --project-ref [project-ref from Supabase URL]
 5. Deploy: supabase functions deploy my-bot --no-verify-jwt
-6. The function URL will be: https://[project-ref].supabase.co/functions/v1/my-bot
-Guide them step by step, one step at a time. Ask for a screenshot after each step.`;
-    } else if (lowerText.includes("phone") || lowerText.includes("mobile")) {
-      context = `Student only has a phone. Guide them to deploy via Supabase Dashboard:
-1. Go to supabase.com, open their project
-2. Go to Edge Functions in the left menu
-3. Click "Create a new function"
-4. Name it: my-bot
-5. Copy and paste the index.ts code I sent them into the editor
-6. Click Deploy
-Then guide them to set environment variables in the function settings.`;
+Guide step by step and ask for a screenshot after deployment.`;
+    } else if (effectiveDevice === 'phone') {
+      context = `Student is on a phone only. Guide them to deploy via Supabase Dashboard (no terminal):
+1. Go to supabase.com, open EEM26Bot project
+2. Tap Edge Functions in the left menu
+3. Tap "Create a new function", name it: my-bot
+4. Copy ALL the code from the index.ts file I sent into the editor
+5. Tap Deploy
+Then guide environment variables in the function settings.`;
     } else {
-      context = "Student is deploying their EEM26 bot to Supabase. Ask them if they have a computer or just a phone so you can guide them the right way. Be encouraging and patient — this is the most technical step and you're right here with them!";
+      context = "Student is deploying their EEM26 bot. Ask if they have a computer/laptop or just a phone — then you can guide them the right way. Be encouraging and patient!";
     }
 
     const reply = await geminiChat(history, text, context, student.id);

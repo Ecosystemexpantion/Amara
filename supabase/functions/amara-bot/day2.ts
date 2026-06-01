@@ -5,6 +5,14 @@ import { modifyTemplateForStudent } from "./html-modifier.ts";
 import { notifyAdmin } from "./admin.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
+// Returns device-appropriate instructions for uploading a file to GitHub
+function getUploadInstructions(deviceType: string | null): string {
+  if (deviceType === 'phone') {
+    return `On your phone:\n1️⃣ Long-press the <b>index.html</b> file I just sent in this chat\n2️⃣ Tap <b>"Save"</b> or <b>"Download"</b> to save it to your phone storage\n3️⃣ Open GitHub in your browser and go to your repo\n4️⃣ Tap <b>"Add file"</b> → <b>"Upload files"</b>\n5️⃣ Tap <b>"Choose your files"</b> and find index.html in your Downloads or Files app\n6️⃣ Scroll down and tap <b>"Commit changes"</b>`;
+  }
+  return `On your laptop:\n1️⃣ Save the index.html from Telegram to your computer (right-click → Save)\n2️⃣ In your GitHub repo click <b>"Add file"</b> → <b>"Upload files"</b>\n3️⃣ Drag the index.html file into the upload box (or click to browse your files)\n4️⃣ Scroll down and click <b>"Commit changes"</b>`;
+}
+
 // Load templates lazily and cache in module scope
 let _normalTemplate: string | null = null;
 let _premiumTemplate: string | null = null;
@@ -260,7 +268,7 @@ async function sendNormalHtmlFile(student: Student, chatId: number): Promise<voi
 
   await new Promise((r) => setTimeout(r, 400));
   await typeMessage(chatId, `That file I just sent is YOUR personal sales page — your Payhip link is already inside it! 💪 From your Tech Stack 📦`);
-  await typeMessage(chatId, `Now upload it to GitHub:\n1️⃣ In your repo click <b>"Add file"</b> → <b>"Upload files"</b>\n2️⃣ Drag the <b>index.html</b> file into the upload box\n3️⃣ Scroll down and click <b>"Commit changes"</b>`);
+  await typeMessage(chatId, getUploadInstructions(student.device_type));
   await typeMessage(chatId, `Send me a screenshot when the file is uploaded 📸`);
   await advanceStep(student.id, 2, 5);
 }
@@ -275,7 +283,7 @@ async function resendNormalHtmlFile(student: Student, chatId: number): Promise<v
 
   await sendDocument(chatId, "index.html", fileBytes, "Here's the file again! 📁");
   await new Promise((r) => setTimeout(r, 400));
-  await typeMessage(chatId, `Now go to your repo → click <b>"Add file"</b> → <b>"Upload files"</b> → drag this index.html in → click <b>"Commit changes"</b> 📸`);
+  await typeMessage(chatId, getUploadInstructions(student.device_type));
 }
 
 // Step 5: File uploaded screenshot → enable GitHub Pages
@@ -286,7 +294,7 @@ async function handleStep5(student: Student, chatId: number, text: string | null
       const reply = await geminiChat(history, text, "Student needs to upload the index.html file to their EEM26page GitHub repo using Add file → Upload files → drag the file → Commit changes. Do NOT tell them to create a new file.", student.id);
       await sendMessage(chatId, reply);
     } else {
-      await sendMessage(chatId, "In your repo click <b>Add file</b> → <b>Upload files</b> → drag the index.html → <b>Commit changes</b> 📸");
+      await typeMessage(chatId, getUploadInstructions(student.device_type));
     }
     return;
   }
@@ -424,7 +432,9 @@ async function handleStep7(student: Student, chatId: number, text: string | null
     await sendDocument(chatId, "index.html", fileBytes, "Your PREMIUM sales page — also customized for you! 💎 From your Tech Stack 📦");
 
     await new Promise((r) => setTimeout(r, 400));
-    await typeMessage(chatId, `Now upload this premium page the same way:\n1️⃣ In the EEM26premium repo → <b>Add file → Upload files</b>\n2️⃣ Drag the index.html I just sent\n3️⃣ Click <b>Commit changes</b>\n\nSnap me a screenshot when done 📸`);
+    await typeMessage(chatId, `Now upload this premium page to the EEM26premium repo:`);
+    await typeMessage(chatId, getUploadInstructions(student.device_type));
+    await typeMessage(chatId, `Snap me a screenshot when done 📸`);
     await advanceStep(student.id, 2, 8);
   } else {
     await handleFailed(student, chatId, result.reason,
@@ -446,7 +456,7 @@ async function handleStep8(student: Student, chatId: number, text: string | null
       const reply = await geminiChat(history, text, "Student needs to upload index.html to the EEM26premium repo using Add file → Upload files → Commit changes. Make sure they use Upload files, NOT Create new file.", student.id);
       await sendMessage(chatId, reply);
     } else {
-      await sendMessage(chatId, "In EEM26premium → <b>Add file</b> → <b>Upload files</b> → drag index.html → Commit changes → send screenshot 📸");
+      await typeMessage(chatId, getUploadInstructions(student.device_type));
     }
     return;
   }
@@ -544,7 +554,7 @@ async function resendPremiumHtmlFile(student: Student, chatId: number): Promise<
 
   await sendDocument(chatId, "index.html", fileBytes, "Premium file — here it is again! 💎");
   await new Promise((r) => setTimeout(r, 400));
-  await typeMessage(chatId, `In EEM26premium → <b>Add file</b> → <b>Upload files</b> → drag this in → <b>Commit changes</b> 📸`);
+  await typeMessage(chatId, getUploadInstructions(student.device_type));
 }
 
 // handleFailed is ONLY called for genuinely unrecognized failures.
