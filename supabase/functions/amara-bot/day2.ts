@@ -9,7 +9,7 @@ export async function handleDay2(
   student: Student,
   chatId: number,
   text: string | null,
-  _photo: { bytes: Uint8Array; mimeType: string } | null
+  photo: { bytes: Uint8Array; mimeType: string } | null
 ): Promise<void> {
   await sendChatAction(chatId, "typing");
 
