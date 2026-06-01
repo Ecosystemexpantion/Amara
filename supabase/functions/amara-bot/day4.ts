@@ -54,7 +54,8 @@ async function handleStep1(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `Now let's connect your bot to Telegram with the <b>webhook</b>.\n\nRun this command:\n<code>curl -X POST "https://api.telegram.org/bot${student.bot_token ?? "YOUR_BOT_TOKEN"}/setWebhook" -H "Content-Type: application/json" -d '{"url": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/my-bot"}'</code>\n\n(Replace <code>YOUR_PROJECT_REF</code> with your actual Supabase project ref)`);
     await typeMessage(chatId, `Or just say <b>"done"</b> if you've already set it — I'll walk you through it! 😊`);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Go to Supabase → Edge Functions → your function → Secrets/Environment Variables, set them, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to Supabase → Edge Functions → your function → Secrets/Environment Variables, set them, then screenshot 📸",
+      photo, "Student needs to show the Supabase Edge Function Secrets/Environment Variables panel with BOT_TOKEN, GEMINI_API_KEY, and SUPABASE_SERVICE_ROLE_KEY set. Guide them based on exactly what you see on their screen.");
   }
 }
 
@@ -126,7 +127,8 @@ async function handleStep3(student: Student, chatId: number, text: string | null
     await new Promise((r) => setTimeout(r, 300));
     await handleStep4Celebration(student, chatId);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Open your bot on Telegram, send it a test message, and send me a screenshot of it replying 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Open your bot on Telegram, send it a test message, and send me a screenshot of it replying 📸",
+      photo, "Student needs to show a Telegram chat conversation where their bot is responding to messages. Guide them based on what you can see on their screen.");
   }
 }
 
@@ -241,7 +243,14 @@ async function sendGrandFinale(student: Student, chatId: number): Promise<void> 
   );
 }
 
-async function handleFailed(student: Student, chatId: number, reason: string, retryMsg: string): Promise<void> {
+async function handleFailed(
+  student: Student,
+  chatId: number,
+  reason: string,
+  retryMsg: string,
+  photo?: { bytes: Uint8Array; mimeType: string } | null,
+  stepContext?: string
+): Promise<void> {
   if (reason === "verification_unavailable") {
     await sendMessage(chatId, "Photo check had a small hiccup 😊 — please send that screenshot again!");
     return;
@@ -253,13 +262,19 @@ async function handleFailed(student: Student, chatId: number, reason: string, re
   } else {
     await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
   }
-  const history = await getRecentConversation(student.id, 3);
-  const reply = await geminiChat(
-    history,
-    `[screenshot analysis]`,
-    `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMsg}".
+
+  if (photo && stepContext) {
+    const guidance = await geminiVisionGuide(photo.bytes, photo.mimeType, stepContext);
+    await sendMessage(chatId, guidance);
+  } else {
+    const history = await getRecentConversation(student.id, 3);
+    const reply = await geminiChat(
+      history,
+      `[screenshot analysis]`,
+      `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMsg}".
 In Amara's warm, friendly style: tell the student EXACTLY what you can see in their screenshot (be specific about what page/screen it is), then give them PRECISE step-by-step instructions on what to click or do next to get to the right place. Don't be generic — be like a friend looking at their phone screen and guiding them.`,
-    student.id
-  );
-  await sendMessage(chatId, reply);
+      student.id
+    );
+    await sendMessage(chatId, reply);
+  }
 }

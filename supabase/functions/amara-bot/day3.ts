@@ -1,6 +1,6 @@
 import { sendMessage, sendChatAction, sendDocument, typeMessage } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, computeNextUnlockAt, getRecentConversation } from "./db.ts";
-import { geminiVision, geminiChat, buildVerificationPrompt } from "./gemini.ts";
+import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { generateStudentBotCode, STUDENT_BOT_SQL } from "./alex-template.ts";
 import { notifyAdmin } from "./admin.ts";
 import type { Student, TelegramMessage } from "./types.ts";
@@ -37,7 +37,8 @@ async function handleStep1(student: Student, chatId: number, text: string | null
       await saveBotToken(student, chatId, result.extracted.bot_token);
       return;
     }
-    await sendMessage(chatId, "I can see BotFather! Now send me the <b>token</b> — the long code it gave you that looks like: <code>1234567890:ABCdef...</code>\n\nJust paste it in the chat 📋");
+    const guidance = await geminiVisionGuide(photo.bytes, photo.mimeType, "Student is on Day 3 Step 1. They need to send their BotFather bot token — the long code (format: 1234567890:ABCdef...) that BotFather gave them after running /newbot. Look at what's on their screen and guide them to copy and paste the token.");
+    await sendMessage(chatId, guidance);
     return;
   }
 
@@ -91,7 +92,8 @@ async function handleStep2(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `Supabase account confirmed! ✅ Now create your project:`);
     await typeMessage(chatId, `1️⃣ Click <b>"New Project"</b>\n2️⃣ Name it: <code>EEM26Bot</code>\n3️⃣ Set a <b>database password</b> (write it down!)\n4️⃣ Choose the <b>free tier</b>\n5️⃣ Click <b>"Create new project"</b>\n\nTakes ~2 minutes. Send me a screenshot when the <b>project dashboard is ready</b> (not still loading) 📸`);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://supabase.com\">supabase.com</a>, sign in with your GitHub account, and send me a screenshot of the dashboard 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://supabase.com\">supabase.com</a>, sign in with your GitHub account, and send me a screenshot of the dashboard 📸",
+      photo, "Student needs to be logged into Supabase (supabase.com) and showing their projects dashboard. Guide them based on what you can see on their screen.");
   }
 }
 
@@ -117,7 +119,8 @@ async function handleStep3(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `Project is ready! 🚀 Now get your API keys:`);
     await typeMessage(chatId, `1️⃣ Click <b>⚙️ Settings</b> (bottom left)\n2️⃣ Click <b>"API"</b>\n3️⃣ You'll see your <b>Project URL</b> and <b>API keys</b>\n\nSend me a screenshot of that page — I'll read what we need 📸\n(Safe to share with me, no worries!)`);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Create the EEM26Bot project (free tier) and wait for the loading to finish, then screenshot the full dashboard 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Create the EEM26Bot project (free tier) and wait for the loading to finish, then screenshot the full dashboard 📸",
+      photo, "Student needs to show their Supabase project dashboard fully loaded (not still provisioning/loading). Guide them based on what you see — if it's still loading tell them to wait, if they're on a different page tell them where to click.");
   }
 }
 
@@ -157,7 +160,8 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `Now create your bot's database:\n1️⃣ Click <b>"SQL Editor"</b> in the left menu\n2️⃣ Click <b>"New query"</b>\n3️⃣ Paste ALL the SQL from the file I just sent\n4️⃣ Click <b>"Run"</b>`);
     await typeMessage(chatId, `You should see a success message. Send me a screenshot when it's done 📸`);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Go to Settings → API in your Supabase project. Make sure you can see the Project URL and the anon key, then screenshot and send 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to Settings → API in your Supabase project. Make sure you can see the Project URL and the anon key, then screenshot and send 📸",
+      photo, "Student needs to be on the Supabase Settings → API page showing the Project URL and API keys (anon/public key). Guide them based on exactly what page you can see.");
   }
 }
 
@@ -191,7 +195,8 @@ async function handleStep5(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `Your bot code is ready! 🤖 This is your SRE — Smart Reply Engine from your Tech Stack 📦 It'll work 24/7 for you once we deploy it.`);
     await typeMessage(chatId, `To deploy it, tell me: do you have a <b>computer/laptop</b> or are you on <b>phone only</b>? Tell me and I'll guide you the exact right way! 📱💻`);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Paste the SQL file content into SQL Editor → Run → screenshot the result showing 'Tables created successfully' 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Paste the SQL file content into SQL Editor → Run → screenshot the result showing 'Tables created successfully' 📸",
+      photo, "Student needs to run the SQL in Supabase SQL Editor and show a success result. Guide them based on what you can see on screen.");
   }
 }
 
@@ -251,7 +256,14 @@ Then guide them to set environment variables in the function settings.`;
   }
 }
 
-async function handleFailed(student: Student, chatId: number, reason: string, retryMsg: string): Promise<void> {
+async function handleFailed(
+  student: Student,
+  chatId: number,
+  reason: string,
+  retryMsg: string,
+  photo?: { bytes: Uint8Array; mimeType: string } | null,
+  stepContext?: string
+): Promise<void> {
   if (reason === "verification_unavailable") {
     await sendMessage(chatId, "Photo check had a small hiccup 😊 — please send that screenshot again!");
     return;
@@ -263,13 +275,19 @@ async function handleFailed(student: Student, chatId: number, reason: string, re
   } else {
     await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
   }
-  const history = await getRecentConversation(student.id, 3);
-  const reply = await geminiChat(
-    history,
-    `[screenshot analysis]`,
-    `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMsg}".
+
+  if (photo && stepContext) {
+    const guidance = await geminiVisionGuide(photo.bytes, photo.mimeType, stepContext);
+    await sendMessage(chatId, guidance);
+  } else {
+    const history = await getRecentConversation(student.id, 3);
+    const reply = await geminiChat(
+      history,
+      `[screenshot analysis]`,
+      `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMsg}".
 In Amara's warm, friendly style: tell the student EXACTLY what you can see in their screenshot (be specific about what page/screen it is), then give them PRECISE step-by-step instructions on what to click or do next to get to the right place. Don't be generic — be like a friend looking at their phone screen and guiding them.`,
-    student.id
-  );
-  await sendMessage(chatId, reply);
+      student.id
+    );
+    await sendMessage(chatId, reply);
+  }
 }

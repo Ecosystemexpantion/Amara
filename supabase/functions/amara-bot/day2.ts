@@ -1,6 +1,6 @@
 import { sendMessage, sendChatAction, sendDocument, typeMessage } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, computeNextUnlockAt, getRecentConversation } from "./db.ts";
-import { geminiVision, geminiChat, buildVerificationPrompt } from "./gemini.ts";
+import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { modifyTemplateForStudent } from "./html-modifier.ts";
 import { notifyAdmin } from "./admin.ts";
 import type { Student, TelegramMessage } from "./types.ts";
@@ -84,14 +84,14 @@ async function handleStep1(student: Student, chatId: number, text: string | null
     const rawUsername = result.extracted?.github_username ?? "";
     await recordStepCompletion(student.id, 2, 1, true);
 
-    // Ask for their desired username
     await typeMessage(
       chatId,
       `You're on GitHub! ✅\n\nNow — for your <b>username</b>, I recommend something like: <code>EEM26${student.full_name?.split(" ")[0] ?? "Student"}</code>\n\nThis makes your links look professional and branded.\n\nWhat first name do you want to use in your username? (Can be a short version)`
     );
     await advanceStep(student.id, 2, 2, rawUsername ? { github_username: rawUsername } : {});
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://github.com/signup\">github.com/signup</a>, create your account, then send me a screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://github.com/signup\">github.com/signup</a>, create your account, then send me a screenshot 📸",
+      photo, "Student needs to be on the GitHub website — either the signup page at github.com/signup or their GitHub profile/dashboard after logging in. Guide them based on what you can see.");
   }
 }
 
@@ -125,7 +125,8 @@ async function handleStep2(student: Student, chatId: number, text: string | null
       `Account confirmed! ✅\n\nNow create your first repo:\n1️⃣ Click the <b>+</b> button at the top right of GitHub\n2️⃣ Click <b>"New repository"</b>\n\nDrop a screenshot when you see the "Create new repository" page 📸`
     );
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "What first name do you want to use in your GitHub username? Just type it for me.");
+    await handleFailed(student, chatId, result.reason, result.guidance || "What first name do you want to use in your GitHub username? Just type it for me.",
+      photo, "Student needs to show their GitHub profile or account dashboard. Guide them based on what you see on screen.");
   }
 }
 
@@ -142,15 +143,41 @@ async function handleStep3(student: Student, chatId: number, text: string | null
     return;
   }
 
-  const prompt = buildVerificationPrompt("Does this screenshot show the GitHub 'Create a new repository' page? Look for repository name input field, public/private options, and README checkbox.");
+  const prompt = buildVerificationPrompt(
+    "Does this screenshot show a GitHub page related to creating a repository? Accept ANY of these as verified=true:\n" +
+    "1. The 'Create a new repository' FORM — has input fields for repo name, public/private radio buttons, README checkbox\n" +
+    "2. GitHub 'Quick setup' page — shows 'Quick setup — if you've done this kind of thing before', HTTPS/SSH tabs, a clone URL, and git command blocks (echo, git init, git push, etc.). THIS MEANS THE REPO IS ALREADY CREATED.\n" +
+    "3. A GitHub repository dashboard showing the repo files or empty repo state\n" +
+    "Reject only if it's a completely unrelated page or website.",
+    ["page_type: write exactly 'form' if creation form, 'quick_setup' if showing git setup commands page, 'repo' if showing repo dashboard"]
+  );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
-    await typeMessage(chatId, `Perfect! 🎯 Now fill in the details EXACTLY like this:\n\n📝 <b>Repository name:</b> <code>EEM26page</code>\n📝 <b>Description:</b> My EEM26 Sales Page\n✅ Set to <b>PUBLIC</b>\n✅ Check <b>"Add a README file"</b>`);
-    await typeMessage(chatId, `Then click <b>"Create repository"</b> and snap me a screenshot 📸`);
-    await advanceStep(student.id, 2, 4);
+    const pageType = result.extracted?.page_type ?? "";
+    const repoAlreadyCreated =
+      /quick.?setup|repo/i.test(pageType) ||
+      /quick setup|git init|git remote|push.*origin|clone.*url/i.test(result.reason ?? "");
+
+    if (repoAlreadyCreated) {
+      // Repo is already created — skip straight to sending the HTML file
+      await recordStepCompletion(student.id, 2, 3, true, "Repo already created (Quick Setup detected)");
+      await typeMessage(chatId, `Your repo is already created! 🎉 Oya let's skip ahead!`);
+      await new Promise((r) => setTimeout(r, 300));
+      await sendNormalHtmlFile(student, chatId);
+    } else {
+      // Still on the creation form — guide them to fill it in
+      await typeMessage(chatId, `Perfect! 🎯 Now fill in the details EXACTLY like this:\n\n📝 <b>Repository name:</b> <code>EEM26page</code>\n📝 <b>Description:</b> My EEM26 Sales Page\n✅ Set to <b>PUBLIC</b>\n✅ Check <b>"Add a README file"</b>`);
+      await typeMessage(chatId, `Then click <b>"Create repository"</b> and snap me a screenshot 📸`);
+      await advanceStep(student.id, 2, 4);
+    }
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Click <b>+</b> at the top right of GitHub, then <b>\"New repository\"</b>, and send me a screenshot of that page 📸");
+    await handleFailed(
+      student, chatId, result.reason,
+      result.guidance || "Click <b>+</b> at the top right of GitHub, then <b>\"New repository\"</b>, and send me a screenshot of that page 📸",
+      photo,
+      "Student is on Day 2 creating the EEM26page GitHub repository. They should show either: (1) the 'Create a new repository' form with input fields, OR (2) the Quick Setup page with git commands — which means the repo is ALREADY created and they're ready to upload files. Guide them based on exactly what you see on their screen."
+    );
   }
 }
 
@@ -167,38 +194,47 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     return;
   }
 
-  const prompt = buildVerificationPrompt("Does this screenshot show an empty GitHub repository named EEM26page (or a newly created repo) with the main branch?");
+  const prompt = buildVerificationPrompt(
+    "Does this screenshot show a GitHub repository page? Accept any of these as verified=true:\n" +
+    "- GitHub 'Quick setup' page with HTTPS/SSH clone URL and git command blocks (echo, git init, git push) — this is the page right after creating an empty repo\n" +
+    "- An empty GitHub repository with main branch\n" +
+    "- A GitHub repository showing files or README\n" +
+    "Reject ONLY if still on the 'Create new repository' form (with input fields not yet submitted), or a completely different website."
+  );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
     await recordStepCompletion(student.id, 2, 4, true);
-    // Save the repo URL
-    const username = student.github_username ?? "student";
-    const repoUrl = `https://${username}.github.io/EEM26page/`;
-    await updateStudent(student.id, { github_repo_normal: repoUrl, sales_page_link: repoUrl });
-
-    // Generate and send the customized HTML
-    await sendChatAction(chatId, "upload_document");
-    const template = await getNormalTemplate();
-    const payhipLink = student.payhip_link ?? "https://payhip.com";
-    const customized = modifyTemplateForStudent(template, payhipLink);
-    const fileBytes = new TextEncoder().encode(customized);
-
-    await sendDocument(
-      chatId,
-      "index.html",
-      fileBytes,
-      "Your personal sales page — customized with YOUR Payhip link! 🎉 This is from your Tech Stack 📦"
-    );
-
-    await new Promise((r) => setTimeout(r, 400));
-    await typeMessage(chatId, `That file I just sent is YOUR personal sales page — your Payhip link is already inside it! 💪 From your Tech Stack 📦`);
-    await typeMessage(chatId, `Now upload it to GitHub:\n1️⃣ In your repo click <b>"Add file"</b> → <b>"Upload files"</b>\n2️⃣ Drag the <b>index.html</b> file into the upload box\n3️⃣ Scroll down and click <b>"Commit changes"</b>`);
-    await typeMessage(chatId, `Send me a screenshot when the file is uploaded 📸`);
-    await advanceStep(student.id, 2, 5);
+    await sendNormalHtmlFile(student, chatId);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Fill in the repo name as exactly <code>EEM26page</code>, make it Public, check the README box, then create it and screenshot 📸");
+    await handleFailed(
+      student, chatId, result.reason,
+      result.guidance || "Fill in the repo name as exactly <code>EEM26page</code>, make it Public, check the README box, then create it and screenshot 📸",
+      photo,
+      "Student needs to have created the EEM26page GitHub repository. The correct screenshot is either the Quick Setup page (with git clone commands) OR the repo dashboard. Guide them based on what you can actually see on their screen."
+    );
   }
+}
+
+// Shared helper: generate + send the customized normal HTML template and advance to Step 5
+async function sendNormalHtmlFile(student: Student, chatId: number): Promise<void> {
+  const username = student.github_username ?? "student";
+  const repoUrl = `https://${username}.github.io/EEM26page/`;
+  await updateStudent(student.id, { github_repo_normal: repoUrl, sales_page_link: repoUrl });
+
+  await sendChatAction(chatId, "upload_document");
+  const template = await getNormalTemplate();
+  const payhipLink = student.payhip_link ?? "https://payhip.com";
+  const customized = modifyTemplateForStudent(template, payhipLink);
+  const fileBytes = new TextEncoder().encode(customized);
+
+  await sendDocument(chatId, "index.html", fileBytes, "Your personal sales page — customized with YOUR Payhip link! 🎉 From your Tech Stack 📦");
+
+  await new Promise((r) => setTimeout(r, 400));
+  await typeMessage(chatId, `That file I just sent is YOUR personal sales page — your Payhip link is already inside it! 💪 From your Tech Stack 📦`);
+  await typeMessage(chatId, `Now upload it to GitHub:\n1️⃣ In your repo click <b>"Add file"</b> → <b>"Upload files"</b>\n2️⃣ Drag the <b>index.html</b> file into the upload box\n3️⃣ Scroll down and click <b>"Commit changes"</b>`);
+  await typeMessage(chatId, `Send me a screenshot when the file is uploaded 📸`);
+  await advanceStep(student.id, 2, 5);
 }
 
 // Step 5: File uploaded screenshot → enable GitHub Pages
@@ -223,7 +259,8 @@ async function handleStep5(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `1️⃣ Click <b>Settings</b> in your repo\n2️⃣ Scroll left menu to <b>"Pages"</b>\n3️⃣ Under Source → <b>"Deploy from a branch"</b>\n4️⃣ Branch → <b>"main"</b> → <b>Save</b>\n\nShow me a screenshot of the Pages settings 📸`);
     await advanceStep(student.id, 2, 6);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Go to your EEM26page repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to your EEM26page repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸",
+      photo, "Student needs to upload the index.html file to their EEM26page GitHub repository using Add file → Upload files → Commit changes. Guide them based on exactly what you can see on their screen.");
   }
 }
 
@@ -258,7 +295,8 @@ async function handleStep6(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `Now let's build the <b>Premium</b> version too 💎\n\nCreate a second repo:\n1️⃣ Click <b>+</b> → <b>New repository</b>\n2️⃣ Name: <code>EEM26premium</code>\n3️⃣ Public ✅ + Add README ✅\n4️⃣ Click <b>Create repository</b>\n\nSend me a screenshot when it's created 📸`);
     await advanceStep(student.id, 2, 7);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Go to Settings → Pages, set Branch to 'main', save, and screenshot the page 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to Settings → Pages, set Branch to 'main', save, and screenshot the page 📸",
+      photo, "Student needs to enable GitHub Pages for their EEM26page repo: Settings → Pages → Source: Deploy from branch → Branch: main → Save. Guide them based on what you can see on screen.");
   }
 }
 
@@ -302,7 +340,8 @@ async function handleStep7(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `Now upload this premium page the same way:\n1️⃣ In the EEM26premium repo → <b>Add file → Upload files</b>\n2️⃣ Drag the index.html I just sent\n3️⃣ Click <b>Commit changes</b>\n\nSnap me a screenshot when done 📸`);
     await advanceStep(student.id, 2, 8);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Create a new repo named exactly <code>EEM26premium</code> → Public → Add README → Create, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Create a new repo named exactly <code>EEM26premium</code> → Public → Add README → Create, then screenshot 📸",
+      photo, "Student needs to create the EEM26premium GitHub repository. Guide them based on what you see on their screen.");
   }
 }
 
@@ -327,7 +366,8 @@ async function handleStep8(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `Uploaded! 🔥 Now make the premium page live:\n\n1️⃣ Settings → <b>Pages</b>\n2️⃣ Source: <b>Deploy from branch</b>\n3️⃣ Branch: <b>main</b> → <b>Save</b>\n\nDrop me a screenshot of the Pages settings 📸`);
     await advanceStep(student.id, 2, 9);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Go to the EEM26premium repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Go to the EEM26premium repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸",
+      photo, "Student needs to upload the index.html file to their EEM26premium GitHub repository. Guide them based on what you can see on their screen.");
   }
 }
 
@@ -367,11 +407,19 @@ async function handleStep9(student: Student, chatId: number, text: string | null
       `✅ <b>DAY 2 COMPLETE</b>\n\nStudent: ${student.full_name}\nCountry: ${student.country}\nNormal page: ${normalUrl}\nPremium page: ${premiumUrl}`
     );
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Settings → Pages → Branch: main → Save in the EEM26premium repo, then screenshot 📸");
+    await handleFailed(student, chatId, result.reason, result.guidance || "Settings → Pages → Branch: main → Save in the EEM26premium repo, then screenshot 📸",
+      photo, "Student needs to enable GitHub Pages for their EEM26premium repo: Settings → Pages → Source: Deploy from branch → Branch: main → Save. Guide them based on what you can see on screen.");
   }
 }
 
-async function handleFailed(student: Student, chatId: number, reason: string, retryMsg: string): Promise<void> {
+async function handleFailed(
+  student: Student,
+  chatId: number,
+  reason: string,
+  retryMsg: string,
+  photo?: { bytes: Uint8Array; mimeType: string } | null,
+  stepContext?: string
+): Promise<void> {
   if (reason === "verification_unavailable") {
     await sendMessage(chatId, "Photo check had a small hiccup 😊 — please send that screenshot again!");
     return;
@@ -383,13 +431,20 @@ async function handleFailed(student: Student, chatId: number, reason: string, re
   } else {
     await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
   }
-  const history = await getRecentConversation(student.id, 3);
-  const reply = await geminiChat(
-    history,
-    `[screenshot analysis]`,
-    `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMsg}".
+
+  if (photo && stepContext) {
+    // Look at the ACTUAL screenshot — like a friend watching the student's screen
+    const guidance = await geminiVisionGuide(photo.bytes, photo.mimeType, stepContext);
+    await sendMessage(chatId, guidance);
+  } else {
+    const history = await getRecentConversation(student.id, 3);
+    const reply = await geminiChat(
+      history,
+      `[screenshot analysis]`,
+      `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMsg}".
 In Amara's warm, friendly style: tell the student EXACTLY what you can see in their screenshot (be specific about what page/screen it is), then give them PRECISE step-by-step instructions on what to click or do next to get to the right place. Don't be generic — be like a friend looking at their phone screen and guiding them.`,
-    student.id
-  );
-  await sendMessage(chatId, reply);
+      student.id
+    );
+    await sendMessage(chatId, reply);
+  }
 }

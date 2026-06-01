@@ -108,7 +108,8 @@ async function handleStep2(student: Student, chatId: number, text: string | null
       await typeMessage(chatId, `You're on the right page! 🎉\n\nNow <b>complete the registration</b> — fill in your details and verify your email.\n\nOnce your Selar <b>dashboard</b> is active, snap a screenshot and send it over 📸`);
     }
   } else {
-    await handleFailedScreenshot(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and screenshot the Selar page 📸");
+    await handleFailedScreenshot(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and screenshot the Selar page 📸",
+      photo, "Student needs to be on the Selar website (selar.com) — either the signup/registration page or their creator/seller dashboard. Guide them based on exactly what you can see on their screen.");
   }
 }
 
@@ -137,12 +138,9 @@ async function handleStep3(student: Student, chatId: number, text: string | null
     await new Promise((r) => setTimeout(r, 300));
     await sendStep4Prompt(chatId);
   } else {
-    await handleFailedScreenshot(
-      student,
-      chatId,
-      result.reason,
-      "Make sure your Selar account is fully active and you can see your seller dashboard, then screenshot it and send to me 📸"
-    );
+    await handleFailedScreenshot(student, chatId, result.reason,
+      "Make sure your Selar account is fully active and you can see your seller dashboard, then screenshot it and send to me 📸",
+      photo, "Student needs to show their Selar seller/creator dashboard (after completing registration). Guide them based on what you can see on their screen.");
   }
 }
 
@@ -219,12 +217,9 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     await advanceStep(student.id, 1, 5, updates);
     await sendDay1Complete(student, chatId);
   } else {
-    await handleFailedScreenshot(
-      student,
-      chatId,
-      result.reason,
-      result.guidance || "Use this link to sign up: <a href=\"https://payhip.com/auth/register/af650fe07ce1c3c\">https://payhip.com/auth/register/af650fe07ce1c3c</a> — you should see a 'Join as an Affiliate' form to fill in 📸"
-    );
+    await handleFailedScreenshot(student, chatId, result.reason,
+      result.guidance || "Use this link to sign up: <a href=\"https://payhip.com/auth/register/af650fe07ce1c3c\">https://payhip.com/auth/register/af650fe07ce1c3c</a> — you should see a 'Join as an Affiliate' form to fill in 📸",
+      photo, "Student is signing up for Payhip as an affiliate using the link payhip.com/auth/register/af650fe07ce1c3c. They should see either the 'Join as an Affiliate' form OR their affiliate dashboard after signup. Guide them based on exactly what you see on their screen.");
   }
 }
 
@@ -274,7 +269,9 @@ async function handleFailedScreenshot(
   student: Student,
   chatId: number,
   reason: string,
-  retryMessage: string
+  retryMessage: string,
+  photo?: { bytes: Uint8Array; mimeType: string } | null,
+  stepContext?: string
 ): Promise<void> {
   if (reason === "verification_unavailable") {
     await sendMessage(chatId, "Photo check had a small hiccup 😊 — please send that screenshot again!");
@@ -289,14 +286,19 @@ async function handleFailedScreenshot(
   } else {
     await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
   }
-  // Use AI to craft a specific, warm response based on what vision actually saw
-  const history = await getRecentConversation(student.id, 3);
-  const reply = await geminiChat(
-    history,
-    `[screenshot analysis]`,
-    `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMessage}".
+
+  if (photo && stepContext) {
+    const guidance = await geminiVisionGuide(photo.bytes, photo.mimeType, stepContext);
+    await sendMessage(chatId, guidance);
+  } else {
+    const history = await getRecentConversation(student.id, 3);
+    const reply = await geminiChat(
+      history,
+      `[screenshot analysis]`,
+      `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMessage}".
 In Amara's warm, friendly style: tell the student EXACTLY what you can see in their screenshot (be specific about what page/screen it is), then give them PRECISE step-by-step instructions on what to click or do next to get to the right place. Don't be generic — be like a friend looking at their phone screen and guiding them.`,
-    student.id
-  );
-  await sendMessage(chatId, reply);
+      student.id
+    );
+    await sendMessage(chatId, reply);
+  }
 }
