@@ -278,13 +278,12 @@ async function handleFailedScreenshot(
     return;
   }
   const attempts = student.screenshot_attempts + 1;
-  if (attempts >= 3) {
+  await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
+  if (attempts >= 5) {
     await resetScreenshotAttempts(student.id);
     await notifyAdmin(
-      `⚠️ <b>STUDENT STUCK</b>\n\nName: ${student.full_name}\nDay: ${student.current_day}, Step: ${student.current_step}\nAfter 3 attempts. Reason: ${reason}`
+      `⚠️ <b>STUDENT STUCK — 5 ATTEMPTS</b>\n\nName: ${student.full_name}\nDay: ${student.current_day}, Step: ${student.current_step}\n\nAmara has guided this student ${attempts} times without success.\nLast screenshot: ${reason}\n\nManual help may be needed.`
     );
-  } else {
-    await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
   }
 
   if (photo && stepContext) {

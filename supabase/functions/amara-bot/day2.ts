@@ -265,40 +265,89 @@ async function sendNormalHtmlFile(student: Student, chatId: number): Promise<voi
   await advanceStep(student.id, 2, 5);
 }
 
+// Re-send the normal HTML file WITHOUT advancing the step (used when student is lost mid-upload)
+async function resendNormalHtmlFile(student: Student, chatId: number): Promise<void> {
+  await sendChatAction(chatId, "upload_document");
+  const template = await getNormalTemplate();
+  const payhipLink = student.payhip_link ?? "https://payhip.com";
+  const customized = modifyTemplateForStudent(template, payhipLink);
+  const fileBytes = new TextEncoder().encode(customized);
+
+  await sendDocument(chatId, "index.html", fileBytes, "Here's the file again! 📁");
+  await new Promise((r) => setTimeout(r, 400));
+  await typeMessage(chatId, `Now go to your repo → click <b>"Add file"</b> → <b>"Upload files"</b> → drag this index.html in → click <b>"Commit changes"</b> 📸`);
+}
+
 // Step 5: File uploaded screenshot → enable GitHub Pages
 async function handleStep5(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to upload the index.html file to their EEM26page GitHub repo.", student.id);
+      const reply = await geminiChat(history, text, "Student needs to upload the index.html file to their EEM26page GitHub repo using Add file → Upload files → drag the file → Commit changes. Do NOT tell them to create a new file.", student.id);
       await sendMessage(chatId, reply);
     } else {
-      await sendMessage(chatId, "Add File → Upload Files → drag index.html → Commit changes — then send me a screenshot 📸");
+      await sendMessage(chatId, "In your repo click <b>Add file</b> → <b>Upload files</b> → drag the index.html → <b>Commit changes</b> 📸");
     }
     return;
   }
 
   const prompt = buildVerificationPrompt(
-    "Does this screenshot show a GitHub repository with an index.html file successfully uploaded? " +
-    "Also accept the file UPLOAD interface (drag-and-drop zone showing index.html ready to commit). " +
-    "Reject if showing: a file editor/code editor, the repo with NO index.html, or an unrelated page."
+    "Look at this GitHub screenshot and classify it:\n" +
+    "- Repo with index.html listed as a file → verified=true, page_type='success'\n" +
+    "- Upload zone (drag-drop area, 'Choose your files', 'drag files here') → verified=true, page_type='upload_zone'\n" +
+    "- File editor (text editing area, 'Name your file...', code input field) → verified=false, page_type='file_editor'\n" +
+    "- Quick Setup page (git commands, HTTPS/SSH clone URL, echo/git init blocks) → verified=false, page_type='quick_setup'\n" +
+    "- Empty repo with no files, only README → verified=false, page_type='empty_repo'\n" +
+    "- Unrelated page or website → verified=false, page_type='other'",
+    ["page_type"]
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
+    const pageType = result.extracted?.page_type ?? "";
+    if (/upload.?zone/i.test(pageType)) {
+      // They're on the upload page — just need to drag the file in
+      await typeMessage(chatId, `You're in the right place! 🎯 Now drag the <b>index.html</b> file I sent you into that upload box, then scroll down and click <b>"Commit changes"</b> 📁`);
+      return;
+    }
     await recordStepCompletion(student.id, 2, 5, true);
     await typeMessage(chatId, `index.html is uploaded! 🔥 Now let's make it LIVE.`);
     await typeMessage(chatId, `1️⃣ Click <b>Settings</b> in your repo\n2️⃣ Scroll left menu to <b>"Pages"</b>\n3️⃣ Under Source → <b>"Deploy from a branch"</b>\n4️⃣ Branch → <b>"main"</b> → <b>Save</b>\n\nShow me a screenshot of the Pages settings 📸`);
     await advanceStep(student.id, 2, 6);
   } else {
-    await handleFailed(student, chatId, result.reason,
-      result.guidance || "Go to your repo → Add file → Upload files → drag index.html → Commit changes 📸",
+    const pageType = result.extracted?.page_type ?? "other";
+
+    if (/file.?editor/i.test(pageType) || /file.?editor|Name your file|code.?input|text.?edit/i.test(result.reason ?? "")) {
+      // Recoverable: student clicked wrong button — redirect immediately, no attempt count
+      await typeMessage(chatId, `Oops — you clicked <b>"Create new file"</b>! That's for typing code from scratch 🛑`);
+      await typeMessage(chatId, `Click <b>Cancel</b> at the bottom to go back. Then click <b>"Add file"</b> → <b>"Upload files"</b> — that's the one for uploading a file from your phone or computer.`);
+      await resendNormalHtmlFile(student, chatId);
+      return;
+    }
+
+    if (/quick.?setup/i.test(pageType) || /quick setup|git init|git push/i.test(result.reason ?? "")) {
+      // Recoverable: repo exists but no file — re-send the HTML and give upload instructions
+      await typeMessage(chatId, `I can see your repo is ready 👍 Now you need to upload the index.html file to it.`);
+      await resendNormalHtmlFile(student, chatId);
+      return;
+    }
+
+    if (/empty.?repo/i.test(pageType)) {
+      // Recoverable: repo is there with only README — just need to upload
+      await typeMessage(chatId, `Your repo is set up 👍 Just need to add the index.html file to it!`);
+      await resendNormalHtmlFile(student, chatId);
+      return;
+    }
+
+    // Truly unrecognized — increment attempt and guide with vision AI
+    await handleFailed(
+      student, chatId, result.reason,
+      "Go to your EEM26page repo → Add file → Upload files → drag index.html → Commit changes",
       photo,
-      "Student needs to upload the index.html file to their GitHub repository. " +
-      "IF you see a file editor or 'Create new file' code editor: they clicked wrong — tell them to click Cancel, go back to the repo, then click Add file → Upload files (NOT Create new file). " +
-      "IF you see the repo with no files (Quick Setup or empty): tell them to click Add file → Upload files, drag the index.html I sent them, then scroll down and click Commit changes. " +
-      "IF you see the upload drag-drop zone: they're in the right place — tell them to drag the index.html file into the box. " +
-      "NEVER suggest 'Create new file' — they must UPLOAD the pre-made HTML file."
+      "Student is on Day 2 Step 5. They need to upload an index.html file to their GitHub EEM26page repository. " +
+      "The correct action is: in their repo, click Add file → Upload files, drag the index.html file I sent them into the upload box, then scroll down and click Commit changes. " +
+      "IMPORTANT: Tell them Add file → Upload files, NOT Create new file. " +
+      "Guide them based on exactly what screen you see."
     );
   }
 }
@@ -402,21 +451,44 @@ async function handleStep8(student: Student, chatId: number, text: string | null
     return;
   }
 
-  const prompt = buildVerificationPrompt("Does this screenshot show the GitHub EEM26premium repository with an index.html file in it? Also accept the upload drag-drop zone with index.html ready to commit.");
+  const prompt = buildVerificationPrompt(
+    "Look at this GitHub screenshot and classify it:\n" +
+    "- Repo with index.html listed as a file → verified=true, page_type='success'\n" +
+    "- Upload zone (drag-drop area, 'Choose your files') → verified=true, page_type='upload_zone'\n" +
+    "- File editor (text editing area, 'Name your file...', code input) → verified=false, page_type='file_editor'\n" +
+    "- Quick Setup or empty repo (no files, git commands) → verified=false, page_type='empty_repo'\n" +
+    "- Unrelated → verified=false, page_type='other'",
+    ["page_type"]
+  );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
+    const pageType = result.extracted?.page_type ?? "";
+    if (/upload.?zone/i.test(pageType)) {
+      await typeMessage(chatId, `You're in the right place! 🎯 Drag the premium <b>index.html</b> I sent you into that box, then click <b>"Commit changes"</b> 📁`);
+      return;
+    }
     await recordStepCompletion(student.id, 2, 8, true);
     await typeMessage(chatId, `Uploaded! 🔥 Now make the premium page live:\n\n1️⃣ Settings → <b>Pages</b>\n2️⃣ Source: <b>Deploy from branch</b>\n3️⃣ Branch: <b>main</b> → <b>Save</b>\n\nDrop me a screenshot of the Pages settings 📸`);
     await advanceStep(student.id, 2, 9);
   } else {
+    const pageType = result.extracted?.page_type ?? "other";
+    if (/file.?editor/i.test(pageType) || /file.?editor|Name your file|code.?input/i.test(result.reason ?? "")) {
+      await typeMessage(chatId, `That's the file editor — wrong button! 🛑 Click <b>Cancel</b> to go back.`);
+      await typeMessage(chatId, `In your EEM26premium repo: click <b>"Add file"</b> → <b>"Upload files"</b> → drag the index.html I sent → <b>"Commit changes"</b>`);
+      await resendPremiumHtmlFile(student, chatId);
+      return;
+    }
+    if (/empty.?repo|quick.?setup/i.test(pageType) || /quick setup|git init/i.test(result.reason ?? "")) {
+      await typeMessage(chatId, `Repo is ready 👍 Now upload the premium file:`);
+      await resendPremiumHtmlFile(student, chatId);
+      return;
+    }
     await handleFailed(student, chatId, result.reason,
-      result.guidance || "Go to EEM26premium repo → Add file → Upload files → drag index.html → Commit changes 📸",
+      "Go to EEM26premium repo → Add file → Upload files → drag index.html → Commit changes",
       photo,
       "Student needs to upload the index.html file to their EEM26premium GitHub repo. " +
-      "IF they show a code/file editor ('Create new file'): they clicked WRONG — tell them Cancel, then Add file → Upload files. " +
-      "IF they show the repo with no files: tell them Add file → Upload files, drag index.html, click Commit changes. " +
-      "NEVER suggest creating a new file — they must upload the file the bot sent them."
+      "Tell them Add file → Upload files — NOT Create new file. Guide based on what you see."
     );
   }
 }
@@ -462,6 +534,22 @@ async function handleStep9(student: Student, chatId: number, text: string | null
   }
 }
 
+// Re-send premium HTML without advancing step
+async function resendPremiumHtmlFile(student: Student, chatId: number): Promise<void> {
+  await sendChatAction(chatId, "upload_document");
+  const template = await getPremiumTemplate();
+  const payhipLink = student.payhip_link ?? "https://payhip.com";
+  const customized = modifyTemplateForStudent(template, payhipLink);
+  const fileBytes = new TextEncoder().encode(customized);
+
+  await sendDocument(chatId, "index.html", fileBytes, "Premium file — here it is again! 💎");
+  await new Promise((r) => setTimeout(r, 400));
+  await typeMessage(chatId, `In EEM26premium → <b>Add file</b> → <b>Upload files</b> → drag this in → <b>Commit changes</b> 📸`);
+}
+
+// handleFailed is ONLY called for genuinely unrecognized failures.
+// Recoverable states (file editor, empty repo, wrong page on same site) are handled
+// directly in step handlers WITHOUT calling this function.
 async function handleFailed(
   student: Student,
   chatId: number,
@@ -474,16 +562,20 @@ async function handleFailed(
     await sendMessage(chatId, "Photo check had a small hiccup 😊 — please send that screenshot again!");
     return;
   }
+
   const attempts = student.screenshot_attempts + 1;
-  if (attempts >= 3) {
+  await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
+
+  // Only notify admin after 5 genuine failures — not for every wrong screenshot
+  if (attempts >= 5) {
     await resetScreenshotAttempts(student.id);
-    await notifyAdmin(`⚠️ <b>STUDENT STUCK</b>\nName: ${student.full_name}\nDay: ${student.current_day}, Step: ${student.current_step}\nReason: ${reason}`);
-  } else {
-    await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
+    await notifyAdmin(
+      `⚠️ <b>STUDENT STUCK — 5 ATTEMPTS</b>\n\nName: ${student.full_name}\nDay: ${student.current_day}, Step: ${student.current_step}\n\nAmara has guided this student ${attempts} times without success.\nLast screenshot description: ${reason}\n\nManual help may be needed.`
+    );
   }
 
   if (photo && stepContext) {
-    // Look at the ACTUAL screenshot — like a friend watching the student's screen
+    // Look at the actual screenshot and give precise visual guidance
     const guidance = await geminiVisionGuide(photo.bytes, photo.mimeType, stepContext);
     await sendMessage(chatId, guidance);
   } else {

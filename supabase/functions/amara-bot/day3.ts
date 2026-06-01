@@ -269,11 +269,10 @@ async function handleFailed(
     return;
   }
   const attempts = student.screenshot_attempts + 1;
-  if (attempts >= 3) {
+  await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
+  if (attempts >= 5) {
     await resetScreenshotAttempts(student.id);
-    await notifyAdmin(`⚠️ <b>STUDENT STUCK</b>\nName: ${student.full_name}\nDay: ${student.current_day}, Step: ${student.current_step}\nReason: ${reason}`);
-  } else {
-    await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
+    await notifyAdmin(`⚠️ <b>STUDENT STUCK — 5 ATTEMPTS</b>\nName: ${student.full_name}\nDay: ${student.current_day}, Step: ${student.current_step}\n\nAmara has guided ${attempts} times without success.\nLast screenshot: ${reason}\n\nManual help may be needed.`);
   }
 
   if (photo && stepContext) {
