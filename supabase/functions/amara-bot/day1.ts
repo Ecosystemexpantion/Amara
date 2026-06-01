@@ -150,7 +150,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
 async function sendStep4Prompt(chatId: number): Promise<void> {
   await sendMessage(
     chatId,
-    `<b>Payhip — your second money platform! 💰</b>\n\nPayhip is your second store where customers pay you. Having two platforms means more ways for money to reach you.\n\n👉 You MUST use THIS exact link to create your account — it gives you special setup bonuses:\n<a href="https://payhip.com/auth/register/af650fe07ce1c3c">https://payhip.com/auth/register/af650fe07ce1c3c</a>\n\nOnce you've registered, Payhip needs to approve your account (usually a few minutes). As soon as it's approved, send me a screenshot of your <b>Payhip dashboard</b> 📸\n\nAlso — once approved, copy your Payhip store link and send it to me. It looks like: <code>payhip.com/YourUsername</code>. You'll need it for tomorrow!`
+    `<b>Payhip — your second money platform! 💰</b>\n\nWith Payhip, you earn commissions every time someone buys through your affiliate link. It's passive income — set it up once and let it pay you.\n\n👉 Use THIS exact link to create your account:\n<a href="https://payhip.com/auth/register/af650fe07ce1c3c">https://payhip.com/auth/register/af650fe07ce1c3c</a>\n\nYou'll see a <b>"Join as an Affiliate"</b> form — fill in your name, email and create a password, then click <b>"Create account"</b>.\n\nOnce your account is ready, send me a screenshot of your <b>Payhip dashboard</b> 📸`
   );
 }
 
@@ -174,36 +174,49 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, `Student is on Day 1 Step 4 — they need to create a Payhip account using the special link (https://payhip.com/auth/register/af650fe07ce1c3c) and send their Payhip store link + a screenshot of their dashboard. ${student.payhip_link ? "They already sent their Payhip link: " + student.payhip_link + ". Now waiting for the dashboard screenshot." : "They haven't sent their Payhip link yet."}`, student.id);
+      const reply = await geminiChat(history, text, `Student is on Day 1 Step 4 — they need to create a Payhip affiliate account using the link https://payhip.com/auth/register/af650fe07ce1c3c. They will see a "Join as an Affiliate" form to fill in. After signing up they'll have a Payhip affiliate dashboard and an affiliate link. ${student.payhip_link ? "They already sent their Payhip link: " + student.payhip_link + ". Now waiting for the dashboard screenshot." : "They haven't sent their affiliate link yet."}`, student.id);
       await sendMessage(chatId, reply);
     } else {
       if (!student.payhip_link) {
         await sendStep4Prompt(chatId);
       } else {
-        await sendMessage(chatId, "Great! Now send me a screenshot of your Payhip dashboard 📸");
+        await sendMessage(chatId, "Great! Now send me a screenshot of your Payhip affiliate dashboard 📸");
       }
     }
     return;
   }
 
   const prompt = buildVerificationPrompt(
-    "Does this screenshot show a Payhip SELLER/CREATOR dashboard? Study it carefully:\n" +
-    "- If you see 'Join as an Affiliate' form → student is on the WRONG page (affiliate signup, not seller)\n" +
-    "- If you see a generic Payhip account registration form → student needs to complete signup\n" +
-    "- If you see a Payhip seller dashboard with menu items like Products, Sales, Customers → CORRECT\n" +
-    "For guidance: tell the student EXACTLY which page they are on and what specific link or button to click next."
+    "Does this screenshot show Payhip? Study it carefully:\n" +
+    "- 'Join as an Affiliate' signup form (fields for First Name, Last Name, Email, Password with a 'Create account' button) → verified=true, student is on the CORRECT signup page\n" +
+    "- Payhip affiliate dashboard (logged in, showing affiliate links, commissions, clicks or earnings) → verified=true, account is set up\n" +
+    "- Any other page (wrong website, unrelated page) → verified=false\n" +
+    "For guidance: tell the student exactly what page they are on and what to do next.",
+    ["page_type: write 'form' if showing the affiliate signup form, write 'dashboard' if showing a logged-in affiliate dashboard"]
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
+    const pageType = result.extracted?.page_type ?? "";
+    const isForm = /form/i.test(pageType) || /sign.?up|register|join|create.{0,10}account/i.test(result.reason ?? "");
+
+    if (isForm) {
+      // Correct page — tell them to fill in the form
+      await sendMessage(
+        chatId,
+        `You're on the right page! 🎉\n\nNow fill in the form:\n📝 Enter your <b>First Name</b>, <b>Last Name</b>, <b>Email</b> and create a <b>Password</b>\n✅ Click <b>"Create account"</b>\n\nOnce your account is ready, send me a screenshot of your <b>Payhip dashboard</b> 📸`
+      );
+      return;
+    }
+
+    // They have their affiliate dashboard
     const updates: Partial<Student> = { payhip_account_created: true };
     if (!student.payhip_link) {
-      // Ask for the link before proceeding if not yet given
       await recordStepCompletion(student.id, 1, 4, true);
       await updateStudent(student.id, updates);
       await sendMessage(
         chatId,
-        `Payhip dashboard verified! ✅\n\nOne last thing — what is your Payhip store link? It looks like: <code>payhip.com/YourUsername</code>\n\nSend it to me so I can save it for tomorrow's setup 🔗`
+        `Payhip account confirmed! ✅ You don do am! 🙌\n\nNow find your <b>affiliate link</b> in your Payhip dashboard and send it to me — it's the special link that earns you commissions 🔗`
       );
       return;
     }
@@ -215,7 +228,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
       student,
       chatId,
       result.reason,
-      "Make sure your Payhip account is approved and you're viewing your seller dashboard, then screenshot and send 📸"
+      result.guidance || "Use this link to sign up: <a href=\"https://payhip.com/auth/register/af650fe07ce1c3c\">https://payhip.com/auth/register/af650fe07ce1c3c</a> — you should see a 'Join as an Affiliate' form to fill in 📸"
     );
   }
 }
