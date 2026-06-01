@@ -59,8 +59,9 @@ export function modifyTemplateForStudent(html: string, payhipLink: string): stri
     ""
   );
 
-  // Remove emailjs.init line
-  out = out.replace(/emailjs\.init\([^)]*\);?\s*\n?/g, "");
+  // Remove emailjs.init and emailjs.send calls
+  out = out.replace(/emailjs\.init\s*\([^)]*\)\s*;?/g, "");
+  out = out.replace(/emailjs\.send\s*\([\s\S]*?\)\s*;?/g, "");
 
   // Remove the buy-trigger querySelectorAll event listener block
   out = out.replace(
@@ -81,6 +82,10 @@ document.addEventListener('DOMContentLoaded',function(){
 </script>`;
 
   out = out.replace("</body>", redirectScript + "\n</body>");
+
+  // Override scroll-reveal CSS — emailjs removal can break JS execution order
+  // causing .reveal elements to stay at opacity:0. Force them always visible.
+  out = out.replace("</head>", `<style>.reveal{opacity:1!important;transform:none!important;transition:none!important}</style></head>`);
 
   return out;
 }

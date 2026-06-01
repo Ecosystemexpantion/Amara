@@ -66,6 +66,12 @@ function modifyForStudent(html: string, payhipLink: string): string {
   // Remove EmailJS CDN script tag
   h = h.replace(/<script[^>]*emailjs[^>]*><\/script>/gi, "");
 
+  // Remove emailjs.init(...) call — emailjs is not loaded so this throws ReferenceError
+  h = h.replace(/emailjs\.init\s*\([^)]*\)\s*;?/g, "");
+
+  // Remove emailjs.send(...) calls
+  h = h.replace(/emailjs\.send\s*\([\s\S]*?\)\s*;?/g, "");
+
   // Remove pay-modal div (greedy match for the whole block)
   h = h.replace(
     /<div[^>]+id=["']pay-modal["'][^>]*>[\s\S]*?<\/div>\s*(?=<\/div>|<section|<footer|$)/i,
@@ -95,6 +101,9 @@ function modifyForStudent(html: string, payhipLink: string): string {
     /document\.querySelectorAll\(['"].buy-trigger['"]\)[\s\S]*?}\);?/g,
     ""
   );
+
+  // Override scroll-reveal so content is always visible (emailjs removal breaks the observer)
+  h = h.replace("</head>", `<style>.reveal{opacity:1!important;transform:none!important;transition:none!important}</style></head>`);
 
   return h;
 }
