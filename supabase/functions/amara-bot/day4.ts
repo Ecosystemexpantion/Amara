@@ -1,4 +1,4 @@
-import { sendMessage, sendChatAction, sendDocument } from "./telegram.ts";
+import { sendMessage, sendChatAction, sendDocument, typeMessage } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, getRecentConversation } from "./db.ts";
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { generateCertificate } from "./certificate.ts";
@@ -21,25 +21,25 @@ export async function handleDay4(
     case 4: await handleStep4(student, chatId, text, photo); break;
     case 5: await handleStep5(student, chatId, text, photo); break;
     case 6: await handleStep6(student, chatId, text, photo); break;
-    default: await sendMessage(chatId, "We're almost at the finish line! Send me that screenshot 📸");
+    default: await typeMessage(chatId, "We're almost at the finish line! Send me that screenshot 📸");
   }
 }
 
 // Step 1: Set environment variables in Supabase
 async function handleStep1(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
-  const envVarInstructions = `<b>Step 1 — Set your bot's environment variables</b>\n\nIn your Supabase project:\n1️⃣ Click <b>Edge Functions</b> in the left menu\n2️⃣ Click on your <b>my-bot</b> function\n3️⃣ Click <b>Secrets</b> (or <b>Environment variables</b>)\n4️⃣ Add these variables one by one:\n\n<code>BOT_TOKEN</code> = (the token from BotFather you gave me)\n<code>GEMINI_API_KEY</code> = (your Google AI Studio key)\n<code>SUPABASE_URL</code> = (already auto-set, but add if needed)\n<code>SUPABASE_SERVICE_ROLE_KEY</code> = (from Settings → API → service_role key)\n\nSend me a screenshot when the variables are set 📸`;
-
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, `Student is on Day 4 Step 1. They need to set environment variables in their Supabase Edge Function:
+      const reply = await geminiChat(history, text, `Student is on Day 4 Step 1. They need to set environment variables in their Supabase Edge Function — Supabase is from their Tech Stack they purchased:
 - BOT_TOKEN: their Telegram bot token (${student.bot_token ? "already collected: " + student.bot_token.slice(0, 15) + "..." : "need to add"})
 - GEMINI_API_KEY: from Google AI Studio (aistudio.google.com)
 - SUPABASE_URL: auto-injected usually
 - SUPABASE_SERVICE_ROLE_KEY: from Supabase Settings → API → service_role`, student.id);
       await sendMessage(chatId, reply);
     } else {
-      await sendMessage(chatId, envVarInstructions);
+      await typeMessage(chatId, `<b>Last connection — we're linking your bot to its brain! 🧠</b>\n\nThis is your Supabase from your Tech Stack 📦 — let's plug everything in.`);
+      await typeMessage(chatId, `In your Supabase project:\n1️⃣ Click <b>Edge Functions</b> in the left menu\n2️⃣ Click on your <b>my-bot</b> function\n3️⃣ Click <b>Secrets</b> (or <b>Environment variables</b>)\n4️⃣ Add these one by one:\n\n<code>BOT_TOKEN</code> = your BotFather token\n<code>GEMINI_API_KEY</code> = your Google AI Studio key\n<code>SUPABASE_SERVICE_ROLE_KEY</code> = Settings → API → service_role key`);
+      await typeMessage(chatId, `Send me a screenshot when the variables are set 📸`);
     }
     return;
   }
@@ -50,10 +50,9 @@ async function handleStep1(student: Student, chatId: number, text: string | null
   if (result.verified) {
     await recordStepCompletion(student.id, 4, 1, true);
     await advanceStep(student.id, 4, 2);
-    await sendMessage(
-      chatId,
-      `Environment variables set! ✅\n\nNow let's connect your bot to Telegram by setting the <b>webhook</b>.\n\nRun this command (replace YOUR_PROJECT_REF with your Supabase project reference):\n\n<code>curl -X POST "https://api.telegram.org/bot${student.bot_token?.slice(0, 20) ?? "YOUR_BOT_TOKEN"}...YOUR_BOT_TOKEN/setWebhook" -H "Content-Type: application/json" -d '{"url": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/my-bot"}'</code>\n\nOr just send me the word <b>"done"</b> if you've already set it up — I'll walk you through it! 😊`
-    );
+    await typeMessage(chatId, `Environment variables set — YES! ✅ You don do am! 🙌`);
+    await typeMessage(chatId, `Now let's connect your bot to Telegram with the <b>webhook</b>.\n\nRun this command:\n<code>curl -X POST "https://api.telegram.org/bot${student.bot_token ?? "YOUR_BOT_TOKEN"}/setWebhook" -H "Content-Type: application/json" -d '{"url": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/my-bot"}'</code>\n\n(Replace <code>YOUR_PROJECT_REF</code> with your actual Supabase project ref)`);
+    await typeMessage(chatId, `Or just say <b>"done"</b> if you've already set it — I'll walk you through it! 😊`);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Go to Supabase → Edge Functions → your function → Secrets/Environment Variables, set them, then screenshot 📸");
   }
@@ -66,10 +65,9 @@ async function handleStep2(student: Student, chatId: number, text: string | null
   if (text && doneWords.test(text)) {
     await recordStepCompletion(student.id, 4, 2, false, "Student confirmed webhook set");
     await advanceStep(student.id, 4, 3);
-    await sendMessage(
-      chatId,
-      `Webhook confirmed! 🔗\n\nNow the REAL test — send a message to YOUR bot!\n\n1️⃣ Open Telegram\n2️⃣ Search for your bot's username (the one you created on Day 3)\n3️⃣ Send it a message — anything!\n4️⃣ Your bot should reply!\n\nSend me a screenshot of the conversation showing your bot responding 📸`
-    );
+    await typeMessage(chatId, `Webhook confirmed! 🔗 We're SO close now!!`);
+    await typeMessage(chatId, `Now the REAL test — go message YOUR bot!\n\n1️⃣ Open Telegram\n2️⃣ Search for your bot's username (from Day 3)\n3️⃣ Send it anything!\n4️⃣ It should reply! 🤖`);
+    await typeMessage(chatId, `Send me a screenshot of the conversation with your bot responding 📸`);
     return;
   }
 
@@ -80,10 +78,8 @@ async function handleStep2(student: Student, chatId: number, text: string | null
     if (result.verified) {
       await recordStepCompletion(student.id, 4, 2, true);
       await advanceStep(student.id, 4, 3);
-      await sendMessage(
-        chatId,
-        `Webhook set! 🎯\n\nNow open Telegram, find your bot and send it a message. It should reply!\n\nSend me a screenshot showing your bot responding 📸`
-      );
+      await typeMessage(chatId, `Webhook set! 🎯 That's it!`);
+      await typeMessage(chatId, `Open Telegram, find your bot and send it a message — it should reply! Send me a screenshot of it responding 📸`);
       return;
     }
   }
@@ -102,7 +98,7 @@ The curl command to run: curl -X POST "https://api.telegram.org/bot${botToken}/s
 Guide them step by step. If they don't have curl, suggest using a browser or Postman.`, student.id);
     await sendMessage(chatId, reply);
   } else {
-    await sendMessage(chatId, "Set your Telegram webhook and send me a screenshot, or just say <b>\"done\"</b> when it's set! 🔗");
+    await typeMessage(chatId, "Set your Telegram webhook and send me a screenshot, or just say <b>\"done\"</b> when it's set! 🔗");
   }
 }
 
@@ -114,7 +110,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
       const reply = await geminiChat(history, text, "Student needs to test their Telegram bot by sending it a message and showing a screenshot of it responding.", student.id);
       await sendMessage(chatId, reply);
     } else {
-      await sendMessage(chatId, "Open your bot on Telegram, send it a message, and send me a screenshot of it replying 📸");
+      await typeMessage(chatId, "Open your bot on Telegram, send it a message, and send me a screenshot of it replying 📸");
     }
     return;
   }
@@ -125,11 +121,9 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   if (result.verified) {
     await recordStepCompletion(student.id, 4, 3, true);
     await advanceStep(student.id, 4, 4);
-    await sendMessage(
-      chatId,
-      `<b>YOUR BOT IS LIVE! 🔥🔥🔥</b>\n\nI can see it responding! Your Smart Reply Engine is RUNNING! 💪\n\n✅ Bot token — connected\n✅ Database — live\n✅ Webhook — set\n✅ Bot is replying — CONFIRMED\n\nThis is YOUR AI working for you 24/7 from this moment. Every person who messages your bot will be handled automatically. Money on autopilot! 🤖💰`
-    );
-    await new Promise((r) => setTimeout(r, 1500));
+    await typeMessage(chatId, `<b>YOUR BOT IS LIVE! 🔥🔥🔥</b>\n\nI can see it responding! Your SRE — Smart Reply Engine from your Tech Stack 📦 — is RUNNING!`);
+    await typeMessage(chatId, `✅ Bot token — connected\n✅ Database — live\n✅ Webhook — set\n✅ Bot is replying — CONFIRMED 💪\n\nThis is YOUR AI working for you 24/7 from this moment. Every person who messages your bot will be handled automatically. Money on autopilot! 🤖💰`);
+    await new Promise((r) => setTimeout(r, 300));
     await handleStep4Celebration(student, chatId);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Open your bot on Telegram, send it a test message, and send me a screenshot of it replying 📸");
@@ -138,10 +132,8 @@ async function handleStep3(student: Student, chatId: number, text: string | null
 
 async function handleStep4Celebration(student: Student, chatId: number): Promise<void> {
   await advanceStep(student.id, 4, 5);
-  await sendMessage(
-    chatId,
-    `Now — the final moment. Your <b>Certificate of Completion! 🎓</b>\n\nI need one last thing from you.\n\nPlease <b>sign your name</b> on a plain white paper, take a <b>clear photo</b> of just the signature, and send it to me.\n\nI'll add it to your official EEM26 certificate to make it real! ✍️`
-  );
+  await typeMessage(chatId, `Now — the final moment. Your <b>Certificate of Completion! 🎓</b>`);
+  await typeMessage(chatId, `I need one last thing from you — please <b>sign your name</b> on plain paper, take a <b>clear photo</b> of just the signature, and send it to me.\n\nI'll add it to your official EEM26 certificate! ✍️`);
 }
 
 // Step 4: Wait for student to say something (celebration buffer step)
@@ -158,10 +150,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
 async function handleStep5(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
   if (!photo) {
     if (text) {
-      await sendMessage(
-        chatId,
-        `I need a <b>photo of your signature</b> — sign your name on white paper and take a clear photo, then send it to me 📸\n\nThis goes on your official certificate! ✍️`
-      );
+      await typeMessage(chatId, `I need a <b>photo of your signature</b> — sign your name on paper, take a clear photo, and send it to me 📸 This goes on your official certificate! ✍️`);
     }
     return;
   }
@@ -172,7 +161,7 @@ async function handleStep5(student: Student, chatId: number, text: string | null
 
   if (result.verified) {
     await sendChatAction(chatId, "upload_document");
-    await sendMessage(chatId, `Got your signature! ✍️ Generating your certificate now... 🎓`);
+    await typeMessage(chatId, `Got your signature! ✍️ Generating your certificate now... 🎓`);
 
     try {
       const certBytes = await generateCertificate(student, photo.bytes, photo.mimeType);
@@ -200,17 +189,11 @@ async function handleStep5(student: Student, chatId: number, text: string | null
       await sendGrandFinale(student, chatId);
     } catch (e) {
       console.error("Certificate generation error:", e);
-      await sendMessage(
-        chatId,
-        `Certificate is being generated! There was a small hiccup — please try sending your signature photo again 📸`
-      );
+      await typeMessage(chatId, `Small hiccup with the certificate — please send your signature photo again 📸`);
     }
   } else {
     // Not a signature — gently ask again
-    await sendMessage(
-      chatId,
-      `I need a photo of your <b>handwritten signature</b> on paper 📝\n\nJust sign your name on any paper, take a photo, and send it to me — I'll use it for your certificate! ✍️`
-    );
+    await typeMessage(chatId, `I need a photo of your <b>handwritten signature</b> on paper 📝\n\nJust sign your name on any paper, take a photo, and drop it here — I'll use it for your certificate! ✍️`);
   }
 }
 
@@ -249,10 +232,9 @@ async function sendGrandFinale(student: Student, chatId: number): Promise<void> 
     status: "COMPLETED",
   });
 
-  await sendMessage(
-    chatId,
-    `<b>🎓 CONGRATULATIONS, ${student.full_name?.toUpperCase() ?? "CHAMPION"}! 🎓</b>\n\nYour official EEM26 Certificate of Completion is DONE!\n\nYou did something most people only talk about — you actually showed up and BUILT it. 💪\n\nYou now have:\n✅ Two live sales pages\n✅ A Selar store\n✅ A Payhip store\n✅ Your own AI sales bot running 24/7\n✅ Official EEM26 Certificate\n\n<b>Welcome to the EEM26 family. Now go make money! 🔥</b>`
-  );
+  await typeMessage(chatId, `<b>🎓 CONGRATULATIONS, ${student.full_name?.toUpperCase() ?? "CHAMPION"}! 🎓</b>\n\nYou did something most people only talk about — you actually showed up and BUILT it. 💪 Na you be champion!! 🏆`);
+  await typeMessage(chatId, `Everything from your Tech Stack 📦 is now LIVE and working for you:\n✅ Two live sales pages (GitHub Pages)\n✅ Selar store — accepting orders\n✅ Payhip affiliate — earning commissions\n✅ Your own AI sales bot (SRE) — running 24/7\n✅ Official EEM26 Certificate of Completion`);
+  await typeMessage(chatId, `<b>Welcome to the EEM26 family. Now go make money! 🔥</b>\n\nAsk me anything, any time — I dey here for you! 💪`);
 
   await notifyAdmin(
     `🏆 <b>PROGRAM COMPLETE — CERTIFICATE ISSUED</b>\n\nStudent: ${student.full_name}\nCountry: ${student.country}\nEmail: ${student.email}\n\n🌐 Normal page: ${student.sales_page_link ?? "N/A"}\n💎 Premium page: ${student.github_repo_premium ?? "N/A"}\n🛒 Payhip: ${student.payhip_link ?? "N/A"}\n🤖 Bot: ${student.bot_token ? "✅ deployed" : "❌"}`

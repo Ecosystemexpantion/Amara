@@ -1,4 +1,4 @@
-import { sendMessage, sendChatAction } from "./telegram.ts";
+import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, computeNextUnlockAt, getRecentConversation } from "./db.ts";
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin } from "./admin.ts";
@@ -70,10 +70,9 @@ async function handleStep1(student: Student, chatId: number, text: string | null
 }
 
 async function sendStep2Prompt(chatId: number): Promise<void> {
-  await sendMessage(
-    chatId,
-    `<b>Okay! First task from your Tech Stack 📦</b>\n\nYou need to create your <b>Selar account</b>. Selar is one of the platforms where your customers will buy from you — think of it as your online storefront.\n\n👉 Click this link to create your account as a <b>CREATOR</b> (not affiliate — this is IMPORTANT!):\n<a href="https://selar.com/register">https://selar.com/register</a>\n\n⚠️ Make sure you sign up as a <b>CREATOR</b>, not as an affiliate. If you sign up wrong, your account won't work for selling.\n\nOnce you're on the registration page, send me a <b>screenshot</b> so I can confirm you're on the right page 📸`
-  );
+  await typeMessage(chatId, `<b>Okay! First task from your Tech Stack 📦</b>\n\nYour <b>Selar account</b> — this is one of your main selling platforms where customers buy from you directly 🛒`);
+  await typeMessage(chatId, `👉 Sign up as a <b>CREATOR</b> (not affiliate — this is important!):\n<a href="https://selar.com/register">selar.com/register</a>\n\n⚠️ CREATOR = your own storefront. Affiliate = someone else's. Make sure it says CREATOR!`);
+  await typeMessage(chatId, `Once you're on the registration page, send me a screenshot so I can confirm you're in the right place 📸`);
 }
 
 // Step 2: Selar screenshot — accept registration page OR existing dashboard
@@ -101,12 +100,12 @@ async function handleStep2(student: Student, chatId: number, text: string | null
 
     if (isDashboard) {
       await advanceStep(student.id, 1, 4, { selar_account_created: true });
-      await sendMessage(chatId, `I can see you're already on Selar — amazing! ✅ You don do am! 🙌\n\nNow let's set up your second platform — <b>Payhip</b>. This is also from your Tech Stack 📦`);
-      await new Promise((r) => setTimeout(r, 800));
+      await typeMessage(chatId, `Ayyyy you're already on Selar!! ✅ You don do am! 🙌`);
+      await new Promise((r) => setTimeout(r, 300));
       await sendStep4Prompt(chatId);
     } else {
       await advanceStep(student.id, 1, 3);
-      await sendMessage(chatId, `You're on the right page! 🎉\n\nNow <b>complete the registration</b> — fill in your details and verify your email.\n\nOnce your account is active and you can see your Selar <b>dashboard</b>, send me a screenshot 📸`);
+      await typeMessage(chatId, `You're on the right page! 🎉\n\nNow <b>complete the registration</b> — fill in your details and verify your email.\n\nOnce your Selar <b>dashboard</b> is active, snap a screenshot and send it over 📸`);
     }
   } else {
     await handleFailedScreenshot(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and screenshot the Selar page 📸");
@@ -134,8 +133,8 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   if (result.verified) {
     await recordStepCompletion(student.id, 1, 3, true);
     await advanceStep(student.id, 1, 4, { selar_account_created: true });
-    await sendMessage(chatId, `Selar account — DONE! ✅ You don do am! 🙌\n\nNow let's set up your second platform — <b>Payhip</b>. This is also from your Tech Stack 📦`);
-    await new Promise((r) => setTimeout(r, 800));
+    await typeMessage(chatId, `Selar account — DONE! ✅ You don do am! 🙌`);
+    await new Promise((r) => setTimeout(r, 300));
     await sendStep4Prompt(chatId);
   } else {
     await handleFailedScreenshot(
@@ -148,10 +147,9 @@ async function handleStep3(student: Student, chatId: number, text: string | null
 }
 
 async function sendStep4Prompt(chatId: number): Promise<void> {
-  await sendMessage(
-    chatId,
-    `<b>Payhip — your second money platform! 💰</b>\n\nWith Payhip, you earn commissions every time someone buys through your affiliate link. It's passive income — set it up once and let it pay you.\n\n👉 Use THIS exact link to create your account:\n<a href="https://payhip.com/auth/register/af650fe07ce1c3c">https://payhip.com/auth/register/af650fe07ce1c3c</a>\n\nYou'll see a <b>"Join as an Affiliate"</b> form — fill in your name, email and create a password, then click <b>"Create account"</b>.\n\nOnce your account is ready, send me a screenshot of your <b>Payhip dashboard</b> 📸`
-  );
+  await typeMessage(chatId, `<b>Payhip — your second money platform! 💰</b>\n\nWith Payhip you earn commissions every time someone buys through your link. Set it up once, it pays you forever 🔁 Already in your Tech Stack 📦`);
+  await typeMessage(chatId, `👉 Use THIS exact link to create your account:\n<a href="https://payhip.com/auth/register/af650fe07ce1c3c">payhip.com/auth/register/af650fe07ce1c3c</a>`);
+  await typeMessage(chatId, `You'll see a <b>"Join as an Affiliate"</b> form — fill in your name, email and create a password, then click <b>"Create account"</b>.\n\nOnce your dashboard is ready, drop a screenshot here 📸`);
 }
 
 // Step 4: Payhip — collect payhip_link text AND dashboard screenshot
@@ -163,9 +161,9 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     if (linkMatch) {
       const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "");
       await updateStudent(student.id, { payhip_link: payhipLink });
-      await sendMessage(
+      await typeMessage(
         chatId,
-        `Got your Payhip link! ✅ <code>${payhipLink}</code>\n\nNow send me a screenshot of your Payhip <b>dashboard</b> to confirm your account is active 📸`
+        `Got your Payhip link! ✅ <code>${payhipLink}</code>\n\nNow show me a screenshot of your Payhip dashboard so I can confirm your account is active 📸`
       );
       return;
     }
@@ -201,11 +199,8 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     const isForm = /form/i.test(pageType) || /sign.?up|register|join|create.{0,10}account/i.test(result.reason ?? "");
 
     if (isForm) {
-      // Correct page — tell them to fill in the form
-      await sendMessage(
-        chatId,
-        `You're on the right page! 🎉\n\nNow fill in the form:\n📝 Enter your <b>First Name</b>, <b>Last Name</b>, <b>Email</b> and create a <b>Password</b>\n✅ Click <b>"Create account"</b>\n\nOnce your account is ready, send me a screenshot of your <b>Payhip dashboard</b> 📸`
-      );
+      await typeMessage(chatId, `You're on the right page! 🎉\n\nNow fill in the form:\n📝 Enter your <b>First Name</b>, <b>Last Name</b>, <b>Email</b> and create a <b>Password</b>\n✅ Click <b>"Create account"</b>`);
+      await typeMessage(chatId, `Once your account is ready, send me a screenshot of your <b>Payhip dashboard</b> 📸`);
       return;
     }
 
@@ -214,9 +209,9 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     if (!student.payhip_link) {
       await recordStepCompletion(student.id, 1, 4, true);
       await updateStudent(student.id, updates);
-      await sendMessage(
+      await typeMessage(
         chatId,
-        `Payhip account confirmed! ✅ You don do am! 🙌\n\nNow find your <b>affiliate link</b> in your Payhip dashboard and send it to me — it's the special link that earns you commissions 🔗`
+        `Payhip account confirmed! ✅ You don do am! 🙌\n\nNow find your <b>affiliate link</b> in your Payhip dashboard and send it to me — that's the link that earns you commissions 🔗`
       );
       return;
     }
@@ -267,10 +262,8 @@ async function sendDay1Complete(student: Student, chatId: number): Promise<void>
     next_day_unlocks_at: nextUnlock,
   });
 
-  await sendMessage(
-    chatId,
-    `<b>YOU DID IT! 🎉🎉🎉</b>\n\n<b>Day 1 is COMPLETE! You don do am! 💪</b>\n\nHere's what you've accomplished today:\n✅ You understand your business model\n✅ Selar account — DONE\n✅ Payhip account — DONE\n\nTomorrow we build your <b>SALES PAGE</b> — your online shop that converts visitors into buyers automatically. It'll have YOUR link so every sale goes directly to you.\n\n<b>Your Day 2 unlocks tomorrow at 8AM Nigeria time.</b> I'll message you then! Get some rest — you've earned it 🌟`
-  );
+  await typeMessage(chatId, `<b>YOU DID IT!! 🎉🎉🎉</b>\n\nDay 1 is COMPLETE! You don do am!! 💪\n\n✅ Business model — understood\n✅ Selar account — DONE\n✅ Payhip account — DONE`);
+  await typeMessage(chatId, `Tomorrow we build your <b>SALES PAGE</b> — your online shop that converts visitors into buyers automatically, with YOUR link so every sale goes straight to you 💰\n\n<b>Day 2 unlocks tomorrow at 8AM Nigeria time.</b> I'll message you then! Get some rest — you earned it 🌟`);
 
   await notifyAdmin(
     `✅ <b>DAY 1 COMPLETE</b>\n\nStudent: ${student.full_name}\nCountry: ${student.country}\nEmail: ${student.email}\nSelar: ✅\nPayhip: ✅\nPayhip link: ${student.payhip_link ?? "not yet provided"}`

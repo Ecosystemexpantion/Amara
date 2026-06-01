@@ -1,4 +1,4 @@
-import { sendMessage, sendChatAction } from "./telegram.ts";
+import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
 import { updateStudent, advanceStep, getRecentConversation } from "./db.ts";
 import { geminiChat } from "./gemini.ts";
 import { notifyAdmin } from "./admin.ts";
@@ -38,7 +38,7 @@ export async function handleOnboarding(
   await sendChatAction(chatId, "typing");
 
   if (student.current_step !== 1 && (!text || text.trim().length < 1)) {
-    await sendMessage(chatId, "Send me a text message — no photos needed right now 😊");
+    await typeMessage(chatId, "Send me a text message — no photos needed right now 😊");
     return;
   }
 
@@ -50,10 +50,8 @@ export async function handleOnboarding(
       const introAlreadySent = history.length > 1;
 
       if (!introAlreadySent) {
-        await sendMessage(
-          chatId,
-          `Hey! I'm <b>Amara</b>, your personal EEM26 setup coach 🎉\n\nI'll be with you every single step for the next 4 days until your business is fully running. This is going to be an amazing journey!\n\nFirst things first — what's your <b>full name</b>? (Your real name, as it will appear on your certificate 🎓)`
-        );
+        await typeMessage(chatId, `Hey!! I'm <b>Amara</b>, your personal EEM26 setup coach 🎉\n\nI'll be right here with you every single step for the next 4 days until your business is fully running.`);
+        await typeMessage(chatId, `First things first — what's your <b>full name</b>? (Your real name, exactly as it will appear on your certificate 🎓)`);
         return;
       }
 
@@ -61,7 +59,7 @@ export async function handleOnboarding(
 
       if (extractedName) {
         await updateStudent(student.id, { full_name: extractedName, current_step: 2 });
-        await sendMessage(
+        await typeMessage(
           chatId,
           `Beautiful name, <b>${extractedName}</b>! Welcome 👑\n\nNow, what's your <b>email address</b>? I'll use it for your program records.`
         );
@@ -80,7 +78,7 @@ export async function handleOnboarding(
     case 2: {
       if (EMAIL_RE.test(t)) {
         await updateStudent(student.id, { email: t, current_step: 3 });
-        await sendMessage(
+        await typeMessage(
           chatId,
           `Got it! ✅\n\nNow your <b>phone number</b> please? Include your country code — e.g. <code>+2348012345678</code>`
         );
@@ -100,7 +98,7 @@ export async function handleOnboarding(
     case 3: {
       if (PHONE_RE.test(t)) {
         await updateStudent(student.id, { phone: t, current_step: 4 });
-        await sendMessage(chatId, `Perfect! ✅ Last one — which <b>country</b> are you from? 🌍`);
+        await typeMessage(chatId, `Perfect! ✅ Last one — which <b>country</b> are you from? 🌍`);
       } else {
         const history = await getRecentConversation(student.id, 5);
         const reply = await geminiChat(
@@ -116,7 +114,7 @@ export async function handleOnboarding(
 
     case 4: {
       if (!t) {
-        await sendMessage(chatId, "Which country are you from? 🌍");
+        await typeMessage(chatId, "Which country are you from? 🌍");
         return;
       }
       await updateStudent(student.id, { country: t });
@@ -128,33 +126,27 @@ export async function handleOnboarding(
 
       await advanceStep(student.id, 1, 1, {});
 
-      await sendMessage(
+      await typeMessage(
         chatId,
-        `<b>Perfect! Everything is set. Welcome to EEM26, ${updatedStudent.full_name ?? ""}! 🎉</b>\n\nYour 4-day setup program starts RIGHT NOW. Let's go! 👇`
+        `<b>Everything is set, ${updatedStudent.full_name ?? ""}! Welcome to EEM26! 🎉</b>\n\nYour 4-day setup program starts RIGHT NOW. Let's go! 👇`
       );
 
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 300));
       await sendDay1Welcome(chatId);
       break;
     }
 
     default: {
       await updateStudent(student.id, { current_step: 1 });
-      await sendMessage(chatId, "Hey! What's your full name to get started? 😊");
+      await typeMessage(chatId, "Hey! What's your full name to get started? 😊");
     }
   }
 }
 
 async function sendDay1Welcome(chatId: number): Promise<void> {
-  await sendMessage(
-    chatId,
-    `<b>Welcome to Day 1! 🚀</b>\n\nToday is all about understanding your business — so you know exactly what you're building and WHY it works.\n\nThe EEM26 business model runs on 2 powerful systems:\n\n✅ <b>AAM (Automate and Attract Method)</b> — brings buyers to your DM automatically, no ads needed\n✅ <b>SRE (Smart Reply Engine)</b> — AI that handles your replies and closes sales even when you're sleeping\n\nYou're going to set ALL of this up over 4 days. By Day 4, you'll be earning. Let's go! 💪`
-  );
+  await typeMessage(chatId, `<b>Welcome to Day 1! 🚀</b>\n\nToday is all about understanding your business — so you know EXACTLY what you're building and why it works.`);
 
-  await new Promise((r) => setTimeout(r, 1000));
+  await typeMessage(chatId, `The EEM26 model runs on 2 powerful systems:\n\n✅ <b>AAM (Automate and Attract Method)</b> — brings buyers to your DM automatically, no ads needed\n✅ <b>SRE (Smart Reply Engine)</b> — AI that closes sales even while you sleep`);
 
-  await sendMessage(
-    chatId,
-    `Before we move to your first task — do you have any questions about how the business works?\n\nAsk me ANYTHING and I'll explain it. When you're ready to start your first task, just say <b>"ready"</b> 👊`
-  );
+  await typeMessage(chatId, `You're setting ALL of this up over 4 days. By Day 4 you'll be earning 💪\n\nAny questions about how the business works? Ask me anything! When you're ready to start your first task just say <b>"ready"</b> 👊`);
 }

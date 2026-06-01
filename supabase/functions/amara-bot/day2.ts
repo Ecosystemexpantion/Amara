@@ -1,4 +1,4 @@
-import { sendMessage, sendChatAction, sendDocument } from "./telegram.ts";
+import { sendMessage, sendChatAction, sendDocument, typeMessage } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, computeNextUnlockAt, getRecentConversation } from "./db.ts";
 import { geminiVision, geminiChat, buildVerificationPrompt } from "./gemini.ts";
 import { modifyTemplateForStudent } from "./html-modifier.ts";
@@ -85,7 +85,7 @@ async function handleStep1(student: Student, chatId: number, text: string | null
     await recordStepCompletion(student.id, 2, 1, true);
 
     // Ask for their desired username
-    await sendMessage(
+    await typeMessage(
       chatId,
       `You're on GitHub! ✅\n\nNow — for your <b>username</b>, I recommend something like: <code>EEM26${student.full_name?.split(" ")[0] ?? "Student"}</code>\n\nThis makes your links look professional and branded.\n\nWhat first name do you want to use in your username? (Can be a short version)`
     );
@@ -102,10 +102,8 @@ async function handleStep2(student: Student, chatId: number, text: string | null
     const firstName = text.trim().split(/\s+/)[0];
     const suggestedUsername = `EEM26${firstName}`;
     await updateStudent(student.id, { github_username: text.trim().replace(/\s+/g, "") });
-    await sendMessage(
-      chatId,
-      `Perfect! Use the username: <code>${suggestedUsername}</code> 🎯\n\nOnce your GitHub account is created with that username, let's create your first repository (repo)!\n\n1️⃣ Log into your GitHub account\n2️⃣ Click the <b>+</b> button at the top right\n3️⃣ Click <b>"New repository"</b>\n\nSend me a screenshot when you see the "Create new repository" page 📸`
-    );
+    await typeMessage(chatId, `Perfect! Use the username: <code>${suggestedUsername}</code> 🎯`);
+    await typeMessage(chatId, `Once your GitHub account is created with that username, let's create your first repository!\n\n1️⃣ Log into GitHub\n2️⃣ Click the <b>+</b> button top right\n3️⃣ Click <b>"New repository"</b>\n\nSend me a screenshot when you see the "Create new repository" page 📸`);
     await advanceStep(student.id, 2, 3, { github_username: suggestedUsername });
     return;
   }
@@ -122,9 +120,9 @@ async function handleStep2(student: Student, chatId: number, text: string | null
     await recordStepCompletion(student.id, 2, 2, true);
     const username = result.extracted?.github_username || student.github_username || "";
     await advanceStep(student.id, 2, 3, username ? { github_username: username } : {});
-    await sendMessage(
+    await typeMessage(
       chatId,
-      `Account confirmed! ✅\n\nNow create your first repo:\n1️⃣ Click the <b>+</b> button at the top right of GitHub\n2️⃣ Click <b>"New repository"</b>\n\nSend me a screenshot when you see the "Create new repository" page 📸`
+      `Account confirmed! ✅\n\nNow create your first repo:\n1️⃣ Click the <b>+</b> button at the top right of GitHub\n2️⃣ Click <b>"New repository"</b>\n\nDrop a screenshot when you see the "Create new repository" page 📸`
     );
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "What first name do you want to use in your GitHub username? Just type it for me.");
@@ -148,10 +146,8 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
-    await sendMessage(
-      chatId,
-      `Perfect! Now fill in the repository details EXACTLY like this:\n\n📝 <b>Repository name:</b> <code>EEM26page</code>\n📝 <b>Description:</b> My EEM26 Sales Page\n✅ Set to <b>PUBLIC</b>\n✅ Check <b>"Add a README file"</b>\n\nThen click <b>"Create repository"</b> and send me a screenshot 📸`
-    );
+    await typeMessage(chatId, `Perfect! 🎯 Now fill in the details EXACTLY like this:\n\n📝 <b>Repository name:</b> <code>EEM26page</code>\n📝 <b>Description:</b> My EEM26 Sales Page\n✅ Set to <b>PUBLIC</b>\n✅ Check <b>"Add a README file"</b>`);
+    await typeMessage(chatId, `Then click <b>"Create repository"</b> and snap me a screenshot 📸`);
     await advanceStep(student.id, 2, 4);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Click <b>+</b> at the top right of GitHub, then <b>\"New repository\"</b>, and send me a screenshot of that page 📸");
@@ -195,11 +191,10 @@ async function handleStep4(student: Student, chatId: number, text: string | null
       "Your personal sales page — customized with YOUR Payhip link! 🎉 This is from your Tech Stack 📦"
     );
 
-    await new Promise((r) => setTimeout(r, 1500));
-    await sendMessage(
-      chatId,
-      `That file I just sent is YOUR personal sales page — with your Payhip link already built in! 💪\n\nNow upload it to GitHub:\n1️⃣ In your repo, click <b>"Add file"</b>\n2️⃣ Click <b>"Upload files"</b>\n3️⃣ Drag the <b>index.html</b> file into the upload box\n4️⃣ Scroll down and click <b>"Commit changes"</b>\n\nSend me a screenshot when done 📸`
-    );
+    await new Promise((r) => setTimeout(r, 400));
+    await typeMessage(chatId, `That file I just sent is YOUR personal sales page — your Payhip link is already inside it! 💪 From your Tech Stack 📦`);
+    await typeMessage(chatId, `Now upload it to GitHub:\n1️⃣ In your repo click <b>"Add file"</b> → <b>"Upload files"</b>\n2️⃣ Drag the <b>index.html</b> file into the upload box\n3️⃣ Scroll down and click <b>"Commit changes"</b>`);
+    await typeMessage(chatId, `Send me a screenshot when the file is uploaded 📸`);
     await advanceStep(student.id, 2, 5);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Fill in the repo name as exactly <code>EEM26page</code>, make it Public, check the README box, then create it and screenshot 📸");
@@ -224,10 +219,8 @@ async function handleStep5(student: Student, chatId: number, text: string | null
 
   if (result.verified) {
     await recordStepCompletion(student.id, 2, 5, true);
-    await sendMessage(
-      chatId,
-      `index.html is uploaded! 🔥 Now let's make it LIVE:\n\n1️⃣ Click <b>Settings</b> in your repository\n2️⃣ Scroll down to <b>"Pages"</b> in the left menu\n3️⃣ Under Source, select <b>"Deploy from a branch"</b>\n4️⃣ Under Branch, select <b>"main"</b> then click <b>Save</b>\n\nSend me a screenshot of the Pages settings 📸`
-    );
+    await typeMessage(chatId, `index.html is uploaded! 🔥 Now let's make it LIVE.`);
+    await typeMessage(chatId, `1️⃣ Click <b>Settings</b> in your repo\n2️⃣ Scroll left menu to <b>"Pages"</b>\n3️⃣ Under Source → <b>"Deploy from a branch"</b>\n4️⃣ Branch → <b>"main"</b> → <b>Save</b>\n\nShow me a screenshot of the Pages settings 📸`);
     await advanceStep(student.id, 2, 6);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Go to your EEM26page repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸");
@@ -260,15 +253,9 @@ async function handleStep6(student: Student, chatId: number, text: string | null
     const salesUrl = extractedUrl || `https://${username}.github.io/EEM26page/`;
     await updateStudent(student.id, { sales_page_link: salesUrl, github_repo_normal: salesUrl });
 
-    await sendMessage(
-      chatId,
-      `Your FIRST sales page is LIVE! 🎉🔥\n\n🌐 <b>Normal page:</b>\n<code>${salesUrl}</code>\n\nSave that link — it's yours! Now let's build the <b>Premium</b> version too 💎`
-    );
-    await new Promise((r) => setTimeout(r, 800));
-    await sendMessage(
-      chatId,
-      `Create a <b>second</b> repository for the premium page:\n\n1️⃣ Click <b>+</b> → <b>New repository</b>\n2️⃣ Name it EXACTLY: <code>EEM26premium</code>\n3️⃣ Make it <b>Public</b>\n4️⃣ Check <b>"Add a README file"</b>\n5️⃣ Click <b>Create repository</b>\n\nSend me a screenshot when the repo is created 📸`
-    );
+    await typeMessage(chatId, `Your FIRST sales page is LIVE!! 🎉🔥\n\n🌐 <b>Your page:</b>\n<code>${salesUrl}</code>\n\nSave that link — it's yours! 💪`);
+    await new Promise((r) => setTimeout(r, 300));
+    await typeMessage(chatId, `Now let's build the <b>Premium</b> version too 💎\n\nCreate a second repo:\n1️⃣ Click <b>+</b> → <b>New repository</b>\n2️⃣ Name: <code>EEM26premium</code>\n3️⃣ Public ✅ + Add README ✅\n4️⃣ Click <b>Create repository</b>\n\nSend me a screenshot when it's created 📸`);
     await advanceStep(student.id, 2, 7);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Go to Settings → Pages, set Branch to 'main', save, and screenshot the page 📸");
@@ -311,11 +298,8 @@ async function handleStep7(student: Student, chatId: number, text: string | null
       "Your PREMIUM sales page — also customized for you! 💎 From your Tech Stack 📦"
     );
 
-    await new Promise((r) => setTimeout(r, 1500));
-    await sendMessage(
-      chatId,
-      `Now upload this premium page the same way:\n1️⃣ In the EEM26premium repo, click <b>Add file → Upload files</b>\n2️⃣ Drag the index.html I just sent\n3️⃣ Click <b>Commit changes</b>\n\nSend me a screenshot when done 📸`
-    );
+    await new Promise((r) => setTimeout(r, 400));
+    await typeMessage(chatId, `Now upload this premium page the same way:\n1️⃣ In the EEM26premium repo → <b>Add file → Upload files</b>\n2️⃣ Drag the index.html I just sent\n3️⃣ Click <b>Commit changes</b>\n\nSnap me a screenshot when done 📸`);
     await advanceStep(student.id, 2, 8);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Create a new repo named exactly <code>EEM26premium</code> → Public → Add README → Create, then screenshot 📸");
@@ -340,10 +324,7 @@ async function handleStep8(student: Student, chatId: number, text: string | null
 
   if (result.verified) {
     await recordStepCompletion(student.id, 2, 8, true);
-    await sendMessage(
-      chatId,
-      `Uploaded! 🔥 Now make the premium page live too:\n\n1️⃣ Settings → <b>Pages</b>\n2️⃣ Source: <b>Deploy from branch</b>\n3️⃣ Branch: <b>main</b> → <b>Save</b>\n\nSend me a screenshot of the Pages settings 📸`
-    );
+    await typeMessage(chatId, `Uploaded! 🔥 Now make the premium page live:\n\n1️⃣ Settings → <b>Pages</b>\n2️⃣ Source: <b>Deploy from branch</b>\n3️⃣ Branch: <b>main</b> → <b>Save</b>\n\nDrop me a screenshot of the Pages settings 📸`);
     await advanceStep(student.id, 2, 9);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Go to the EEM26premium repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸");
@@ -379,10 +360,8 @@ async function handleStep9(student: Student, chatId: number, text: string | null
       next_day_unlocks_at: nextUnlock,
     });
 
-    await sendMessage(
-      chatId,
-      `<b>INCREDIBLE! 🔥 Day 2 DONE!</b>\n\nYou now have TWO live sales pages on the internet:\n🌐 <b>Normal:</b> <code>${normalUrl}</code>\n💎 <b>Premium:</b> <code>${premiumUrl}</code>\n\nThese are YOUR links. Share them ANYWHERE. Every click that converts = money in your pocket. 💰\n\nTomorrow we build your SRE — the Smart Reply Engine. This is the AI bot that replies to your customers and closes sales for you automatically even while you sleep. Day 3 is the most exciting setup yet! 😈\n\nRest well — <b>Day 3 unlocks at 8AM tomorrow!</b> 🌟`
-    );
+    await typeMessage(chatId, `<b>INCREDIBLE!! 🔥 Day 2 DONE!!</b>\n\nYou now have TWO live sales pages:\n🌐 <b>Normal:</b> <code>${normalUrl}</code>\n💎 <b>Premium:</b> <code>${premiumUrl}</code>\n\nThese are YOUR links. Share them anywhere. Every click that converts = 💰`);
+    await typeMessage(chatId, `Tomorrow we build your SRE — the Smart Reply Engine from your Tech Stack 📦 It's an AI bot that replies to customers and closes sales for you automatically, even while you sleep 😈\n\nRest well — <b>Day 3 unlocks at 8AM tomorrow!</b> 🌟`);
 
     await notifyAdmin(
       `✅ <b>DAY 2 COMPLETE</b>\n\nStudent: ${student.full_name}\nCountry: ${student.country}\nNormal page: ${normalUrl}\nPremium page: ${premiumUrl}`

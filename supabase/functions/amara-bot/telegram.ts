@@ -38,6 +38,18 @@ export async function sendChatAction(
   } catch (_) { /* ignore */ }
 }
 
+export async function typeMessage(
+  chatId: number | string,
+  text: string,
+  parseMode: "HTML" | "Markdown" = "HTML"
+): Promise<void> {
+  const plainLength = text.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().length;
+  const delayMs = Math.min(Math.max(plainLength * 28, 600), 4200);
+  await sendChatAction(chatId, "typing");
+  await new Promise((r) => setTimeout(r, delayMs));
+  await sendMessage(chatId, text, parseMode);
+}
+
 export async function sendDocument(
   chatId: number | string,
   filename: string,

@@ -1,4 +1,4 @@
-import { sendMessage, sendChatAction, sendDocument } from "./telegram.ts";
+import { sendMessage, sendChatAction, sendDocument, typeMessage } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, computeNextUnlockAt, getRecentConversation } from "./db.ts";
 import { geminiVision, geminiChat, buildVerificationPrompt } from "./gemini.ts";
 import { generateStudentBotCode, STUDENT_BOT_SQL } from "./alex-template.ts";
@@ -65,10 +65,8 @@ If they're asking a question, answer it. Always ask them to paste the bot token 
 async function saveBotToken(student: Student, chatId: number, token: string): Promise<void> {
   await recordStepCompletion(student.id, 3, 1, false, `Bot token: ${token.slice(0, 20)}...`);
   await advanceStep(student.id, 3, 2, { bot_token: token });
-  await sendMessage(
-    chatId,
-    `Bot token saved! 🔐 Your bot is ready to be connected.\n\nNow you need a <b>Supabase</b> account — this is your bot's brain and memory (it's free!).\n\n👉 Go to: <a href="https://supabase.com">supabase.com</a>\nClick <b>"Start your project"</b> and sign up with your <b>GitHub account</b> (the one you created yesterday!)\n\nSend me a screenshot of your Supabase dashboard 📸`
-  );
+  await typeMessage(chatId, `Bot token saved! 🔐 Your bot is ready to be connected.`);
+  await typeMessage(chatId, `Now you need a <b>Supabase</b> account — this is your bot's brain and memory (it's free and already in your Tech Stack 📦)\n\n👉 Go to: <a href="https://supabase.com">supabase.com</a>\nClick <b>"Start your project"</b> and sign up with your <b>GitHub account</b> from yesterday\n\nSend me a screenshot of your Supabase dashboard 📸`);
 }
 
 // Step 2: Supabase signup
@@ -90,10 +88,8 @@ async function handleStep2(student: Student, chatId: number, text: string | null
   if (result.verified) {
     await recordStepCompletion(student.id, 3, 2, true);
     await advanceStep(student.id, 3, 3);
-    await sendMessage(
-      chatId,
-      `Supabase account confirmed! ✅\n\nNow create a new project:\n1️⃣ Click <b>"New Project"</b>\n2️⃣ Name it: <code>EEM26Bot</code>\n3️⃣ Set a <b>database password</b> (write it down somewhere safe!)\n4️⃣ Choose the <b>free tier</b>\n5️⃣ Click <b>"Create new project"</b>\n\nIt takes about 2 minutes to set up. Send me a screenshot when the <b>project dashboard is ready</b> (not still loading) 📸`
-    );
+    await typeMessage(chatId, `Supabase account confirmed! ✅ Now create your project:`);
+    await typeMessage(chatId, `1️⃣ Click <b>"New Project"</b>\n2️⃣ Name it: <code>EEM26Bot</code>\n3️⃣ Set a <b>database password</b> (write it down!)\n4️⃣ Choose the <b>free tier</b>\n5️⃣ Click <b>"Create new project"</b>\n\nTakes ~2 minutes. Send me a screenshot when the <b>project dashboard is ready</b> (not still loading) 📸`);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://supabase.com\">supabase.com</a>, sign in with your GitHub account, and send me a screenshot of the dashboard 📸");
   }
@@ -118,10 +114,8 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   if (result.verified) {
     await recordStepCompletion(student.id, 3, 3, true);
     await advanceStep(student.id, 3, 4);
-    await sendMessage(
-      chatId,
-      `Project is ready! 🚀\n\nNow get your API keys:\n1️⃣ In your Supabase project, click <b>⚙️ Settings</b> (bottom left)\n2️⃣ Click <b>"API"</b>\n3️⃣ You'll see your <b>Project URL</b> and <b>API keys</b>\n\nSend me a screenshot of that page — I'll extract what we need 📸\n\n(No worries, it's safe to share this with me!)`
-    );
+    await typeMessage(chatId, `Project is ready! 🚀 Now get your API keys:`);
+    await typeMessage(chatId, `1️⃣ Click <b>⚙️ Settings</b> (bottom left)\n2️⃣ Click <b>"API"</b>\n3️⃣ You'll see your <b>Project URL</b> and <b>API keys</b>\n\nSend me a screenshot of that page — I'll read what we need 📸\n(Safe to share with me, no worries!)`);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Create the EEM26Bot project (free tier) and wait for the loading to finish, then screenshot the full dashboard 📸");
   }
@@ -160,10 +154,8 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     const sqlBytes = new TextEncoder().encode(STUDENT_BOT_SQL);
     await sendDocument(chatId, "bot_tables.sql", sqlBytes, "Run this SQL in your Supabase SQL Editor to create your bot's database tables 🗄️");
     await new Promise((r) => setTimeout(r, 1000));
-    await sendMessage(
-      chatId,
-      `Now create your bot's database:\n1️⃣ In your Supabase project, click <b>"SQL Editor"</b> in the left menu\n2️⃣ Click <b>"New query"</b>\n3️⃣ Paste the entire SQL from the file I just sent\n4️⃣ Click <b>"Run"</b>\n\nYou should see "Tables created successfully!" — send me a screenshot 📸`
-    );
+    await typeMessage(chatId, `Now create your bot's database:\n1️⃣ Click <b>"SQL Editor"</b> in the left menu\n2️⃣ Click <b>"New query"</b>\n3️⃣ Paste ALL the SQL from the file I just sent\n4️⃣ Click <b>"Run"</b>`);
+    await typeMessage(chatId, `You should see a success message. Send me a screenshot when it's done 📸`);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Go to Settings → API in your Supabase project. Make sure you can see the Project URL and the anon key, then screenshot and send 📸");
   }
@@ -194,12 +186,10 @@ async function handleStep5(student: Student, chatId: number, text: string | null
     const botCode = generateStudentBotCode(student);
     const botBytes = new TextEncoder().encode(botCode);
     await sendDocument(chatId, "index.ts", botBytes, "Your personalized EEM26 sales bot! 🤖 This is your SRE — Smart Reply Engine from your Tech Stack 📦");
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 400));
 
-    await sendMessage(
-      chatId,
-      `Your bot code is ready! 🎉 Now let's deploy it.\n\nYou'll need the <b>Supabase CLI</b> on your phone or computer. Here's the deployment guide:\n\n<b>Step 1 — Install Supabase CLI</b>\nIf you have a computer, open terminal and run:\n<code>npm install -g supabase</code>\n\nIf you're on a phone only, I'll guide you through the Supabase dashboard instead.\n\nWhich do you have — <b>computer</b> or <b>phone only</b>? Tell me and I'll guide you the right way! 📱💻`
-    );
+    await typeMessage(chatId, `Your bot code is ready! 🤖 This is your SRE — Smart Reply Engine from your Tech Stack 📦 It'll work 24/7 for you once we deploy it.`);
+    await typeMessage(chatId, `To deploy it, tell me: do you have a <b>computer/laptop</b> or are you on <b>phone only</b>? Tell me and I'll guide you the exact right way! 📱💻`);
   } else {
     await handleFailed(student, chatId, result.reason, result.guidance || "Paste the SQL file content into SQL Editor → Run → screenshot the result showing 'Tables created successfully' 📸");
   }
@@ -219,10 +209,8 @@ async function handleStep6(student: Student, chatId: number, text: string | null
         next_day_unlocks_at: nextUnlock,
       });
 
-      await sendMessage(
-        chatId,
-        `<b>Bot deployed! 🚀🚀🚀</b>\n\nYou're amazing — Day 3 DONE! 💪\n\nYour Smart Reply Engine is built. Tomorrow on Day 4, we:\n✅ Set all your environment variables\n✅ Connect your bot to Telegram\n✅ Test everything live\n✅ Issue your certificate! 🎓\n\n<b>Day 4 unlocks tomorrow at 8AM Nigeria time!</b> Rest well — tomorrow is your finish line! 🏁`
-      );
+      await typeMessage(chatId, `<b>BOT DEPLOYED!! 🚀🚀🚀</b>\n\nYou're AMAZING — Day 3 DONE! 💪\n\nYour Smart Reply Engine from your Tech Stack is LIVE and waiting!`);
+      await typeMessage(chatId, `Tomorrow on Day 4 we:\n✅ Set your environment variables\n✅ Connect your bot to Telegram\n✅ Test everything live\n✅ Issue your certificate! 🎓\n\n<b>Day 4 unlocks at 8AM tomorrow!</b> Rest well — tomorrow is your finish line! 🏁`);
 
       await notifyAdmin(
         `✅ <b>DAY 3 COMPLETE</b>\n\nStudent: ${student.full_name}\nCountry: ${student.country}\nBot token: ${student.bot_token ? "✅" : "❌"}\nSupabase URL: ${student.supabase_url ?? "not captured"}`

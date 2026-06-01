@@ -1,4 +1,4 @@
-import { sendMessage, sendChatAction, downloadFile } from "./telegram.ts";
+import { sendMessage, sendChatAction, downloadFile, typeMessage } from "./telegram.ts";
 import { saveConversation, getRecentConversation } from "./db.ts";
 import { geminiAudio, geminiChat, geminiVideoTranscribe, geminiVisionGuide } from "./gemini.ts";
 import { handleOnboarding } from "./onboarding.ts";
@@ -28,7 +28,7 @@ export async function routeMessage(
         // textPayload stays null if transcription returned empty (silent clip, background noise, etc.)
       } catch (e) {
         console.error("Voice transcription error:", e);
-        await sendMessage(chatId, "I couldn't catch that voice note 😊 — just type it out for me and I'll respond!");
+        await typeMessage(chatId, "I couldn't catch that voice note 😊 — just type it out for me and I'll respond!");
         return;
       }
     } else if (msg.photo && msg.photo.length > 0) {
@@ -51,16 +51,16 @@ export async function routeMessage(
         if (transcript) {
           textPayload = `[Screen recording] ${transcript}`;
         } else {
-          await sendMessage(chatId, "Got your recording! 📱 For this step I need a screenshot — just take a screenshot and send it to me 📸");
+          await typeMessage(chatId, "Got your recording! 📱 For this step I need a screenshot — just take one and send it to me 📸");
           return;
         }
       } catch (e) {
         console.error("Video processing error:", e);
-        await sendMessage(chatId, "Couldn't process that video 😊 — try sending a screenshot instead 📸");
+        await typeMessage(chatId, "Couldn't process that video 😊 — try sending a screenshot instead 📸");
         return;
       }
     } else if (msg.document || msg.sticker) {
-      await sendMessage(chatId, "Send me a text message or photo — that's all I need right now 😊");
+      await typeMessage(chatId, "Send me a text message or photo — that's all I need right now 😊");
       return;
     } else {
       return;
@@ -110,7 +110,7 @@ export async function routeMessage(
   } catch (e) {
     console.error("routeMessage error:", e);
     try {
-      await sendMessage(chatId, "I dey here! Had a small hiccup — try again in a moment 😊");
+      await typeMessage(chatId, "I dey here! Had a small hiccup — try again in a moment 😊");
     } catch (_) { /* ignore */ }
   }
 }
@@ -153,10 +153,7 @@ Remind them their next day unlocks at ${unlockInfo} and tell them what exciting 
     );
     await sendMessage(chatId, reply);
   } else {
-    await sendMessage(
-      chatId,
-      `Hey! Your Day ${nextDay} unlocks ${unlockInfo}! ⏰\n\nI'll message you as soon as it's ready. Get some rest — Day ${nextDay} is going to be amazing! 🚀`
-    );
+    await typeMessage(chatId, `Hey! Your Day ${nextDay} unlocks ${unlockInfo}! ⏰\n\nI'll message you as soon as it's ready. Get some rest — Day ${nextDay} is going to be amazing! 🚀`);
   }
 }
 
@@ -192,9 +189,6 @@ Answer their questions about growing their business, scaling sales, getting more
     );
     await sendMessage(chatId, reply);
   } else {
-    await sendMessage(
-      chatId,
-      `You're an EEM26 graduate! 🎓 Your business is fully set up and running. Ask me anything about growing your sales! 💪`
-    );
+    await typeMessage(chatId, `You're an EEM26 graduate! 🎓 Your business is fully set up and running. Ask me anything about growing your sales! 💪`);
   }
 }
