@@ -2,8 +2,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 // Amara Day Unlock — Cron Job Function
 // Runs every 5 minutes via Supabase cron schedule.
-// Finds students who have completed a day and are due for their next day unlock
-// (at 8AM Nigeria time = 07:00 UTC), sends the unlock message, and advances their state.
+// Handles three proactive messaging flows:
+// 1. Morning day-unlock at 8AM Nigeria time (07:00 UTC)
+// 2. Evening check-in at 6PM Nigeria time (17:00 UTC)
+// 3. Silence nudge when a student hasn't messaged in 20+ hours
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -11,29 +13,95 @@ const supabase = createClient(
 );
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
-const TG_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
+const TG_BASE   = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+// ── Day-unlock messages (sent at 8AM Nigeria) ──────────────────────────────────
 
 const DAY_UNLOCK_MESSAGES: Record<number, string> = {
   2: `☀️ <b>Good morning! Day 2 is UNLOCKED!</b>
 
-Today we're building your <b>Sales Page</b> — this is your online shop. When people click your link, this is where they land, read about the product, and BUY.
+Today I'm building your <b>two live sales pages</b> automatically — you just need to connect your GitHub account once (I'll handle the rest!). After today you'll have two live links to share anywhere and make sales 💪
 
-After today you'll have a live link you can share anywhere to make sales. Let's build it! 💪
-
-Say <b>"ready"</b> and we'll start! 🚀`,
+Say <b>"ready"</b> and let's go! 🚀`,
 
   3: `🔥 <b>Good morning! Day 3 is LIVE!</b>
 
-Today you become a tech person! 😄 We're building YOUR own Smart Reply Engine — an AI bot that handles your customer conversations and closes sales for you automatically, 24/7.
+Today you get your own AI sales bot! 🤖 Just create a bot with @BotFather on Telegram and give me the token — I'll set everything else up automatically for you (no terminal, no coding needed!).
 
-This is the most exciting day of the program. Say <b>"ready"</b> and let's go! 🤖`,
+Say <b>"ready"</b> and let's go! 💪`,
 
   4: `🏆 <b>Good morning! Day 4 — YOUR FINAL DAY!</b>
 
-Today we go LIVE! We set everything up, test your bot, and at the end — you get your official <b>Certificate of Completion! 🎓</b>
+Today we test your bot is live, confirm everything is working, and you'll receive your official <b>Certificate of Completion 🎓</b>
 
-Today is your finish line. Say <b>"ready"</b> and let's complete this! 💪`,
+This is your finish line. Say <b>"ready"</b> and let's complete this! 💪`,
 };
+
+// ── Evening check-in messages (sent at 6PM Nigeria = 17:00 UTC) ───────────────
+
+const EVENING_MESSAGES: Record<number, string> = {
+  1: `👋 <b>Evening check-in!</b>
+
+How's your Day 1 going? Just checking in — if you haven't finished yet, now is a great time to continue. I'm right here ready to guide you through your Selar and Payhip setup! 💪
+
+Send a message anytime and we'll pick up exactly where you left off 😊`,
+
+  2: `🌙 <b>Evening check-in!</b>
+
+How did the GitHub connection go today? Once you tap the link and authorize, I set up BOTH sales pages automatically — no more manual steps! 🚀
+
+If you haven't done it yet, send me a message and I'll send you the link again 👆`,
+
+  3: `🌙 <b>Evening check-in!</b>
+
+Day 3 going well? Just a reminder — all you need is your BotFather token and I'll handle the rest 🤖 Your bot will be live in seconds once you paste it!
+
+Tap here to continue whenever you're ready 😊`,
+
+  4: `✨ <b>You're SO close!</b>
+
+Day 4 is your final day — just test your bot and send me your signature for your certificate! 🎓
+
+Don't stop now — you're literally one step from the finish line! 💪`,
+};
+
+const EVENING_DEFAULT = `👋 <b>Evening check-in!</b>
+
+Just checking in — I'm here whenever you're ready to continue! Send me a message and we'll pick up exactly where you left off 😊`;
+
+// ── Silence nudge messages ─────────────────────────────────────────────────────
+
+const NUDGE_MESSAGES: Record<number, string> = {
+  1: `💬 Hey! It's Amara here — just checking in 😊
+
+I noticed you haven't been on in a while. Your Day 1 is waiting for you — Selar and Payhip setup usually takes less than 30 minutes with my help!
+
+Come back whenever you're ready — I'll be right here 💪`,
+
+  2: `💬 Hey! Amara here 👋
+
+Your sales pages are one GitHub connection away from being live! I do all the work once you tap the link — seriously, it takes about 2 minutes.
+
+Ready to continue? Just reply here and I'll send you the link 🔗`,
+
+  3: `💬 Amara here — checking on you! 👋
+
+Day 3 is waiting and your bot is SO close to being live 🤖 Just paste your BotFather token and I'll set everything up automatically in seconds.
+
+Come back when you're ready — I dey here for you! 💪`,
+
+  4: `💬 Hey! You're on your FINAL day! 🏆
+
+Your certificate and completion are literally waiting for you. Don't let Day 4 slip away — it only takes a few minutes to finish!
+
+Reply here and let's get you across the finish line 🎓`,
+};
+
+const NUDGE_DEFAULT = `💬 Hey! Amara here 👋
+
+Just checking in — your EEM26 program is waiting for you! Send me a message whenever you're ready and we'll pick up right where you left off 😊`;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function sendTelegram(chatId: string, text: string): Promise<void> {
   try {
@@ -52,99 +120,121 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
   }
 }
 
+async function markProactiveSent(studentId: string): Promise<void> {
+  await supabase
+    .from("amara_students")
+    .update({ last_proactive_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", studentId);
+}
+
+// ── Main cron handler ─────────────────────────────────────────────────────────
+
 Deno.serve(async (_req: Request): Promise<Response> => {
   try {
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const results: Record<string, unknown> = {};
 
-    // Find all students who:
-    // 1. Are ACTIVE
-    // 2. Have current_step = 0 (sentinel: day complete, waiting for unlock)
-    // 3. Have next_day_unlocks_at <= now
-    // 4. Are on day 1, 2, or 3 (so they can advance to 2, 3, or 4)
-    const { data: students, error } = await supabase
+    // ── 1. Morning day-unlock ──────────────────────────────────────────────────
+    const { data: unlockStudents, error: unlockError } = await supabase
       .from("amara_students")
       .select("*")
       .eq("status", "ACTIVE")
       .eq("current_step", 0)
-      .lte("next_day_unlocks_at", now)
+      .lte("next_day_unlocks_at", nowIso)
       .gte("current_day", 1)
       .lte("current_day", 3)
       .not("next_day_unlocks_at", "is", null);
 
-    if (error) {
-      console.error("Query error:", error);
-      return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-    }
+    if (unlockError) console.error("Unlock query error:", unlockError);
 
-    if (!students || students.length === 0) {
-      return new Response(JSON.stringify({ processed: 0, message: "No students due for unlock" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    console.log(`Found ${students.length} students due for day unlock`);
-    let processed = 0;
-    const errors: string[] = [];
-
-    for (const student of students) {
+    let unlockCount = 0;
+    for (const student of unlockStudents ?? []) {
       try {
         const nextDay = student.current_day + 1;
 
         // Optimistic lock: only update if still in step=0 state
-        // This prevents double-unlock if cron invocations overlap
         const { error: updateError, count } = await supabase
           .from("amara_students")
           .update({
             current_day: nextDay,
             current_step: 1,
             next_day_unlocks_at: null,
-            updated_at: new Date().toISOString(),
+            updated_at: nowIso,
           })
           .eq("id", student.id)
-          .eq("current_step", 0) // Optimistic lock
-          .eq("current_day", student.current_day); // Extra guard
+          .eq("current_step", 0)
+          .eq("current_day", student.current_day);
 
-        if (updateError) {
-          console.error(`Update error for student ${student.id}:`, updateError);
-          errors.push(`${student.id}: ${updateError.message}`);
-          continue;
-        }
+        if (updateError || count === 0) continue;
 
-        // If count is 0, another invocation already updated this student — skip
-        if (count === 0) {
-          console.log(`Student ${student.id} already updated by another invocation, skipping`);
-          continue;
-        }
-
-        // Send the day unlock message
         const message = DAY_UNLOCK_MESSAGES[nextDay];
-        if (message) {
-          await sendTelegram(student.telegram_chat_id, message);
-        }
-
-        console.log(`Unlocked Day ${nextDay} for student ${student.id} (${student.full_name})`);
-        processed++;
+        if (message) await sendTelegram(student.telegram_chat_id, message);
+        unlockCount++;
       } catch (err) {
-        console.error(`Error processing student ${student.id}:`, err);
-        errors.push(`${student.id}: ${String(err)}`);
+        console.error(`Unlock error for ${student.id}:`, err);
       }
     }
+    results.unlocked = unlockCount;
 
-    const result = {
-      processed,
-      total: students.length,
-      errors: errors.length > 0 ? errors : undefined,
-      timestamp: now,
-    };
+    // ── 2. Evening check-in (6PM Nigeria = 17:00 UTC) ─────────────────────────
+    const utcHour = now.getUTCHours();
+    const utcMin  = now.getUTCMinutes();
 
-    console.log("Day unlock result:", JSON.stringify(result));
-    return new Response(JSON.stringify(result), {
+    if (utcHour === 17 && utcMin < 5) {
+      // Cut-off: must not have received a proactive message after 16:55 UTC today
+      const checkinCutoff = new Date(now);
+      checkinCutoff.setUTCHours(16, 55, 0, 0);
+
+      const { data: checkinStudents } = await supabase
+        .from("amara_students")
+        .select("id, telegram_chat_id, current_day, current_step")
+        .eq("status", "ACTIVE")
+        .gt("current_step", 0)
+        .gte("current_day", 1)
+        .lte("current_day", 4)
+        .or(`last_proactive_at.is.null,last_proactive_at.lt.${checkinCutoff.toISOString()}`);
+
+      let checkinCount = 0;
+      for (const s of checkinStudents ?? []) {
+        const msg = EVENING_MESSAGES[s.current_day] ?? EVENING_DEFAULT;
+        await sendTelegram(s.telegram_chat_id, msg);
+        await markProactiveSent(s.id);
+        checkinCount++;
+      }
+      results.eveningCheckins = checkinCount;
+    }
+
+    // ── 3. Silence nudge (no activity for 20+ hours) ──────────────────────────
+    const silenceCutoff = new Date(now.getTime() - 20 * 60 * 60 * 1000).toISOString();
+
+    const { data: silentStudents } = await supabase
+      .from("amara_students")
+      .select("id, telegram_chat_id, current_day, current_step, last_activity_at")
+      .eq("status", "ACTIVE")
+      .gt("current_step", 0)
+      .gte("current_day", 1)
+      .lte("current_day", 4)
+      .not("last_activity_at", "is", null)
+      .lt("last_activity_at", silenceCutoff)
+      .or(`last_proactive_at.is.null,last_proactive_at.lt.${silenceCutoff}`);
+
+    let nudgeCount = 0;
+    for (const s of silentStudents ?? []) {
+      const msg = NUDGE_MESSAGES[s.current_day] ?? NUDGE_DEFAULT;
+      await sendTelegram(s.telegram_chat_id, msg);
+      await markProactiveSent(s.id);
+      nudgeCount++;
+    }
+    results.silenceNudges = nudgeCount;
+
+    console.log("Cron result:", JSON.stringify(results));
+    return new Response(JSON.stringify({ ...results, timestamp: nowIso }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("Cron job fatal error:", e);
+    console.error("Cron fatal error:", e);
     return new Response(JSON.stringify({ error: String(e) }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

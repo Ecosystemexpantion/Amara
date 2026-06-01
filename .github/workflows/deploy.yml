@@ -29,6 +29,8 @@ jobs:
           supabase secrets set TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
           supabase secrets set GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           supabase secrets set ADMIN_CHAT_ID=5870771695
+          if [ -n "$GITHUB_OAUTH_CLIENT_ID" ]; then supabase secrets set GITHUB_OAUTH_CLIENT_ID=$GITHUB_OAUTH_CLIENT_ID; fi
+          if [ -n "$GITHUB_OAUTH_CLIENT_SECRET" ]; then supabase secrets set GITHUB_OAUTH_CLIENT_SECRET=$GITHUB_OAUTH_CLIENT_SECRET; fi
           if [ -n "$GROQ_API_KEY" ]; then supabase secrets set GROQ_API_KEY=$GROQ_API_KEY; fi
           if [ -n "$GEMINI_API_KEY_2" ]; then supabase secrets set GEMINI_API_KEY_2=$GEMINI_API_KEY_2; fi
           if [ -n "$GEMINI_API_KEY_3" ]; then supabase secrets set GEMINI_API_KEY_3=$GEMINI_API_KEY_3; fi
@@ -38,6 +40,8 @@ jobs:
           if [ -n "$FISHAUDIO_VOICE_ID" ]; then supabase secrets set FISHAUDIO_VOICE_ID=$FISHAUDIO_VOICE_ID; fi
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          GITHUB_OAUTH_CLIENT_ID: ${{ secrets.GITHUB_OAUTH_CLIENT_ID }}
+          GITHUB_OAUTH_CLIENT_SECRET: ${{ secrets.GITHUB_OAUTH_CLIENT_SECRET }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
@@ -56,7 +60,17 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Set Telegram webhook
+      - name: Deploy github-oauth function
+        run: supabase functions deploy github-oauth --no-verify-jwt
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Deploy student-bot function
+        run: supabase functions deploy student-bot --no-verify-jwt
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Set Telegram webhook for Amara
         run: |
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setWebhook" \
             -H "Content-Type: application/json" \

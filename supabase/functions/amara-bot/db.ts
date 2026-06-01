@@ -123,6 +123,13 @@ export async function getStudentsDueForUnlock(): Promise<Student[]> {
   return data ?? [];
 }
 
+export async function touchActivity(studentId: string): Promise<void> {
+  await supabase
+    .from("amara_students")
+    .update({ last_activity_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", studentId);
+}
+
 export function computeNextUnlockAt(): string {
   const now = new Date();
   // Convert to Nigeria time (UTC+1), find next day at 8AM, convert back to UTC

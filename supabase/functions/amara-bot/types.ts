@@ -28,6 +28,9 @@ export interface Student {
   certificate_issued: boolean;
   certificate_issued_at: string | null;
   screenshot_attempts: number;
+  github_access_token: string | null;
+  last_activity_at: string | null;
+  last_proactive_at: string | null;
   created_at: string;
   updated_at: string;
 }

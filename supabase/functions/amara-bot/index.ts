@@ -1,4 +1,4 @@
-import { getStudentByChatId, createStudent } from "./db.ts";
+import { getStudentByChatId, createStudent, touchActivity } from "./db.ts";
 import { routeMessage } from "./state-machine.ts";
 import type { TelegramUpdate } from "./types.ts";
 
@@ -36,6 +36,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
 
       if (student.status === "INACTIVE") return;
+
+      // Track activity for silence-nudge detection (fire-and-forget)
+      touchActivity(student.id).catch(() => {});
 
       await routeMessage(msg, student, chatId);
     } catch (e) {
