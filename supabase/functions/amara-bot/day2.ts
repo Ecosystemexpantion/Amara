@@ -148,21 +148,41 @@ async function handleStep3(student: Student, chatId: number, text: string | null
     "1. The 'Create a new repository' FORM — has input fields for repo name, public/private radio buttons, README checkbox\n" +
     "2. GitHub 'Quick setup' page — shows 'Quick setup — if you've done this kind of thing before', HTTPS/SSH tabs, a clone URL, and git command blocks (echo, git init, git push, etc.). THIS MEANS THE REPO IS ALREADY CREATED.\n" +
     "3. A GitHub repository dashboard showing the repo files or empty repo state\n" +
-    "Reject only if it's a completely unrelated page or website.",
-    ["page_type: write exactly 'form' if creation form, 'quick_setup' if showing git setup commands page, 'repo' if showing repo dashboard"]
+    "4. A GitHub file editor or 'Create new file' page (the student clicked the wrong button)\n" +
+    "Reject only if it's a completely unrelated website with no GitHub content.",
+    [
+      "page_type: write 'form' if creation form, 'quick_setup' if git setup commands page, 'repo' if repo dashboard, 'file_editor' if showing a code/file editor",
+      "repo_name: the repository name visible in the page URL or heading (e.g. 'EEM26page', 'EEM-26-setup-', etc.)"
+    ]
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
     const pageType = result.extracted?.page_type ?? "";
+    const repoName = result.extracted?.repo_name ?? "";
+    const isFileEditor = /file.?editor/i.test(pageType) || /create.{0,5}new.{0,5}file|new file.*editor/i.test(result.reason ?? "");
     const repoAlreadyCreated =
-      /quick.?setup|repo/i.test(pageType) ||
-      /quick setup|git init|git remote|push.*origin|clone.*url/i.test(result.reason ?? "");
+      !isFileEditor && (
+        /quick.?setup|repo/i.test(pageType) ||
+        /quick setup|git init|git remote|push.*origin|clone.*url/i.test(result.reason ?? "")
+      );
+
+    if (isFileEditor) {
+      // Student clicked "Create new file" — redirect them to upload instead
+      await typeMessage(chatId, `Hold on! 🛑 You clicked <b>"Create new file"</b> — that's for typing code from scratch.`);
+      await typeMessage(chatId, `Click <b>"Cancel"</b> to go back to your repo, then:\n1️⃣ Click <b>"Add file"</b>\n2️⃣ Select <b>"Upload files"</b>\n3️⃣ Upload the <b>index.html</b> I sent you 📁`);
+      return;
+    }
 
     if (repoAlreadyCreated) {
-      // Repo is already created — skip straight to sending the HTML file
-      await recordStepCompletion(student.id, 2, 3, true, "Repo already created (Quick Setup detected)");
-      await typeMessage(chatId, `Your repo is already created! 🎉 Oya let's skip ahead!`);
+      // Repo is already created — check name and proceed
+      await recordStepCompletion(student.id, 2, 3, true, `Repo already created (Quick Setup). Name: ${repoName}`);
+      const nameIsWrong = repoName && !/^EEM26page$/i.test(repoName.replace(/[-_\s]/g, ""));
+      if (nameIsWrong) {
+        await typeMessage(chatId, `I can see your repo "${repoName}" was created! 🎉 No wahala — the name is a little different from what we need, but we can work with it.`);
+      } else {
+        await typeMessage(chatId, `Your EEM26page repo is created! 🎉 Oya let's go!`);
+      }
       await new Promise((r) => setTimeout(r, 300));
       await sendNormalHtmlFile(student, chatId);
     } else {
@@ -176,7 +196,11 @@ async function handleStep3(student: Student, chatId: number, text: string | null
       student, chatId, result.reason,
       result.guidance || "Click <b>+</b> at the top right of GitHub, then <b>\"New repository\"</b>, and send me a screenshot of that page 📸",
       photo,
-      "Student is on Day 2 creating the EEM26page GitHub repository. They should show either: (1) the 'Create a new repository' form with input fields, OR (2) the Quick Setup page with git commands — which means the repo is ALREADY created and they're ready to upload files. Guide them based on exactly what you see on their screen."
+      "Student is on Day 2 creating the EEM26page GitHub repository on github.com. " +
+      "IF you see a 'Quick setup' page (HTTPS/SSH options, git init/push commands): repo IS created — tell them the repo is ready. " +
+      "IF you see a file editor or 'Create new file' page: they clicked the WRONG button — tell them to click Cancel, then use Add file → Upload files. " +
+      "IF you see the creation form: guide them to fill in name=EEM26page, Public, README checkbox. " +
+      "NEVER tell them to click 'Create new file' — they need to UPLOAD a file, not create one."
     );
   }
 }
@@ -196,10 +220,10 @@ async function handleStep4(student: Student, chatId: number, text: string | null
 
   const prompt = buildVerificationPrompt(
     "Does this screenshot show a GitHub repository page? Accept any of these as verified=true:\n" +
-    "- GitHub 'Quick setup' page with HTTPS/SSH clone URL and git command blocks (echo, git init, git push) — this is the page right after creating an empty repo\n" +
-    "- An empty GitHub repository with main branch\n" +
+    "- GitHub 'Quick setup' page with HTTPS/SSH clone URL and git command blocks (echo, git init, git push)\n" +
+    "- An empty GitHub repository dashboard with main branch\n" +
     "- A GitHub repository showing files or README\n" +
-    "Reject ONLY if still on the 'Create new repository' form (with input fields not yet submitted), or a completely different website."
+    "Reject if: still on the 'Create new repository' form (input fields not submitted), a GitHub file editor, or a completely different website."
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
@@ -211,7 +235,11 @@ async function handleStep4(student: Student, chatId: number, text: string | null
       student, chatId, result.reason,
       result.guidance || "Fill in the repo name as exactly <code>EEM26page</code>, make it Public, check the README box, then create it and screenshot 📸",
       photo,
-      "Student needs to have created the EEM26page GitHub repository. The correct screenshot is either the Quick Setup page (with git clone commands) OR the repo dashboard. Guide them based on what you can actually see on their screen."
+      "Student needs to show their EEM26page GitHub repository after it's been created. " +
+      "IF they show the Quick Setup page (git commands, HTTPS/SSH): repo IS created — move them forward. " +
+      "IF they show a file editor or 'Create new file' page: tell them to click Cancel, then use Add file → Upload files. " +
+      "IF they're still on the creation form: guide them to fill it in with name=EEM26page, Public, README. " +
+      "NEVER tell them to click 'Create new file' — they need to upload the index.html file sent by the bot."
     );
   }
 }
@@ -250,7 +278,11 @@ async function handleStep5(student: Student, chatId: number, text: string | null
     return;
   }
 
-  const prompt = buildVerificationPrompt("Does this screenshot show the GitHub EEM26page repository with an index.html file uploaded in it?");
+  const prompt = buildVerificationPrompt(
+    "Does this screenshot show a GitHub repository with an index.html file successfully uploaded? " +
+    "Also accept the file UPLOAD interface (drag-and-drop zone showing index.html ready to commit). " +
+    "Reject if showing: a file editor/code editor, the repo with NO index.html, or an unrelated page."
+  );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
@@ -259,8 +291,15 @@ async function handleStep5(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `1️⃣ Click <b>Settings</b> in your repo\n2️⃣ Scroll left menu to <b>"Pages"</b>\n3️⃣ Under Source → <b>"Deploy from a branch"</b>\n4️⃣ Branch → <b>"main"</b> → <b>Save</b>\n\nShow me a screenshot of the Pages settings 📸`);
     await advanceStep(student.id, 2, 6);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Go to your EEM26page repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸",
-      photo, "Student needs to upload the index.html file to their EEM26page GitHub repository using Add file → Upload files → Commit changes. Guide them based on exactly what you can see on their screen.");
+    await handleFailed(student, chatId, result.reason,
+      result.guidance || "Go to your repo → Add file → Upload files → drag index.html → Commit changes 📸",
+      photo,
+      "Student needs to upload the index.html file to their GitHub repository. " +
+      "IF you see a file editor or 'Create new file' code editor: they clicked wrong — tell them to click Cancel, go back to the repo, then click Add file → Upload files (NOT Create new file). " +
+      "IF you see the repo with no files (Quick Setup or empty): tell them to click Add file → Upload files, drag the index.html I sent them, then scroll down and click Commit changes. " +
+      "IF you see the upload drag-drop zone: they're in the right place — tell them to drag the index.html file into the box. " +
+      "NEVER suggest 'Create new file' — they must UPLOAD the pre-made HTML file."
+    );
   }
 }
 
@@ -313,7 +352,11 @@ async function handleStep7(student: Student, chatId: number, text: string | null
     return;
   }
 
-  const prompt = buildVerificationPrompt("Does this screenshot show a newly created GitHub repository named EEM26premium?");
+  const prompt = buildVerificationPrompt(
+    "Does this screenshot show a GitHub repository that was just created? Accept: Quick Setup page (git commands, HTTPS/SSH), empty repo dashboard, or a repo dashboard. " +
+    "Reject if: 'Create new repository' form still open, or file editor/code editor, or unrelated website.",
+    ["repo_name: the repository name shown in the URL or page heading"]
+  );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
@@ -329,19 +372,20 @@ async function handleStep7(student: Student, chatId: number, text: string | null
     const customized = modifyTemplateForStudent(template, payhipLink);
     const fileBytes = new TextEncoder().encode(customized);
 
-    await sendDocument(
-      chatId,
-      "index.html",
-      fileBytes,
-      "Your PREMIUM sales page — also customized for you! 💎 From your Tech Stack 📦"
-    );
+    await sendDocument(chatId, "index.html", fileBytes, "Your PREMIUM sales page — also customized for you! 💎 From your Tech Stack 📦");
 
     await new Promise((r) => setTimeout(r, 400));
     await typeMessage(chatId, `Now upload this premium page the same way:\n1️⃣ In the EEM26premium repo → <b>Add file → Upload files</b>\n2️⃣ Drag the index.html I just sent\n3️⃣ Click <b>Commit changes</b>\n\nSnap me a screenshot when done 📸`);
     await advanceStep(student.id, 2, 8);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Create a new repo named exactly <code>EEM26premium</code> → Public → Add README → Create, then screenshot 📸",
-      photo, "Student needs to create the EEM26premium GitHub repository. Guide them based on what you see on their screen.");
+    await handleFailed(student, chatId, result.reason,
+      result.guidance || "Create a new repo named exactly <code>EEM26premium</code> → Public → Add README → Create, then screenshot 📸",
+      photo,
+      "Student needs to create the EEM26premium GitHub repository and show the result. " +
+      "IF they show a file editor ('Create new file'): tell them they clicked the wrong button — click Cancel and go back to the repo. " +
+      "IF they show the Quick Setup page: repo is created, move forward. " +
+      "IF they show a different repo name: note it but proceed. Guide based on what you see."
+    );
   }
 }
 
@@ -350,15 +394,15 @@ async function handleStep8(student: Student, chatId: number, text: string | null
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, "Student needs to upload index.html to the EEM26premium repo.", student.id);
+      const reply = await geminiChat(history, text, "Student needs to upload index.html to the EEM26premium repo using Add file → Upload files → Commit changes. Make sure they use Upload files, NOT Create new file.", student.id);
       await sendMessage(chatId, reply);
     } else {
-      await sendMessage(chatId, "Upload the index.html to EEM26premium → Commit changes → send screenshot 📸");
+      await sendMessage(chatId, "In EEM26premium → <b>Add file</b> → <b>Upload files</b> → drag index.html → Commit changes → send screenshot 📸");
     }
     return;
   }
 
-  const prompt = buildVerificationPrompt("Does this screenshot show the GitHub EEM26premium repository with an index.html file in it?");
+  const prompt = buildVerificationPrompt("Does this screenshot show the GitHub EEM26premium repository with an index.html file in it? Also accept the upload drag-drop zone with index.html ready to commit.");
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
@@ -366,8 +410,14 @@ async function handleStep8(student: Student, chatId: number, text: string | null
     await typeMessage(chatId, `Uploaded! 🔥 Now make the premium page live:\n\n1️⃣ Settings → <b>Pages</b>\n2️⃣ Source: <b>Deploy from branch</b>\n3️⃣ Branch: <b>main</b> → <b>Save</b>\n\nDrop me a screenshot of the Pages settings 📸`);
     await advanceStep(student.id, 2, 9);
   } else {
-    await handleFailed(student, chatId, result.reason, result.guidance || "Go to the EEM26premium repo → Add file → Upload files → drag index.html → Commit changes, then screenshot 📸",
-      photo, "Student needs to upload the index.html file to their EEM26premium GitHub repository. Guide them based on what you can see on their screen.");
+    await handleFailed(student, chatId, result.reason,
+      result.guidance || "Go to EEM26premium repo → Add file → Upload files → drag index.html → Commit changes 📸",
+      photo,
+      "Student needs to upload the index.html file to their EEM26premium GitHub repo. " +
+      "IF they show a code/file editor ('Create new file'): they clicked WRONG — tell them Cancel, then Add file → Upload files. " +
+      "IF they show the repo with no files: tell them Add file → Upload files, drag index.html, click Commit changes. " +
+      "NEVER suggest creating a new file — they must upload the file the bot sent them."
+    );
   }
 }
 
