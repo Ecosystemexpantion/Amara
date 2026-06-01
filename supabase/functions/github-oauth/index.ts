@@ -348,7 +348,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Must have at minimum a state param for anything useful
   if (!state && !code && !oauthError) {
-    return htmlResponse(ERROR_HTML, 400);
+    return htmlResponse(ERROR_HTML, 200);
   }
 
   // User denied OAuth on GitHub side
@@ -364,7 +364,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Missing code or state
   if (!code || !state) {
-    return htmlResponse(ERROR_HTML, 400);
+    return htmlResponse(ERROR_HTML, 200);
   }
 
   // -------------------------------------------------------------------------
@@ -390,12 +390,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
       console.error("Token exchange failed:", tokenData);
-      return htmlResponse(ERROR_HTML, 400);
+      return htmlResponse(ERROR_HTML, 200);
     }
     githubToken = tokenData.access_token as string;
   } catch (err) {
     console.error("Token exchange error:", err);
-    return htmlResponse(ERROR_HTML, 500);
+    return htmlResponse(ERROR_HTML, 200);
   }
 
   // -------------------------------------------------------------------------
@@ -409,13 +409,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!userRes.ok) {
       const body = await userRes.text();
       console.error("GitHub /user failed:", userRes.status, body);
-      return htmlResponse(ERROR_HTML, 500);
+      return htmlResponse(ERROR_HTML, 200);
     }
     const userData = await userRes.json();
     githubUsername = userData.login as string;
   } catch (err) {
     console.error("GitHub user fetch error:", err);
-    return htmlResponse(ERROR_HTML, 500);
+    return htmlResponse(ERROR_HTML, 200);
   }
 
   // -------------------------------------------------------------------------
@@ -429,7 +429,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (studentErr || !studentData) {
     console.error("Student lookup failed:", studentErr);
-    return htmlResponse(ERROR_HTML, 400);
+    return htmlResponse(ERROR_HTML, 200);
   }
 
   const student = studentData;
@@ -449,7 +449,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (saveTokenErr) {
     console.error("Failed to save GitHub token:", saveTokenErr);
-    return htmlResponse(ERROR_HTML, 500);
+    return htmlResponse(ERROR_HTML, 200);
   }
 
   // From here on, any failure gets a friendly retry message
@@ -571,7 +571,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (err) {
     console.error("Setup error after token save:", err);
 
-    // Token is already saved — tell student to tap again
+    const errMsg = String(err);
+
+    // Notify admin with the actual error so it can be diagnosed
+    const adminChatId = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
+    await sendTg(
+      adminChatId,
+      `⚠️ <b>github-oauth setup error</b>\n\nStudent chat: ${state}\n\nError: <code>${errMsg}</code>`
+    );
+
+    // Tell student to tap again
     await sendTg(
       state,
       "Small hiccup setting up your pages — tap the link again and it should go through! 😅"
@@ -618,7 +627,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   </div>
 </body>
 </html>`,
-      500
+      200
     );
   }
 });
