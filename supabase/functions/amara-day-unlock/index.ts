@@ -34,6 +34,11 @@ Say <b>"ready"</b> and let's go! 💪`,
 
 Today we test your bot is live, confirm everything is working, and you'll receive your official <b>Certificate of Completion 🎓</b>
 
+⚠️ <b>IMPORTANT — Final Stage Setup:</b>
+Coach Victor holds a <b>live session every Saturday at 8:30 PM Nigeria time</b> for your final stage setup. You need to attend!
+
+👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group now</a> so you don't miss it — miss it and you wait another full week!
+
 This is your finish line. Say <b>"ready"</b> and let's complete this! 💪`,
 };
 

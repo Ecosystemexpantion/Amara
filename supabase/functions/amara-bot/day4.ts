@@ -46,6 +46,10 @@ async function handleStep1(student: Student, chatId: number, text: string | null
         chatId,
         `<b>🚀 Day 4 — Final Day!</b>\n\nYour bot is already live and running 24/7 from your Tech Stack 📦 — I set it all up yesterday!\n\nNow let's confirm it's working. Open Telegram, find your bot (search for its username), send it any message, and send me a screenshot of it replying 📸`
       );
+      await typeMessage(
+        chatId,
+        `⚠️ <b>IMPORTANT — Final Stage Setup with Coach Victor!</b>\n\nCoach Victor holds a <b>live group session every Saturday at 8:30 PM Nigeria time</b> for your final stage setup.\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n⚠️ If you miss it, you wait another full week! Join the group now so you don't miss it 🔥`
+      );
     }
     return;
   }
@@ -190,6 +194,10 @@ async function sendGrandFinale(student: Student, chatId: number): Promise<void> 
   await typeMessage(
     chatId,
     `<b>Welcome to the EEM26 family. Now go make money! 🔥</b>\n\nAsk me anything, any time — I dey here for you! 💪`
+  );
+  await typeMessage(
+    chatId,
+    `🎯 <b>One more thing — your Final Stage Setup with Coach Victor!</b>\n\nEvery <b>Saturday at 8:30 PM Nigeria time</b>, Coach Victor holds a live session for EEM26 graduates to complete your final stage setup.\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group now</a>\n\n⚠️ Miss it and you wait another full week — so make sure you're there! 🏆`
   );
 
   await notifyAdmin(
