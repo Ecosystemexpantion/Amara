@@ -34,7 +34,13 @@ export async function routeMessage(
     } else if (msg.photo && msg.photo.length > 0) {
       // Download the largest photo
       const largestPhoto = msg.photo[msg.photo.length - 1];
-      photoPayload = await downloadFile(largestPhoto.file_id);
+      try {
+        photoPayload = await downloadFile(largestPhoto.file_id);
+      } catch (e) {
+        console.error("Photo download error:", e);
+        await typeMessage(chatId, "I got your photo but couldn't open it 😊 — try sending it again!");
+        return;
+      }
       textPayload = msg.caption ?? null;
     } else if (msg.text) {
       textPayload = msg.text.trim();
