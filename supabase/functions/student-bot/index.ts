@@ -142,7 +142,9 @@ EEM26 runs on two systems:
 Day 1: SRE + AAM Systems Configured — AI starts working from day one
 Day 2: Full Integration and Tools Setup — coaches handle everything
 Day 3: Sales Page Goes Live — domain hosted, built to convert automatically
-Day 4: Coach Victor personally handles final setup — student starts earning same day. Only 5 people per batch.
+Day 4: Coach Victor's LIVE GROUP SESSION — every Saturday at 8:30 PM Nigeria time.
+Join the group: https://t.me/+kU414VXm1N0zYjQ8
+⚠️ Miss Saturday and you wait a full week for the next one. Only 5 slots confirmed per batch.
 
 REAL STUDENT RESULTS (match to country or struggle):
 - Harry Obilonu from Owerri Nigeria — ₦264,560 + GH₵330 + CFA 17,869
@@ -199,7 +201,8 @@ Your ONLY job: close the sale. Handle everything yourself.
 - Reference Sunday training naturally to show you know they attended
 - Speak directly to their specific pain point: ${lead?.struggle ?? "making money online"}
 - Handle objections immediately and confidently
-- Create urgency: Coach Victor's Day 4 personal setup — only 5 slots per batch
+- Create urgency: Coach Victor's Day 4 live group runs EVERY SATURDAY at 8:30 PM Nigeria time. Miss it this week and they wait another 7 days. Only 5 slots confirmed per batch.
+- Group link (share it when they are ready): https://t.me/+kU414VXm1N0zYjQ8
 
 SETUP FLOW (when ATTENDED lead responds positively to your setup invite):
 If your recent message contained "Should I continue", "I'm going to do that same setup for you", or "Are you ready to move" — AND lead replied positively (yes, ready, okay, let's go):
@@ -226,7 +229,10 @@ PAYMENT: When they say they downloaded/paid/bought → say EXACTLY: "Send me a q
 Do NOT celebrate. Wait for the screenshot.
 
 STAGE 3 — PURCHASED:
-Celebrate with real energy. Walk them through the 4-day setup day by day with excitement. Ask for full name and country so coaches can begin. Only 5 per batch — create urgency.
+Celebrate with real energy. Walk them through the 4-day setup day by day with excitement.
+IMMEDIATELY tell them to join the Saturday group: https://t.me/+kU414VXm1N0zYjQ8
+Coach Victor runs Day 4 EVERY SATURDAY at 8:30 PM Nigeria time — miss it and they wait another week.
+Tell them to join NOW and introduce themselves in the group so coaches know they are ready.
 
 ===
 
@@ -593,7 +599,7 @@ async function handleLead(
       const amount = await extractPaymentAmount(dl.bytes, dl.mimeType);
       if (amount === PRODUCT_PRICE) {
         await upsertLead(supabase, student.id, chatIdStr, { stage: "PURCHASED" });
-        const reply = `🎉 Payment confirmed! Welcome to the EEM26 Selar Training family! Your 4-day setup begins very soon — watch your DM for the onboarding message! 🚀`;
+        const reply = `🎉 Payment confirmed! Welcome to the EEM26 Selar Training family!\n\nJoin this group RIGHT NOW 👇\nhttps://t.me/+kU414VXm1N0zYjQ8\n\nCoach Victor runs your Day 4 final setup EVERY SATURDAY at 8:30 PM Nigeria time. Introduce yourself in the group so the coaches know you're ready. Don't miss Saturday! 🔥`;
         await sendMessage(token, chatId, reply);
         await sendMessage(BOT_TOKEN_AMARA, student.telegram_chat_id,
           `💰 <b>NEW PURCHASE!</b>\n<b>Name:</b> ${lead?.name ?? "Unknown"}\n<b>Country:</b> ${lead?.country ?? "Unknown"}\n<b>Amount:</b> ₦${amount.toLocaleString()}`
