@@ -82,6 +82,49 @@ Additional rules:
 - If asked your name, say: "I'm the EEM26 Selar Training assistant"
 - Keep replies to 3 sentences maximum`;
 
+// AIDA opening hook — sent to every brand-new lead on first contact
+const OPENING_HOOK =
+  `Hey! So glad you're here 🔥\n\n` +
+  `EEM26 Selar Training is one of the fastest ways to build a real income online right now — ` +
+  `people are going from zero to their first digital income in just 4 days.\n\n` +
+  `But first — what's your name, which country are you from, and what's your biggest challenge ` +
+  `when it comes to making money online? I want to make sure this is the right fit for you 👇`;
+
+// Phase 1: extract name + country + struggle, respond with AIDA energy
+const PHASE1_SYSTEM = BOT_PERSONA + `
+
+You are having the FIRST real conversation with a new lead interested in EEM26 Selar Training.
+
+Read their message carefully. Extract what they shared and respond with genuine energy.
+
+Always end your reply with this DATA block on a NEW LINE (never shown to the lead):
+DATA: name={their name or empty}, country={their country or empty}, struggle={their struggle or empty}
+
+How to respond based on what you extracted:
+- Got ALL 3 (name + country + struggle): React warmly to their specific struggle — show you understand it. Say something like "You're in exactly the right place — EEM26 was built for people in your situation." Build excitement briefly. Then ask: "What email address should I send your registration details to? 📧"
+- Got 1 or 2: Warmly acknowledge what they shared, then naturally ask for the missing pieces — make it feel like genuine curiosity, not a form.
+- Got NONE (they said "hi" or asked a question): Re-engage genuinely, answer their question briefly if any, then bring them back to the 3 questions with enthusiasm.
+
+Keep replies to 4 sentences maximum. Sound like a real, excited human.`;
+
+// Phase 2: extract email, confirm registration
+function phase2System(lead: Lead): string {
+  return BOT_PERSONA + `
+
+You are talking to ${lead.name ?? "a new lead"} from ${lead.country ?? "unknown"}.
+Their biggest struggle: "${lead.struggle ?? "unknown"}"
+
+They are responding to your request for their email address. Extract it and confirm registration.
+
+Always end your reply with this on a NEW LINE: DATA: email={email or empty}
+
+How to respond:
+- Valid email found: Confirm registration with genuine excitement! Tell them they are officially registered for the Sunday EEM26 session and to keep their DM open for session details. Max 3 sentences.
+- No valid email or unclear: Ask again warmly — "What email should I send your registration details to? 📧" Max 2 sentences.
+
+Standard English only. No Nigerian Pidgin.`;
+}
+
 // ─── alertAdmin ───────────────────────────────────────────────────────────────
 
 async function alertAdmin(msg: string): Promise<void> {
@@ -391,12 +434,11 @@ async function handleLead(
   // Debug log so admin can see what's happening
   await alertAdmin(`🔍 <b>Lead msg</b>\nStage: ${stage}\nText: "${userText.slice(0, 80)}"\nLead: ${lead ? "exists" : "new"}`);
 
-  // Handle /start command — always greet and ask for name
+  // Handle /start and other commands — send AIDA opening hook
   if (userText === "/start" || userText.startsWith("/")) {
-    const greeting = await callGroq(BOT_PERSONA, [], "A new visitor just opened the chat. Welcome them warmly to EEM26 Selar Training and ask for their full name to get started. Max 3 sentences.");
-    await sendMessage(token, chatId, greeting);
+    await sendMessage(token, chatId, OPENING_HOOK);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
-    await saveConv(supabase, student.id, chatIdStr, userText, greeting);
+    await saveConv(supabase, student.id, chatIdStr, userText, OPENING_HOOK);
     return;
   }
 
@@ -534,89 +576,61 @@ async function handleLead(
     return;
   }
 
-  // ── NEW — data collection: name → country → struggle → email → REGISTERED
-  const history = await getHistory(supabase, student.id, chatIdStr);
-  const hasName = !!lead?.name;
-  const hasCountry = !!lead?.country;
-  const hasStruggle = !!lead?.struggle;
-  const hasEmail = !!lead?.email;
-
-  // First-ever message with no text
-  if (!userText) {
-    const greeting = await callGroq(BOT_PERSONA, [], "A new visitor just opened the chat. Welcome them warmly to EEM26 Selar Training and ask for their full name to get started. Max 3 sentences.");
-    await sendMessage(token, chatId, greeting);
+  // ── NEW — AIDA 3-question funnel: opening hook → name/country/struggle → email → REGISTERED
+  if (!lead) {
+    // Brand new lead — send AIDA opening hook
+    await sendMessage(token, chatId, OPENING_HOOK);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
-    await saveConv(supabase, student.id, chatIdStr, "[started chat]", greeting);
+    await saveConv(supabase, student.id, chatIdStr, userText || "[started]", OPENING_HOOK);
     return;
   }
 
-  const nextField = !hasName ? "full name" : !hasCountry ? "country" : !hasStruggle ? "biggest struggle making money online" : !hasEmail ? "email address" : null;
+  if (!userText) return;
 
-  if (!nextField) {
-    // All done — should already be REGISTERED but handle edge case
-    await upsertLead(supabase, student.id, chatIdStr, { stage: "REGISTERED", wind_down_count: 0 });
-    return;
-  }
+  const hasInitialData = !!(lead.name && lead.country && lead.struggle);
+  const hasEmailData = !!lead.email;
 
-  const dataKey = nextField === "full name" ? "name" : nextField === "country" ? "country" : nextField === "biggest struggle making money online" ? "struggle" : "email";
+  if (!hasInitialData) {
+    // Phase 1: Extract name + country + struggle from their response to the opening hook
+    const history = await getHistory(supabase, student.id, chatIdStr);
+    const rawReply = await callGroq(PHASE1_SYSTEM, history, userText);
+    const extracted = extractData(rawReply);
+    const reply = clean(rawReply);
 
-  const collected = [
-    hasName ? `name: "${lead!.name}"` : null,
-    hasCountry ? `country: "${lead!.country}"` : null,
-    hasStruggle ? "struggle: collected" : null,
-    hasEmail ? `email: "${lead!.email}"` : null,
-  ].filter(Boolean).join(", ") || "nothing yet";
+    const updates: Record<string, unknown> = { stage: "NEW" };
+    if (extracted.name) updates.name = extracted.name;
+    if (extracted.country) updates.country = extracted.country;
+    if (extracted.struggle) updates.struggle = extracted.struggle;
+    await upsertLead(supabase, student.id, chatIdStr, updates);
 
-  const rawReply = await callGroq(
-    BOT_PERSONA + `
-
-You are currently collecting registration details for the EEM26 Selar Training Sunday session.
-Already collected: ${collected}
-Still need: ${nextField}
-
-If the person just provided their ${nextField} in their message, extract it and output on a NEW LINE (never shown to them):
-DATA: ${dataKey}={value they gave}
-
-Then warmly move to asking the next field, OR if email was the last one, confirm their registration and tell them to look out for the Sunday session details. Max 3 sentences.`,
-    history,
-    userText
-  );
-
-  const extracted = extractData(rawReply);
-  const reply = clean(rawReply);
-
-  // Merge existing + newly extracted fields
-  const newName = extracted.name ?? lead?.name ?? null;
-  const newCountry = extracted.country ?? lead?.country ?? null;
-  const newStruggle = extracted.struggle ?? lead?.struggle ?? null;
-  const newEmail = extracted.email ?? lead?.email ?? null;
-  const allDone = !!(newName && newCountry && newStruggle && newEmail);
-
-  const updates: Record<string, unknown> = { stage: allDone ? "REGISTERED" : "NEW", wind_down_count: 0 };
-  if (newName) updates.name = newName;
-  if (newCountry) updates.country = newCountry;
-  if (newStruggle) updates.struggle = newStruggle;
-  if (newEmail) updates.email = newEmail;
-
-  await upsertLead(supabase, student.id, chatIdStr, updates);
-
-  if (allDone) {
-    const regMsg = await callGroq(
-      BOT_PERSONA + `\n\nThe lead just completed registration for the EEM26 Selar Training Sunday session! Confirm they are officially registered and that they should keep an eye out for session details. Warm and professional. Max 2 sentences.`,
-      [],
-      ""
-    );
-    const finalReply = regMsg || "You're officially registered! 🎉🔥 Get ready for Sunday — it's going to change your life forever! Keep your DM open!";
-    await sendMessage(token, chatId, finalReply);
-    await sendMessage(
-      token,
-      student.telegram_chat_id,
-      `✅ <b>NEW LEAD REGISTERED!</b>\n<b>Name:</b> ${newName}\n<b>Country:</b> ${newCountry}\n<b>Struggle:</b> ${newStruggle}\n<b>Email:</b> ${newEmail}`
-    );
-    await saveConv(supabase, student.id, chatIdStr, userText, finalReply);
-  } else {
     await sendMessage(token, chatId, reply);
     await saveConv(supabase, student.id, chatIdStr, userText, reply);
+  } else if (!hasEmailData) {
+    // Phase 2: Extract email → mark REGISTERED
+    const history = await getHistory(supabase, student.id, chatIdStr);
+    const rawReply = await callGroq(phase2System(lead), history, userText);
+    const extracted = extractData(rawReply);
+    const reply = clean(rawReply);
+
+    if (extracted.email) {
+      await upsertLead(supabase, student.id, chatIdStr, {
+        stage: "REGISTERED",
+        email: extracted.email,
+        wind_down_count: 0,
+      });
+      await sendMessage(token, chatId, reply);
+      await sendMessage(
+        BOT_TOKEN_AMARA,
+        student.telegram_chat_id,
+        `✅ <b>NEW LEAD REGISTERED!</b>\n<b>Name:</b> ${lead.name}\n<b>Country:</b> ${lead.country}\n<b>Struggle:</b> ${lead.struggle}\n<b>Email:</b> ${extracted.email}`
+      );
+    } else {
+      await sendMessage(token, chatId, reply);
+    }
+    await saveConv(supabase, student.id, chatIdStr, userText, reply);
+  } else {
+    // Edge case: all data present but stage not yet REGISTERED
+    await upsertLead(supabase, student.id, chatIdStr, { stage: "REGISTERED", wind_down_count: 0 });
   }
 }
 
