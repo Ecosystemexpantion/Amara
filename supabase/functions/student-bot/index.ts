@@ -593,12 +593,14 @@ async function handleLead(
       const amount = await extractPaymentAmount(dl.bytes, dl.mimeType);
       if (amount === PRODUCT_PRICE) {
         await upsertLead(supabase, student.id, chatIdStr, { stage: "PURCHASED" });
-        const reply = `🎉 Payment confirmed! Welcome to the EEM26 Selar Training family! Your 4-day setup begins very soon — watch your DM for the onboarding message! 🚀`;
-        await sendMessage(token, chatId, reply);
+        const reply1 = `Congratulations 🎊\n\nClick the link to access the tech stack 👇\n\nhttps://ecosystemexpantion.github.io/Product_page/\n\nSet your password and read all the instructions there. You will know the next step`;
+        const reply2 = `Your personal setup coach is waiting for you here 👇\n\nhttps://t.me/Amara_EEM26bot`;
+        await sendMessage(token, chatId, reply1);
+        await sendMessage(token, chatId, reply2);
         await sendMessage(BOT_TOKEN_AMARA, student.telegram_chat_id,
           `💰 <b>NEW PURCHASE!</b>\n<b>Name:</b> ${lead?.name ?? "Unknown"}\n<b>Country:</b> ${lead?.country ?? "Unknown"}\n<b>Amount:</b> ₦${amount.toLocaleString()}`
         );
-        await saveConv(supabase, student.id, chatIdStr, "[payment screenshot]", reply);
+        await saveConv(supabase, student.id, chatIdStr, "[payment screenshot]", `${reply1}\n\n${reply2}`);
       } else if (amount !== null && amount > 0) {
         const reply = `I'm seeing ₦${amount.toLocaleString()} on this screenshot but the price is ₦39,820. Please send the correct payment screenshot 📸`;
         await sendMessage(token, chatId, reply);
