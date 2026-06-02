@@ -368,6 +368,24 @@ async function handleLead(
   const hostName = student.full_name?.split(" ")[0] ?? "your host";
   const downloadLink = student.payhip_link ?? student.sales_page_link ?? "https://payhip.com";
 
+  // Debug log so admin can see what's happening
+  await alertAdmin(`🔍 <b>Lead msg</b>\nStage: ${stage}\nText: "${userText.slice(0, 80)}"\nLead: ${lead ? "exists" : "new"}`);
+
+  // Handle /start command — always greet and ask for name
+  if (userText === "/start" || userText.startsWith("/")) {
+    const greeting = await callGroq(
+      `You work for ${hostName}'s EEM26 business (teaching people how to build digital income in 4 days).
+Welcome this new visitor with energy and warmth! Ask for their full name to get started.
+Max 2 sentences. Nigerian Pidgin energy.`,
+      [],
+      "hi"
+    );
+    await sendMessage(token, chatId, greeting);
+    await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
+    await saveConv(supabase, student.id, chatIdStr, userText, greeting);
+    return;
+  }
+
   const hasBuyIntent = BUY_INTENT_RE.test(userText);
   const hasAttended = ATTENDED_RE.test(userText);
 
@@ -600,6 +618,7 @@ Max 2 sentences. Extremely excited energy. Nigerian vibes. 🎉`,
 
 // ─── Closing mode system prompt ───────────────────────────────────────────────
 
+
 function closingPrompt(hostName: string, downloadLink: string): string {
   return `You are a sales closer for ${hostName}'s EEM26 digital business. Lead attended Sunday training or is asking to buy.
 YOUR ONLY JOB: Close the sale NOW.
@@ -672,9 +691,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .eq("chat_id", chatIdStr)
         .single();
 
-      await handleLead(student, leadData as Lead | null, chatId, msg, supabase);
+      try {
+        await handleLead(student, leadData as Lead | null, chatId, msg, supabase);
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        console.error("handleLead error:", errMsg);
+        await alertAdmin(`🚨 <b>student-bot crash</b>\nBot: ${student.bot_token?.slice(0, 20)}...\nError: <code>${errMsg.slice(0, 300)}</code>`);
+        // Always send something so the lead is never left in silence
+        await fetch(`https://api.telegram.org/bot${student.bot_token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: "Hey! Sorry for the delay — I'm here now! What's your name? 😊" }),
+        }).catch(() => {});
+      }
     } catch (e) {
-      console.error("student-bot error:", e);
+      console.error("student-bot outer error:", e);
     }
   })();
 
