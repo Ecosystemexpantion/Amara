@@ -102,12 +102,17 @@ async function callGemini(
   history: { role: string; content: string }[],
   userMessage: string
 ): Promise<string> {
-  const key = Deno.env.get("GEMINI_API_KEY") ?? "";
+  // Try each available Gemini key in order until one works
+  const keys = [
+    Deno.env.get("GEMINI_API_KEY"),
+    Deno.env.get("GEMINI_API_KEY_2"),
+    Deno.env.get("GEMINI_API_KEY_3"),
+    Deno.env.get("GEMINI_API_KEY_4"),
+    Deno.env.get("GEMINI_API_KEY_5"),
+  ].filter(Boolean) as string[];
 
   // Build a strictly alternating user/model sequence from recent history to avoid
   // Gemini 400 errors caused by consecutive turns of the same role.
-  // Walk backwards keeping only messages that alternate roles, ending on "model"
-  // so the incoming user message is always the final "user" turn.
   const recent = history.slice(-8);
   const alternating: { role: string; content: string }[] = [];
   let wantRole: "user" | "assistant" = "assistant";
@@ -126,28 +131,39 @@ async function callGemini(
     { role: "user", parts: [{ text: userMessage }] },
   ];
 
-  const res = await fetch(`${GEMINI_URL}?key=${key}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents,
-      generationConfig: { temperature: 0.9, maxOutputTokens: 300 },
-    }),
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents,
+    generationConfig: { temperature: 0.9, maxOutputTokens: 300 },
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error(`Gemini chat error ${res.status}: ${errText}`);
-    await alertAdmin(`⚠️ <b>student-bot Gemini error</b>\nStatus: ${res.status}\nKey set: ${key ? "YES" : "NO (EMPTY)"}\nError: <code>${errText.slice(0, 300)}</code>`);
-    return "I'll get back to you shortly!";
+  for (const key of keys) {
+    const res = await fetch(`${GEMINI_URL}?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+
+    if (res.status === 429) {
+      await res.body?.cancel();
+      continue; // try next key
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Gemini chat error ${res.status}: ${errText}`);
+      await alertAdmin(`⚠️ <b>student-bot Gemini error</b>\nStatus: ${res.status}\nError: <code>${errText.slice(0, 300)}</code>`);
+      break;
+    }
+
+    const data = await res.json();
+    return (
+      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ??
+      "I'll get back to you shortly!"
+    );
   }
 
-  const data = await res.json();
-  return (
-    data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ??
-    "I'll get back to you shortly!"
-  );
+  return "I'll get back to you shortly!";
 }
 
 // ---------------------------------------------------------------------------
