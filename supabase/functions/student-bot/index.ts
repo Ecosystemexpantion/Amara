@@ -525,21 +525,17 @@ async function handleLead(
     return;
   }
 
-  // ── REGISTERED + silent (wind-down done) — only break silence for buy intent or attendance
+  // ── REGISTERED — keep lead warm until Sunday, always respond (never go silent)
   if (stage === "REGISTERED" && !hasBuyIntent && !hasAttended) {
-    const count = lead?.wind_down_count ?? 0;
-    if (count >= 3) return; // Silent until Sunday
-
     if (!userText) return;
 
     const history = await getHistory(supabase, student.id, chatIdStr);
     const reply = await callGroq(
-      BOT_PERSONA + `\n\nThis lead just registered for the EEM26 Selar Training Sunday session. Keep them excited and looking forward to it. Do NOT mention prices or selling. Max 2 sentences.`,
+      BOT_PERSONA + `\n\nThis lead is registered for the EEM26 Selar Training Sunday session. Keep them warm, answer their questions, and build excitement for Sunday. Do NOT mention prices or selling. Max 3 sentences.`,
       history,
       userText
     );
     await sendMessage(token, chatId, reply);
-    await upsertLead(supabase, student.id, chatIdStr, { wind_down_count: count + 1 });
     await saveConv(supabase, student.id, chatIdStr, userText, reply);
     return;
   }
