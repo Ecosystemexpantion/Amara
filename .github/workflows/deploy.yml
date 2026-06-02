@@ -26,7 +26,7 @@ jobs:
 
       - name: Set Supabase secrets
         env:
-          SUPABASE_DISABLE_TELEMETRY: "true"
+          DO_NOT_TRACK: "1"
         run: |
           supabase secrets set TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
           supabase secrets set GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
