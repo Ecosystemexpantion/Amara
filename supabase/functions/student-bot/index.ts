@@ -299,6 +299,23 @@ async function handleAdmin(
   const query = (msg.text ?? "").trim();
   if (!query) return;
 
+  // Greetings / chit-chat → show command menu instead of querying DB
+  if (/^(hi|hello|hey|good|let'?s|ok|okay|start|continue|test|hii+|yo|oya)\b/i.test(query)) {
+    await sendMessage(
+      token,
+      chatId,
+      `👋 <b>Admin mode — you own this bot!</b>\n\n` +
+        `Your leads can't see this. Ask me anything about your leads, e.g:\n\n` +
+        `• "How many leads do I have?"\n` +
+        `• "Who registered today?"\n` +
+        `• "What objections are people raising?"\n` +
+        `• "How many attended?"\n\n` +
+        `📹 Send a <b>video</b> → I'll give you the file_id\n\n` +
+        `<i>To test the lead funnel, message this bot from a different Telegram account.</i>`
+    );
+    return;
+  }
+
   // Fetch lead stats
   const { data: leads } = await supabase
     .from("student_bot_leads")
