@@ -1,34 +1,44 @@
 // student-bot/index.ts
-// Multi-tenant Supabase Edge Function — handles webhook for every EEM26 student's personal Telegram bot.
-// Each student's bot webhook points to: [SUPABASE_URL]/functions/v1/student-bot/[student_uuid]
+// Multi-tenant EEM26 sales funnel bot.
+// Each student's bot webhook → /functions/v1/student-bot/[student_uuid]
 //
-// Deno / TypeScript — fully self-contained (no imports from amara-bot/ modules).
+// FUNNEL:
+// NEW → collect name/country/struggle/email → REGISTERED → 3 wind-down replies → SILENT
+// Buy intent at any point → immediate CLOSING MODE
+// ATTENDED → aggressive close → payment screenshot → PURCHASED
+// COLD → no response
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Student {
   id: string;
   telegram_chat_id: string;
   full_name: string | null;
-  email: string | null;
-  phone: string | null;
-  country: string | null;
-  current_day: number;
-  current_step: number;
   payhip_link: string | null;
   sales_page_link: string | null;
   bot_token: string | null;
   status: string;
 }
 
+interface Lead {
+  id: string;
+  student_id: string;
+  chat_id: string;
+  name: string | null;
+  phone: string | null;
+  country: string | null;
+  email: string | null;
+  struggle: string | null;
+  stage: string;
+  wind_down_count: number;
+  download_link_sent_at: string | null;
+}
+
 interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
-  edited_message?: TelegramMessage;
 }
 
 interface TelegramMessage {
@@ -38,42 +48,30 @@ interface TelegramMessage {
   date: number;
   text?: string;
   caption?: string;
-  photo?: TelegramPhoto[];
+  photo?: { file_id: string; file_unique_id: string; file_size: number; width: number; height: number }[];
+  video?: { file_id: string; duration: number };
 }
 
-interface TelegramPhoto {
-  file_id: string;
-  file_unique_id: string;
-  file_size: number;
-  width: number;
-  height: number;
-}
+type SupabaseClient = ReturnType<typeof createClient>;
 
-interface ConversationRow {
-  role: string;
-  message: string;
-}
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-interface LeadRow {
-  id: string;
-  student_id: string;
-  chat_id: string;
-  name: string | null;
-  phone: string | null;
-  stage: string;
-}
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const GEMINI_VISION_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-
+const PRODUCT_PRICE = 39820; // ₦ — must match exactly
 const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
 const BOT_TOKEN_AMARA = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 
+// Triggers immediate closing mode from any stage
+const BUY_INTENT_RE =
+  /how much|what.{0,10}(price|cost)|(i want to|i'?d like to) (buy|pay|register|get|download|purchase)|(price|cost)[?!.\s]*$|(i'?m|i am) (ready|interested)|send me.{0,20}link|how (can i|do i) (buy|get|download|pay|register|join)/i;
+
+// Triggers instant REGISTERED → ATTENDED upgrade
+const ATTENDED_RE =
+  /i (attended|was there|came|watched|joined|saw).{0,30}(training|webinar|session|class|meeting|zoom|live|sunday)/i;
+
+// ─── alertAdmin ───────────────────────────────────────────────────────────────
+
 async function alertAdmin(msg: string): Promise<void> {
+  if (!BOT_TOKEN_AMARA) return;
   await fetch(`https://api.telegram.org/bot${BOT_TOKEN_AMARA}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -81,9 +79,7 @@ async function alertAdmin(msg: string): Promise<void> {
   }).catch(() => {});
 }
 
-// ---------------------------------------------------------------------------
-// Helpers — base64 encoding (chunked to avoid call-stack overflow on large images)
-// ---------------------------------------------------------------------------
+// ─── base64 ───────────────────────────────────────────────────────────────────
 
 function uint8ToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -93,144 +89,98 @@ function uint8ToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-// ---------------------------------------------------------------------------
-// Groq — text chat (free tier, ~14,400 req/day, very fast)
-// ---------------------------------------------------------------------------
+// ─── Groq — free text chat ───────────────────────────────────────────────────
 
-async function callClaude(
+async function callGroq(
   systemPrompt: string,
   history: { role: string; content: string }[],
   userMessage: string
 ): Promise<string> {
   const apiKey = Deno.env.get("GROQ_API_KEY");
   if (!apiKey) {
-    console.error("GROQ_API_KEY not set");
-    await alertAdmin("⚠️ <b>student-bot</b>: GROQ_API_KEY not configured");
+    await alertAdmin("⚠️ <b>student-bot</b>: GROQ_API_KEY not set");
     return "I'll get back to you shortly!";
   }
 
-  // Build strictly alternating message list
+  // Build strictly alternating user/assistant list
   const recent = history.slice(-8);
   const messages: { role: string; content: string }[] = [];
-  let wantRole: "user" | "assistant" = "assistant";
+  let want: "user" | "assistant" = "assistant";
   for (let i = recent.length - 1; i >= 0; i--) {
-    if (recent[i].role === wantRole) {
-      messages.unshift({ role: wantRole, content: recent[i].content });
-      wantRole = wantRole === "user" ? "assistant" : "user";
+    if (recent[i].role === want) {
+      messages.unshift({ role: want, content: recent[i].content });
+      want = want === "user" ? "assistant" : "user";
     }
   }
-  messages.push({ role: "user", content: userMessage });
+  if (userMessage) messages.push({ role: "user", content: userMessage });
 
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
         max_tokens: 300,
         temperature: 0.9,
       }),
     });
 
     if (!res.ok) {
-      const errText = await res.text();
-      console.error(`Groq error ${res.status}: ${errText}`);
-      await alertAdmin(`⚠️ <b>student-bot Groq error</b>\nStatus: ${res.status}\nError: <code>${errText.slice(0, 300)}</code>`);
+      const err = await res.text();
+      console.error(`Groq ${res.status}: ${err}`);
+      await alertAdmin(`⚠️ <b>student-bot Groq error</b> ${res.status}: <code>${err.slice(0, 200)}</code>`);
       return "I'll get back to you shortly!";
     }
 
     const data = await res.json();
     return data?.choices?.[0]?.message?.content?.trim() ?? "I'll get back to you shortly!";
   } catch (e) {
-    const errMsg = e instanceof Error ? e.message : String(e);
-    console.error("Groq chat error:", errMsg);
-    await alertAdmin(`⚠️ <b>student-bot Groq error</b>: <code>${errMsg.slice(0, 300)}</code>`);
+    console.error("Groq error:", e);
     return "I'll get back to you shortly!";
   }
 }
 
-// ---------------------------------------------------------------------------
-// Gemini — vision (payment screenshot check)
-// ---------------------------------------------------------------------------
+// ─── Gemini vision — extract payment amount ───────────────────────────────────
 
-async function checkPaymentScreenshot(
+async function extractPaymentAmount(
   imageBytes: Uint8Array,
   mimeType: string
-): Promise<boolean> {
+): Promise<number | null> {
   const key = Deno.env.get("GEMINI_API_KEY") ?? "";
+  if (!key) return null;
+
   const base64 = uint8ToBase64(imageBytes);
-
-  const prompt =
-    "Does this image look like a payment confirmation, bank transfer receipt, or purchase screenshot? " +
-    "Answer with a single word: YES or NO.";
-
-  // Try multiple vision-capable models in case of quota exhaustion
-  const models = [
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-8b",
-  ];
-
-  for (const model of models) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;  // vision only
-    try {
-      const res = await fetch(url, {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { inline_data: { mime_type: mimeType, data: base64 } },
-                { text: prompt },
-              ],
-            },
-          ],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 10 },
+          contents: [{ parts: [
+            { inline_data: { mime_type: mimeType, data: base64 } },
+            { text: "Look at this payment or bank transfer screenshot. Extract the total amount paid in Nigerian Naira. Return ONLY the numeric value without any symbol, comma, or space. Example: for ₦39,820 return: 39820. If you cannot determine the amount, return: 0" },
+          ]}],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 20 },
         }),
-      });
-
-      if (res.status === 429) {
-        console.warn(`Gemini vision quota exceeded: ${model}`);
-        continue;
       }
-      if (!res.ok) {
-        console.warn(`Gemini vision ${res.status} (${model}): ${await res.text()}`);
-        continue;
-      }
+    );
 
-      const data = await res.json();
-      const text: string =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-      console.log(`Vision check (${model}): "${text}"`);
-      return /^yes/i.test(text);
-    } catch (e) {
-      console.error(`Gemini vision exception (${model}):`, e);
-    }
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "0";
+    const num = parseInt(text.replace(/[^0-9]/g, ""), 10);
+    return isNaN(num) ? null : num;
+  } catch {
+    return null;
   }
-
-  // Default to false if all models failed
-  return false;
 }
 
-// ---------------------------------------------------------------------------
-// Telegram helpers
-// ---------------------------------------------------------------------------
+// ─── Telegram helpers ─────────────────────────────────────────────────────────
 
-async function sendMessage(
-  botToken: string,
-  chatId: number | string,
-  text: string
-): Promise<void> {
-  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+async function sendMessage(token: string, chatId: number | string, text: string): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
@@ -238,137 +188,436 @@ async function sendMessage(
 }
 
 async function downloadPhoto(
-  botToken: string,
+  token: string,
   fileId: string
 ): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
   try {
-    const fileRes = await fetch(
-      `https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`
-    );
-    if (!fileRes.ok) return null;
-    const fileData = await fileRes.json();
-    const filePath: string | undefined = fileData?.result?.file_path;
+    const r1 = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
+    if (!r1.ok) return null;
+    const filePath: string | undefined = (await r1.json())?.result?.file_path;
     if (!filePath) return null;
-
-    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
-    const mimeMap: Record<string, string> = {
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      webp: "image/webp",
-    };
-    const mimeType = mimeMap[ext] ?? "image/jpeg";
-
-    const imgRes = await fetch(
-      `https://api.telegram.org/file/bot${botToken}/${filePath}`
-    );
-    if (!imgRes.ok) return null;
-
-    const buffer = await imgRes.arrayBuffer();
-    return { bytes: new Uint8Array(buffer), mimeType };
-  } catch (e) {
-    console.error("downloadPhoto error:", e);
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "jpg";
+    const mimeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+    const r2 = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
+    if (!r2.ok) return null;
+    return { bytes: new Uint8Array(await r2.arrayBuffer()), mimeType: mimeMap[ext] ?? "image/jpeg" };
+  } catch {
     return null;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Data extraction helpers
-// ---------------------------------------------------------------------------
+// ─── Data extraction ──────────────────────────────────────────────────────────
 
-function extractData(text: string): {
-  name?: string;
-  phone?: string;
-  stage?: string;
-} {
+function extractData(text: string): Record<string, string> {
   const match = text.match(/^DATA:\s*(.+)$/m);
   if (!match) return {};
   const result: Record<string, string> = {};
   for (const pair of match[1].split(",")) {
-    const [k, v] = pair.split("=").map((s) => s.trim());
-    if (k && v) result[k.toLowerCase()] = v;
+    const eqIdx = pair.indexOf("=");
+    if (eqIdx < 0) continue;
+    const k = pair.slice(0, eqIdx).trim().toLowerCase();
+    const v = pair.slice(eqIdx + 1).trim();
+    if (k && v) result[k] = v;
   }
   return result;
 }
 
-function extractHotLead(text: string): string | null {
-  const match = text.match(/^HOT_LEAD:\s*(.+)$/m);
-  return match ? match[1].trim() : null;
-}
-
-function cleanResponse(text: string): string {
+function clean(text: string): string {
   return text
     .replace(/^DATA:.*$/gm, "")
-    .replace(/^HOT_LEAD:.*$/gm, "")
+    .replace(/^LINK_SENT:.*$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
-// ---------------------------------------------------------------------------
-// System prompt builder
-// ---------------------------------------------------------------------------
+// ─── DB helpers ───────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(student: Student): string {
-  const firstName = (student.full_name ?? "").split(" ")[0] || "Your host";
-  const payhipLink = student.payhip_link ?? "https://payhip.com";
-  const salesPageLink = student.sales_page_link ?? payhipLink;
-
-  return `You are a warm, friendly business assistant representing ${firstName}'s EEM26 digital business.
-You are NOT an AI — you are a real human assistant for this business. NEVER admit to being AI.
-Your goal: understand prospects' needs and guide them to buy the EEM26 digital business package.
-
-The product (EEM26) helps people build a digital income stream in 4 days:
-- AAM (Automate and Attract Method) — gets buyers coming to you automatically
-- SRE (Smart Reply Engine) — AI that closes sales 24/7
-Price: varies by package. Send interested buyers to: ${payhipLink}
-Learn more at: ${salesPageLink}
-
-Lead stages (track in DATA: blocks):
-- NEW: Just started chatting, hasn't shown interest yet
-- ATTENDED: Engaged, interested, asking about price/details
-- PURCHASED: Shows payment screenshot
-
-When collecting leads, output on a NEW LINE (invisible to prospect):
-DATA: name={first name they mentioned}, phone={phone if shared}, stage={NEW|ATTENDED|PURCHASED}
-
-When someone is VERY interested or shows payment, output on a NEW LINE:
-HOT_LEAD: {brief reason why}
-
-Rules:
-- Max 3 sentences per reply. Short and punchy.
-- Mix English with light Nigerian Pidgin naturally
-- NEVER mention competitor products or price directly — send to the link
-- If they show a payment screenshot, celebrate and tag HOT_LEAD`;
+async function getHistory(
+  supabase: SupabaseClient,
+  studentId: string,
+  chatId: string
+): Promise<{ role: string; content: string }[]> {
+  const { data } = await supabase
+    .from("student_bot_conversations")
+    .select("role, message")
+    .eq("student_id", studentId)
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: false })
+    .limit(8);
+  return ((data ?? []) as { role: string; message: string }[])
+    .reverse()
+    .map((r) => ({ role: r.role, content: r.message }));
 }
 
-// ---------------------------------------------------------------------------
-// Main handler
-// ---------------------------------------------------------------------------
+async function saveConv(
+  supabase: SupabaseClient,
+  studentId: string,
+  chatId: string,
+  user: string,
+  bot: string
+): Promise<void> {
+  await supabase
+    .from("student_bot_conversations")
+    .insert([
+      { student_id: studentId, chat_id: chatId, role: "user", message: user },
+      { student_id: studentId, chat_id: chatId, role: "assistant", message: bot },
+    ])
+    .catch(() => {});
+}
+
+async function upsertLead(
+  supabase: SupabaseClient,
+  studentId: string,
+  chatId: string,
+  fields: Record<string, unknown>
+): Promise<void> {
+  await supabase
+    .from("student_bot_leads")
+    .upsert(
+      { student_id: studentId, chat_id: chatId, updated_at: new Date().toISOString(), ...fields },
+      { onConflict: "student_id,chat_id" }
+    )
+    .catch((e) => console.error("upsertLead error:", e));
+}
+
+// ─── Admin handler ────────────────────────────────────────────────────────────
+
+async function handleAdmin(
+  student: Student,
+  chatId: number,
+  msg: TelegramMessage,
+  supabase: SupabaseClient
+): Promise<void> {
+  const token = student.bot_token!;
+
+  // Video → return file_id for video library
+  if (msg.video) {
+    await sendMessage(token, chatId, `📹 <b>Video file_id:</b>\n<code>${msg.video.file_id}</code>`);
+    return;
+  }
+
+  const query = (msg.text ?? "").trim();
+  if (!query) return;
+
+  // Fetch lead stats
+  const { data: leads } = await supabase
+    .from("student_bot_leads")
+    .select("stage, name, country, created_at")
+    .eq("student_id", student.id);
+
+  const counts: Record<string, number> = {};
+  for (const l of leads ?? []) counts[l.stage] = (counts[l.stage] ?? 0) + 1;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const newToday = (leads ?? []).filter((l) => l.created_at?.startsWith(today)).length;
+
+  // Recent prospect messages for objection analysis
+  const { data: msgs } = await supabase
+    .from("student_bot_conversations")
+    .select("message")
+    .eq("student_id", student.id)
+    .eq("role", "user")
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  const context =
+    `Lead totals by stage: ${JSON.stringify(counts)}\n` +
+    `New leads today: ${newToday}\n` +
+    `Total: ${leads?.length ?? 0}\n` +
+    `Recent prospect messages:\n${(msgs ?? []).map((m: { message: string }) => `"${m.message.slice(0, 80)}"`).join("\n")}`;
+
+  const answer = await callGroq(
+    `You are a sales analytics assistant. Answer the owner's question concisely using this data. Use numbers. Be direct.\n\n${context}`,
+    [],
+    query
+  );
+
+  await sendMessage(token, chatId, answer);
+}
+
+// ─── Lead handler — full EEM26 sales funnel ───────────────────────────────────
+
+async function handleLead(
+  student: Student,
+  lead: Lead | null,
+  chatId: number,
+  msg: TelegramMessage,
+  supabase: SupabaseClient
+): Promise<void> {
+  const token = student.bot_token!;
+  const chatIdStr = String(chatId);
+  const stage = lead?.stage ?? "NEW";
+  const userText = (msg.text ?? msg.caption ?? "").trim();
+  const hostName = student.full_name?.split(" ")[0] ?? "your host";
+  const downloadLink = student.payhip_link ?? student.sales_page_link ?? "https://payhip.com";
+
+  const hasBuyIntent = BUY_INTENT_RE.test(userText);
+  const hasAttended = ATTENDED_RE.test(userText);
+
+  // ── HOT LEAD alert (buy intent from any active stage)
+  if (hasBuyIntent && stage !== "PURCHASED" && stage !== "COLD") {
+    const { data: lastMsgs } = await supabase
+      .from("student_bot_conversations")
+      .select("role, message")
+      .eq("student_id", student.id)
+      .eq("chat_id", chatIdStr)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    const preview = ((lastMsgs ?? []) as { role: string; message: string }[])
+      .reverse()
+      .map((m) => `${m.role === "user" ? "👤" : "🤖"} ${m.message.slice(0, 80)}`)
+      .join("\n");
+
+    await sendMessage(
+      token,
+      student.telegram_chat_id,
+      `🔥 <b>HOT LEAD!</b>\n<b>Name:</b> ${lead?.name ?? "Unknown"}\n<b>Country:</b> ${lead?.country ?? "Unknown"}\n<b>Stage:</b> ${stage}\n<b>Said:</b> "${userText.slice(0, 150)}"\n\n<b>Last 10 messages:</b>\n${preview.slice(0, 600)}`
+    );
+  }
+
+  // ── COLD — no response ever
+  if (stage === "COLD") return;
+
+  // ── PURCHASED — warm support only, no more selling
+  if (stage === "PURCHASED") {
+    if (!userText) return;
+    const history = await getHistory(supabase, student.id, chatIdStr);
+    const reply = await callGroq(
+      `This person already paid for EEM26. Be warm and reassuring only. Max 2 sentences.`,
+      history,
+      userText
+    );
+    await sendMessage(token, chatId, reply);
+    await saveConv(supabase, student.id, chatIdStr, userText, reply);
+    return;
+  }
+
+  // ── PAYMENT SCREENSHOT — only when ATTENDED or explicit buy intent
+  if (msg.photo && msg.photo.length > 0 && (stage === "ATTENDED" || hasBuyIntent)) {
+    const photo = msg.photo[msg.photo.length - 1];
+    const dl = await downloadPhoto(token, photo.file_id);
+
+    if (dl) {
+      const amount = await extractPaymentAmount(dl.bytes, dl.mimeType);
+
+      if (amount === PRODUCT_PRICE) {
+        await upsertLead(supabase, student.id, chatIdStr, { stage: "PURCHASED" });
+        const reply = "🎉 PAYMENT CONFIRMED! You don make am!! Welcome to the EEM26 family! Your 4-day setup begins very soon — watch your DM for the onboarding message! 🚀";
+        await sendMessage(token, chatId, reply);
+        await sendMessage(
+          token,
+          student.telegram_chat_id,
+          `💰 <b>NEW PURCHASE!</b>\n<b>Name:</b> ${lead?.name ?? "Unknown"}\n<b>Country:</b> ${lead?.country ?? "Unknown"}\n<b>Amount:</b> ₦${amount.toLocaleString()}`
+        );
+        await saveConv(supabase, student.id, chatIdStr, "[payment screenshot]", reply);
+      } else if (amount !== null && amount > 0) {
+        const reply = `Hmm, I'm seeing ₦${amount.toLocaleString()} on this screenshot but the price is ₦39,820. Please send the correct payment screenshot 📸`;
+        await sendMessage(token, chatId, reply);
+        await saveConv(supabase, student.id, chatIdStr, "[screenshot - wrong amount]", reply);
+      } else {
+        // Can't read amount — still in closing mode
+        const history = await getHistory(supabase, student.id, chatIdStr);
+        const reply = await callGroq(
+          closingPrompt(hostName, downloadLink),
+          history,
+          "prospect sent a photo but I couldn't confirm payment. Ask them to send a clearer screenshot showing ₦39,820."
+        );
+        await sendMessage(token, chatId, clean(reply));
+        await saveConv(supabase, student.id, chatIdStr, "[photo]", clean(reply));
+      }
+      return;
+    }
+
+    // Download failed — ask them to retry
+    await sendMessage(token, chatId, "I got your screenshot but couldn't open it 😕 Can you send it again? Make sure it shows the payment confirmation clearly 📸");
+    return;
+  }
+
+  // ── REGISTERED + silent (wind-down done) — only break silence for buy intent or attendance
+  if (stage === "REGISTERED" && !hasBuyIntent && !hasAttended) {
+    const count = lead?.wind_down_count ?? 0;
+    if (count >= 3) return; // Silent until Sunday
+
+    if (!userText) return;
+
+    const history = await getHistory(supabase, student.id, chatIdStr);
+    const reply = await callGroq(
+      `You work for ${hostName}'s EEM26 business. This lead just registered for our Sunday training.
+Keep them excited and warm. Max 2 sentences. No selling yet — just energy!
+This is reply ${count + 1} of 3. After 3 replies the bot goes silent until Sunday.
+Natural Nigerian Pidgin energy.`,
+      history,
+      userText
+    );
+    await sendMessage(token, chatId, reply);
+    await upsertLead(supabase, student.id, chatIdStr, { wind_down_count: count + 1 });
+    await saveConv(supabase, student.id, chatIdStr, userText, reply);
+    return;
+  }
+
+  // ── ATTENDED upgrade on instant attendance signal
+  if (hasAttended && (stage === "REGISTERED" || stage === "NEW")) {
+    await upsertLead(supabase, student.id, chatIdStr, { stage: "ATTENDED" });
+    // Fall through to closing mode
+  }
+
+  // ── CLOSING MODE — ATTENDED stage, buy intent from any stage, or just attended
+  const effectiveStage = hasAttended ? "ATTENDED" : stage;
+  if (effectiveStage === "ATTENDED" || hasBuyIntent) {
+    if (!userText && !msg.photo) return;
+
+    const history = await getHistory(supabase, student.id, chatIdStr);
+    const rawReply = await callGroq(
+      closingPrompt(hostName, downloadLink),
+      history,
+      userText || "[prospect sent media]"
+    );
+    const linkSent = /^LINK_SENT:\s*yes/im.test(rawReply);
+    const reply = clean(rawReply);
+
+    await sendMessage(token, chatId, reply);
+
+    if (linkSent) {
+      await upsertLead(supabase, student.id, chatIdStr, {
+        stage: "ATTENDED",
+        download_link_sent_at: new Date().toISOString(),
+      });
+    }
+    await saveConv(supabase, student.id, chatIdStr, userText || "[media]", reply);
+    return;
+  }
+
+  // ── NEW — data collection: name → country → struggle → email → REGISTERED
+  const history = await getHistory(supabase, student.id, chatIdStr);
+  const hasName = !!lead?.name;
+  const hasCountry = !!lead?.country;
+  const hasStruggle = !!lead?.struggle;
+  const hasEmail = !!lead?.email;
+
+  // First-ever message with no text
+  if (!userText) {
+    const greeting = await callGroq(
+      `You work for ${hostName}'s EEM26 business (digital income coaching).
+Welcome this new visitor warmly and ask for their full name to get started.
+Max 2 sentences. Nigerian energy.`,
+      [],
+      "hi"
+    );
+    await sendMessage(token, chatId, greeting);
+    await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
+    await saveConv(supabase, student.id, chatIdStr, "[started chat]", greeting);
+    return;
+  }
+
+  const nextField = !hasName ? "full name" : !hasCountry ? "country" : !hasStruggle ? "biggest struggle making money online" : !hasEmail ? "email address" : null;
+
+  if (!nextField) {
+    // All done — should already be REGISTERED but handle edge case
+    await upsertLead(supabase, student.id, chatIdStr, { stage: "REGISTERED", wind_down_count: 0 });
+    return;
+  }
+
+  const dataKey = nextField === "full name" ? "name" : nextField === "country" ? "country" : nextField === "biggest struggle making money online" ? "struggle" : "email";
+
+  const collected = [
+    hasName ? `name: "${lead!.name}"` : null,
+    hasCountry ? `country: "${lead!.country}"` : null,
+    hasStruggle ? "struggle: collected" : null,
+    hasEmail ? `email: "${lead!.email}"` : null,
+  ].filter(Boolean).join(", ") || "nothing yet";
+
+  const rawReply = await callGroq(
+    `You are a friendly registration assistant for ${hostName}'s EEM26 Sunday training (free, on making money online).
+Collected so far: ${collected}
+Still need: ${nextField}
+
+If the person just provided their ${nextField} in their message, extract it and output on a NEW LINE:
+DATA: ${dataKey}={value they gave}
+
+Then warmly transition to asking the next question, OR if email was the last one, celebrate their registration and tell them to watch out for Sunday details.
+Max 3 sentences. Warm Nigerian Pidgin.`,
+    history,
+    userText
+  );
+
+  const extracted = extractData(rawReply);
+  const reply = clean(rawReply);
+
+  // Merge existing + newly extracted fields
+  const newName = extracted.name ?? lead?.name ?? null;
+  const newCountry = extracted.country ?? lead?.country ?? null;
+  const newStruggle = extracted.struggle ?? lead?.struggle ?? null;
+  const newEmail = extracted.email ?? lead?.email ?? null;
+  const allDone = !!(newName && newCountry && newStruggle && newEmail);
+
+  const updates: Record<string, unknown> = { stage: allDone ? "REGISTERED" : "NEW", wind_down_count: 0 };
+  if (newName) updates.name = newName;
+  if (newCountry) updates.country = newCountry;
+  if (newStruggle) updates.struggle = newStruggle;
+  if (newEmail) updates.email = newEmail;
+
+  await upsertLead(supabase, student.id, chatIdStr, updates);
+
+  if (allDone) {
+    const regMsg = await callGroq(
+      `The lead just completed registration for ${hostName}'s EEM26 Sunday training!
+Tell them they are OFFICIALLY registered and to get ready — Sunday is going to change everything.
+Max 2 sentences. Extremely excited energy. Nigerian vibes. 🎉`,
+      [],
+      ""
+    );
+    const finalReply = regMsg || "You're officially registered! 🎉🔥 Get ready for Sunday — it's going to change your life forever! Keep your DM open!";
+    await sendMessage(token, chatId, finalReply);
+    await sendMessage(
+      token,
+      student.telegram_chat_id,
+      `✅ <b>NEW LEAD REGISTERED!</b>\n<b>Name:</b> ${newName}\n<b>Country:</b> ${newCountry}\n<b>Struggle:</b> ${newStruggle}\n<b>Email:</b> ${newEmail}`
+    );
+    await saveConv(supabase, student.id, chatIdStr, userText, finalReply);
+  } else {
+    await sendMessage(token, chatId, reply);
+    await saveConv(supabase, student.id, chatIdStr, userText, reply);
+  }
+}
+
+// ─── Closing mode system prompt ───────────────────────────────────────────────
+
+function closingPrompt(hostName: string, downloadLink: string): string {
+  return `You are a sales closer for ${hostName}'s EEM26 digital business. Lead attended Sunday training or is asking to buy.
+YOUR ONLY JOB: Close the sale NOW.
+
+Product: EEM26 Tech Stack — everything needed to make money online in 4 days (AAM + SRE)
+Price: ₦39,820 (one-time, full package)
+Buy link: ${downloadLink}
+URGENCY: Coach Victor's Day 4 live session has only 5 spots — they fill fast after every Sunday training!
+After buying: Lead gets their full setup in 4 days with live support.
+
+Handle ANY objection with proof and confidence. If they're ready, send the link.
+Max 3 sentences per reply. Direct, warm, Nigerian energy.
+When you include the buy link in your reply, add on a NEW LINE: LINK_SENT: yes`;
+}
+
+// ─── Main entry ───────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  // Always respond 200 to Telegram — even for errors — to prevent retries
   if (req.method !== "POST") {
     return new Response("Student Bot is running ✅", { status: 200 });
   }
 
-  // 1. Extract student_id from URL path (last segment)
   const url = new URL(req.url);
-  const pathSegments = url.pathname.split("/").filter(Boolean);
-  const studentId = pathSegments[pathSegments.length - 1];
+  const segments = url.pathname.split("/").filter(Boolean);
+  const studentId = segments[segments.length - 1];
 
   if (!studentId || studentId === "student-bot") {
-    console.warn("No student_id in URL path:", url.pathname);
     return new Response("OK", { status: 200 });
   }
 
-  // 2. Create Supabase client using auto-injected env vars
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  // Parse request body early — must happen before async processing because
-  // the Request body stream can only be consumed once.
   let update: TelegramUpdate;
   try {
     update = await req.json();
@@ -376,58 +625,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response("OK", { status: 200 });
   }
 
-  // Process asynchronously so we return 200 to Telegram within its 5-second
-  // webhook timeout window even when Gemini or file downloads are slow.
-  const processingPromise = (async () => {
+  const process = (async () => {
     try {
-      // 3. Look up student from amara_students table by id
-      const { data: studentData, error: studentError } = await supabase
+      const { data: sd, error } = await supabase
         .from("amara_students")
-        .select("*")
+        .select("id, telegram_chat_id, full_name, payhip_link, sales_page_link, bot_token, status")
         .eq("id", studentId)
         .single();
 
-      if (studentError || !studentData) {
-        console.warn(`Student not found: ${studentId}`, studentError?.message);
-        return;
-      }
+      if (error || !sd) return;
+      const student = sd as Student;
+      if (!student.bot_token) return;
 
-      const student = studentData as Student;
-
-      if (!student.bot_token) {
-        console.warn(`Student ${studentId} has no bot_token configured`);
-        return;
-      }
-
-      // 4. Parse Telegram update — extract message
       const msg = update?.message;
-      if (!msg) return;
-
-      // 5. Extract chatId — bail if missing
-      const chatId = msg?.chat?.id;
-      if (!chatId) return;
-
+      if (!msg?.chat?.id) return;
+      const chatId = msg.chat.id;
       const chatIdStr = String(chatId);
 
-      // Extract text from message.text or message.caption (caption is set on photo messages)
-      const userText = (msg.text ?? msg.caption ?? "").trim();
+      // Admin = the student messaging their own bot
+      if (chatIdStr === String(student.telegram_chat_id)) {
+        await handleAdmin(student, chatId, msg, supabase);
+        return;
+      }
 
-      // 6. Get conversation history from DB (fetched DESC, then reversed to chronological)
-      const { data: convRows } = await supabase
-        .from("student_bot_conversations")
-        .select("role, message")
-        .eq("student_id", student.id)
-        .eq("chat_id", chatIdStr)
-        .order("created_at", { ascending: false })
-        .limit(8);
-
-      const history: { role: string; content: string }[] = (
-        (convRows ?? []) as ConversationRow[]
-      )
-        .reverse()
-        .map((r) => ({ role: r.role, content: r.message }));
-
-      // 7. Look up current lead for stage context
       const { data: leadData } = await supabase
         .from("student_bot_leads")
         .select("*")
@@ -435,219 +655,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .eq("chat_id", chatIdStr)
         .single();
 
-      const lead = leadData as LeadRow | null;
-      const currentStage = lead?.stage ?? "NEW";
-
-      // 8. Build system prompt with student config + current stage context
-      const systemPrompt = buildSystemPrompt(student);
-      const stageContext =
-        `\n\nCurrent lead stage: ${currentStage}. Lead name: ${lead?.name ?? "unknown"}.`;
-      const fullSystemPrompt = systemPrompt + stageContext;
-
-      // -----------------------------------------------------------------------
-      // Handle photo messages (payment screenshot check via Gemini vision)
-      // -----------------------------------------------------------------------
-      if (msg.photo && msg.photo.length > 0) {
-        // Pick highest-resolution photo (last in Telegram's array)
-        const photo = msg.photo[msg.photo.length - 1];
-
-        const downloaded = await downloadPhoto(student.bot_token, photo.file_id);
-
-        if (downloaded) {
-          const isPayment = await checkPaymentScreenshot(
-            downloaded.bytes,
-            downloaded.mimeType
-          );
-
-          let replyText: string;
-          let hotLeadReason: string | null = null;
-
-          if (isPayment) {
-            // Congratulate and mark PURCHASED
-            replyText =
-              "Yasssss!! 🎉🔥 Payment confirmed! Welcome to the EEM26 family! " +
-              "You don do am! Your 4-day setup begins shortly — get ready to blow up! 🚀";
-            hotLeadReason = "Sent payment screenshot — PURCHASED";
-
-            // Upsert lead as PURCHASED
-            await supabase
-              .from("student_bot_leads")
-              .upsert(
-                {
-                  student_id: student.id,
-                  chat_id: chatIdStr,
-                  name: lead?.name ?? null,
-                  phone: lead?.phone ?? null,
-                  stage: "PURCHASED",
-                  updated_at: new Date().toISOString(),
-                },
-                { onConflict: "student_id,chat_id" }
-              )
-              .catch((e) => console.error("upsert lead (payment photo) error:", e));
-          } else {
-            // Not a payment screenshot — use Gemini to respond naturally
-            const imageContext = userText
-              ? `The prospect sent an image with caption: "${userText}". Respond naturally and keep the conversation going.`
-              : "The prospect sent an image. Acknowledge it warmly and keep the conversation going.";
-
-            const rawReply = await callClaude(fullSystemPrompt, history, imageContext);
-            hotLeadReason = extractHotLead(rawReply);
-            replyText = cleanResponse(rawReply);
-
-            // Extract any DATA signals from Gemini's response for non-payment photos
-            const extractedData = extractData(rawReply);
-            const upsertPayload: Record<string, unknown> = {
-              student_id: student.id,
-              chat_id: chatIdStr,
-              updated_at: new Date().toISOString(),
-            };
-            if (extractedData.name) upsertPayload.name = extractedData.name;
-            if (extractedData.phone) upsertPayload.phone = extractedData.phone;
-            if (extractedData.stage) upsertPayload.stage = extractedData.stage;
-            if (!upsertPayload.name && lead?.name) upsertPayload.name = lead.name;
-            if (!upsertPayload.phone && lead?.phone) upsertPayload.phone = lead.phone;
-            if (!upsertPayload.stage) upsertPayload.stage = currentStage;
-
-            await supabase
-              .from("student_bot_leads")
-              .upsert(upsertPayload, { onConflict: "student_id,chat_id" })
-              .catch((e) => console.error("upsert lead (non-payment photo) error:", e));
-          }
-
-          // Send reply to prospect
-          await sendMessage(student.bot_token, chatId, replyText);
-
-          // Save conversation (user side logged as [photo] or caption text)
-          await supabase
-            .from("student_bot_conversations")
-            .insert([
-              {
-                student_id: student.id,
-                chat_id: chatIdStr,
-                role: "user",
-                message: userText || "[photo]",
-              },
-              {
-                student_id: student.id,
-                chat_id: chatIdStr,
-                role: "assistant",
-                message: replyText,
-              },
-            ])
-            .catch((e) => console.error("insert conversation (photo) error:", e));
-
-          // 15. Alert student via their own bot if HOT_LEAD detected
-          if (hotLeadReason && student.telegram_chat_id) {
-            const leadName = lead?.name ?? "Unknown";
-            const leadStage = isPayment ? "PURCHASED" : currentStage;
-            const alertText =
-              `🔥 <b>HOT LEAD ALERT</b>\n\n` +
-              `A prospect in your bot just showed strong buying intent!\n\n` +
-              `<b>Reason:</b> ${hotLeadReason}\n` +
-              `<b>Name:</b> ${leadName}\n` +
-              `<b>Stage:</b> ${leadStage}`;
-            await sendMessage(student.bot_token, student.telegram_chat_id, alertText);
-          }
-
-          return;
-        }
-
-        // Photo download failed — send a safe fallback reply
-        await sendMessage(
-          student.bot_token,
-          chatId,
-          "I received your image! 😊 Can you tell me more about what you're looking for?"
-        );
-        return;
-      }
-
-      // -----------------------------------------------------------------------
-      // Handle text messages
-      // -----------------------------------------------------------------------
-      if (!userText) return;
-
-      // 9. Call Gemini for text reply
-      const rawReply = await callClaude(fullSystemPrompt, history, userText);
-
-      // 10. Extract DATA and HOT_LEAD signals from raw response
-      const extractedData = extractData(rawReply);
-      const hotLeadReason = extractHotLead(rawReply);
-
-      // 11. Clean response — strip DATA/HOT_LEAD lines before sending to prospect
-      const cleanReply = cleanResponse(rawReply);
-
-      // 12. Send clean reply to the prospect
-      await sendMessage(student.bot_token, chatId, cleanReply);
-
-      // 13. Upsert lead — merge extracted fields, preserve existing data where no new value
-      const upsertPayload: Record<string, unknown> = {
-        student_id: student.id,
-        chat_id: chatIdStr,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (extractedData.name) upsertPayload.name = extractedData.name;
-      if (extractedData.phone) upsertPayload.phone = extractedData.phone;
-      if (extractedData.stage) upsertPayload.stage = extractedData.stage;
-
-      // Fall back to existing lead values to avoid overwriting with null
-      if (!upsertPayload.name && lead?.name) upsertPayload.name = lead.name;
-      if (!upsertPayload.phone && lead?.phone) upsertPayload.phone = lead.phone;
-      if (!upsertPayload.stage) upsertPayload.stage = currentStage;
-
-      await supabase
-        .from("student_bot_leads")
-        .upsert(upsertPayload, { onConflict: "student_id,chat_id" })
-        .catch((e) => console.error("upsert lead error:", e));
-
-      // 14. Save conversation to DB
-      await supabase
-        .from("student_bot_conversations")
-        .insert([
-          {
-            student_id: student.id,
-            chat_id: chatIdStr,
-            role: "user",
-            message: userText,
-          },
-          {
-            student_id: student.id,
-            chat_id: chatIdStr,
-            role: "assistant",
-            message: cleanReply,
-          },
-        ])
-        .catch((e) => console.error("insert conversation error:", e));
-
-      // 15. If HOT_LEAD: alert the student via their own Telegram chat
-      if (hotLeadReason && student.telegram_chat_id) {
-        const leadName = extractedData.name ?? lead?.name ?? "Unknown";
-        const leadStage = extractedData.stage ?? currentStage;
-        const alertText =
-          `🔥 <b>HOT LEAD ALERT</b>\n\n` +
-          `One of your prospects is very interested right now!\n\n` +
-          `<b>Reason:</b> ${hotLeadReason}\n` +
-          `<b>Name:</b> ${leadName}\n` +
-          `<b>Stage:</b> ${leadStage}\n` +
-          `<b>Their message:</b> "${userText.slice(0, 200)}"`;
-
-        // Use student's own bot_token to DM them — they are already a user of their own bot
-        await sendMessage(student.bot_token, student.telegram_chat_id, alertText);
-      }
+      await handleLead(student, leadData as Lead | null, chatId, msg, supabase);
     } catch (e) {
-      console.error("student-bot processing error:", e);
+      console.error("student-bot error:", e);
     }
   })();
 
-  // Use EdgeRuntime.waitUntil when available (Supabase Edge Runtime) so the
-  // function continues processing after the HTTP 200 is returned to Telegram.
   if (typeof EdgeRuntime !== "undefined") {
-    (
-      EdgeRuntime as unknown as { waitUntil: (p: Promise<unknown>) => void }
-    ).waitUntil(processingPromise);
+    (EdgeRuntime as unknown as { waitUntil: (p: Promise<unknown>) => void }).waitUntil(process);
   } else {
-    // Local dev: await inline
-    await processingPromise;
+    await process;
   }
 
   return new Response("OK", { status: 200 });
