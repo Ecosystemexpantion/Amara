@@ -68,6 +68,15 @@ const BUY_INTENT_RE =
 const ATTENDED_RE =
   /i (attended|was there|came|watched|joined|saw).{0,30}(training|webinar|session|class|meeting|zoom|live|sunday)/i;
 
+// Core bot persona — used across all prompts
+const BOT_PERSONA = `You are Alex, a friendly and professional sales assistant for EEM26 Selar Training.
+EEM26 Selar Training helps people build a digital income stream in just 4 days using proven systems (AAM and SRE).
+Your tone is warm, encouraging, and professional — like a knowledgeable friend who genuinely wants to help.
+Use clear English only. Do NOT use Nigerian Pidgin or slang.
+Do NOT mention the bot owner's name or any coach's name unless the lead brings it up.
+Do NOT mention yourself as an AI. You are a human assistant named Alex.
+Keep all replies concise — maximum 3 sentences unless answering a specific question.`;
+
 // ─── alertAdmin ───────────────────────────────────────────────────────────────
 
 async function alertAdmin(msg: string): Promise<void> {
@@ -372,7 +381,6 @@ async function handleLead(
   const chatIdStr = String(chatId);
   const stage = lead?.stage ?? "NEW";
   const userText = (msg.text ?? msg.caption ?? "").trim();
-  const hostName = student.full_name?.split(" ")[0] ?? "your host";
   const downloadLink = student.payhip_link ?? student.sales_page_link ?? "https://payhip.com";
 
   // Debug log so admin can see what's happening
@@ -380,13 +388,7 @@ async function handleLead(
 
   // Handle /start command — always greet and ask for name
   if (userText === "/start" || userText.startsWith("/")) {
-    const greeting = await callGroq(
-      `You work for ${hostName}'s EEM26 business (teaching people how to build digital income in 4 days).
-Welcome this new visitor with energy and warmth! Ask for their full name to get started.
-Max 2 sentences. Nigerian Pidgin energy.`,
-      [],
-      "hi"
-    );
+    const greeting = await callGroq(BOT_PERSONA, [], "A new visitor just opened the chat. Welcome them warmly to EEM26 Selar Training and ask for their full name to get started. Max 3 sentences.");
     await sendMessage(token, chatId, greeting);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
     await saveConv(supabase, student.id, chatIdStr, userText, greeting);
@@ -426,7 +428,7 @@ Max 2 sentences. Nigerian Pidgin energy.`,
     if (!userText) return;
     const history = await getHistory(supabase, student.id, chatIdStr);
     const reply = await callGroq(
-      `This person already paid for EEM26. Be warm and reassuring only. Max 2 sentences.`,
+      BOT_PERSONA + `\n\nThis person has already purchased EEM26 Selar Training. Be warm and reassuring. Let them know their setup begins shortly. Max 2 sentences.`,
       history,
       userText
     );
@@ -445,7 +447,7 @@ Max 2 sentences. Nigerian Pidgin energy.`,
 
       if (amount === PRODUCT_PRICE) {
         await upsertLead(supabase, student.id, chatIdStr, { stage: "PURCHASED" });
-        const reply = "🎉 PAYMENT CONFIRMED! You don make am!! Welcome to the EEM26 family! Your 4-day setup begins very soon — watch your DM for the onboarding message! 🚀";
+        const reply = "🎉 Payment confirmed! Welcome to the EEM26 Selar Training family! Your 4-day setup begins very soon — watch your DM for the onboarding message! 🚀";
         await sendMessage(token, chatId, reply);
         await sendMessage(
           token,
@@ -461,7 +463,7 @@ Max 2 sentences. Nigerian Pidgin energy.`,
         // Can't read amount — still in closing mode
         const history = await getHistory(supabase, student.id, chatIdStr);
         const reply = await callGroq(
-          closingPrompt(hostName, downloadLink),
+          closingPrompt(downloadLink),
           history,
           "prospect sent a photo but I couldn't confirm payment. Ask them to send a clearer screenshot showing ₦39,820."
         );
@@ -485,10 +487,7 @@ Max 2 sentences. Nigerian Pidgin energy.`,
 
     const history = await getHistory(supabase, student.id, chatIdStr);
     const reply = await callGroq(
-      `You work for ${hostName}'s EEM26 business. This lead just registered for our Sunday training.
-Keep them excited and warm. Max 2 sentences. No selling yet — just energy!
-This is reply ${count + 1} of 3. After 3 replies the bot goes silent until Sunday.
-Natural Nigerian Pidgin energy.`,
+      BOT_PERSONA + `\n\nThis lead just registered for the EEM26 Selar Training Sunday session. Keep them excited and looking forward to it. Do NOT mention prices or selling. Max 2 sentences.`,
       history,
       userText
     );
@@ -511,7 +510,7 @@ Natural Nigerian Pidgin energy.`,
 
     const history = await getHistory(supabase, student.id, chatIdStr);
     const rawReply = await callGroq(
-      closingPrompt(hostName, downloadLink),
+      closingPrompt(downloadLink),
       history,
       userText || "[prospect sent media]"
     );
@@ -539,13 +538,7 @@ Natural Nigerian Pidgin energy.`,
 
   // First-ever message with no text
   if (!userText) {
-    const greeting = await callGroq(
-      `You work for ${hostName}'s EEM26 business (digital income coaching).
-Welcome this new visitor warmly and ask for their full name to get started.
-Max 2 sentences. Nigerian energy.`,
-      [],
-      "hi"
-    );
+    const greeting = await callGroq(BOT_PERSONA, [], "A new visitor just opened the chat. Welcome them warmly to EEM26 Selar Training and ask for their full name to get started. Max 3 sentences.");
     await sendMessage(token, chatId, greeting);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
     await saveConv(supabase, student.id, chatIdStr, "[started chat]", greeting);
@@ -570,15 +563,16 @@ Max 2 sentences. Nigerian energy.`,
   ].filter(Boolean).join(", ") || "nothing yet";
 
   const rawReply = await callGroq(
-    `You are a friendly registration assistant for ${hostName}'s EEM26 Sunday training (free, on making money online).
-Collected so far: ${collected}
+    BOT_PERSONA + `
+
+You are currently collecting registration details for the EEM26 Selar Training Sunday session.
+Already collected: ${collected}
 Still need: ${nextField}
 
-If the person just provided their ${nextField} in their message, extract it and output on a NEW LINE:
+If the person just provided their ${nextField} in their message, extract it and output on a NEW LINE (never shown to them):
 DATA: ${dataKey}={value they gave}
 
-Then warmly transition to asking the next question, OR if email was the last one, celebrate their registration and tell them to watch out for Sunday details.
-Max 3 sentences. Warm Nigerian Pidgin.`,
+Then warmly move to asking the next field, OR if email was the last one, confirm their registration and tell them to look out for the Sunday session details. Max 3 sentences.`,
     history,
     userText
   );
@@ -603,9 +597,7 @@ Max 3 sentences. Warm Nigerian Pidgin.`,
 
   if (allDone) {
     const regMsg = await callGroq(
-      `The lead just completed registration for ${hostName}'s EEM26 Sunday training!
-Tell them they are OFFICIALLY registered and to get ready — Sunday is going to change everything.
-Max 2 sentences. Extremely excited energy. Nigerian vibes. 🎉`,
+      BOT_PERSONA + `\n\nThe lead just completed registration for the EEM26 Selar Training Sunday session! Confirm they are officially registered and that they should keep an eye out for session details. Warm and professional. Max 2 sentences.`,
       [],
       ""
     );
@@ -626,19 +618,19 @@ Max 2 sentences. Extremely excited energy. Nigerian vibes. 🎉`,
 // ─── Closing mode system prompt ───────────────────────────────────────────────
 
 
-function closingPrompt(hostName: string, downloadLink: string): string {
-  return `You are a sales closer for ${hostName}'s EEM26 digital business. Lead attended Sunday training or is asking to buy.
-YOUR ONLY JOB: Close the sale NOW.
+function closingPrompt(downloadLink: string): string {
+  return BOT_PERSONA + `
 
-Product: EEM26 Tech Stack — everything needed to make money online in 4 days (AAM + SRE)
-Price: ₦39,820 (one-time, full package)
-Buy link: ${downloadLink}
-URGENCY: Coach Victor's Day 4 live session has only 5 spots — they fill fast after every Sunday training!
-After buying: Lead gets their full setup in 4 days with live support.
+Your current objective is to close the sale. The lead has attended the EEM26 Selar Training Sunday session or is asking about purchasing.
 
-Handle ANY objection with proof and confidence. If they're ready, send the link.
-Max 3 sentences per reply. Direct, warm, Nigerian energy.
-When you include the buy link in your reply, add on a NEW LINE: LINK_SENT: yes`;
+Product: EEM26 Tech Stack — everything needed to build a digital income stream in 4 days (AAM + SRE systems)
+Price: ₦39,820 (one-time investment, full package)
+Purchase link: ${downloadLink}
+Urgency: Coach Victor's Day 4 live session only takes 5 people — spots fill up fast after every Sunday session.
+After purchase: Lead gets a full 4-day guided setup with live support.
+
+Handle objections confidently with proof and social proof. Keep responses to 3 sentences max.
+When you include the purchase link in your reply, add on a NEW LINE: LINK_SENT: yes`;
 }
 
 // ─── Main entry ───────────────────────────────────────────────────────────────
