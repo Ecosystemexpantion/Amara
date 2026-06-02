@@ -256,13 +256,16 @@ async function saveConv(
   user: string,
   bot: string
 ): Promise<void> {
-  await supabase
-    .from("student_bot_conversations")
-    .insert([
-      { student_id: studentId, chat_id: chatId, role: "user", message: user },
-      { student_id: studentId, chat_id: chatId, role: "assistant", message: bot },
-    ])
-    .catch(() => {});
+  try {
+    await supabase
+      .from("student_bot_conversations")
+      .insert([
+        { student_id: studentId, chat_id: chatId, role: "user", message: user },
+        { student_id: studentId, chat_id: chatId, role: "assistant", message: bot },
+      ]);
+  } catch (e) {
+    console.error("saveConv error:", e);
+  }
 }
 
 async function upsertLead(
@@ -271,13 +274,17 @@ async function upsertLead(
   chatId: string,
   fields: Record<string, unknown>
 ): Promise<void> {
-  await supabase
-    .from("student_bot_leads")
-    .upsert(
-      { student_id: studentId, chat_id: chatId, updated_at: new Date().toISOString(), ...fields },
-      { onConflict: "student_id,chat_id" }
-    )
-    .catch((e) => console.error("upsertLead error:", e));
+  try {
+    const { error } = await supabase
+      .from("student_bot_leads")
+      .upsert(
+        { student_id: studentId, chat_id: chatId, updated_at: new Date().toISOString(), ...fields },
+        { onConflict: "student_id,chat_id" }
+      );
+    if (error) console.error("upsertLead error:", error.message);
+  } catch (e) {
+    console.error("upsertLead catch:", e);
+  }
 }
 
 // ─── Admin handler ────────────────────────────────────────────────────────────
