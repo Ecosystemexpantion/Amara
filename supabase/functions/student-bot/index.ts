@@ -5,7 +5,6 @@
 // Deno / TypeScript — fully self-contained (no imports from amara-bot/ modules).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import Anthropic from "npm:@anthropic-ai/sdk@0.27";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,7 +94,7 @@ function uint8ToBase64(bytes: Uint8Array): string {
 }
 
 // ---------------------------------------------------------------------------
-// Claude Haiku — text chat (replaces Gemini for text; higher rate limits)
+// Groq — text chat (free tier, ~14,400 req/day, very fast)
 // ---------------------------------------------------------------------------
 
 async function callClaude(
@@ -103,18 +102,16 @@ async function callClaude(
   history: { role: string; content: string }[],
   userMessage: string
 ): Promise<string> {
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const apiKey = Deno.env.get("GROQ_API_KEY");
   if (!apiKey) {
-    console.error("ANTHROPIC_API_KEY not set");
-    await alertAdmin("⚠️ <b>student-bot</b>: ANTHROPIC_API_KEY not configured");
+    console.error("GROQ_API_KEY not set");
+    await alertAdmin("⚠️ <b>student-bot</b>: GROQ_API_KEY not configured");
     return "I'll get back to you shortly!";
   }
 
-  const client = new Anthropic({ apiKey });
-
-  // Build message list — must strictly alternate user/assistant
+  // Build strictly alternating message list
   const recent = history.slice(-8);
-  const messages: Anthropic.MessageParam[] = [];
+  const messages: { role: string; content: string }[] = [];
   let wantRole: "user" | "assistant" = "assistant";
   for (let i = recent.length - 1; i >= 0; i--) {
     if (recent[i].role === wantRole) {
@@ -125,24 +122,36 @@ async function callClaude(
   messages.push({ role: "user", content: userMessage });
 
   try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      system: systemPrompt,
-      messages,
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages,
+        ],
+        max_tokens: 300,
+        temperature: 0.9,
+      }),
     });
 
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .trim();
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Groq error ${res.status}: ${errText}`);
+      await alertAdmin(`⚠️ <b>student-bot Groq error</b>\nStatus: ${res.status}\nError: <code>${errText.slice(0, 300)}</code>`);
+      return "I'll get back to you shortly!";
+    }
 
-    return text || "I'll get back to you shortly!";
+    const data = await res.json();
+    return data?.choices?.[0]?.message?.content?.trim() ?? "I'll get back to you shortly!";
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e);
-    console.error("Claude chat error:", errMsg);
-    await alertAdmin(`⚠️ <b>student-bot Claude error</b>: <code>${errMsg.slice(0, 300)}</code>`);
+    console.error("Groq chat error:", errMsg);
+    await alertAdmin(`⚠️ <b>student-bot Groq error</b>: <code>${errMsg.slice(0, 300)}</code>`);
     return "I'll get back to you shortly!";
   }
 }
