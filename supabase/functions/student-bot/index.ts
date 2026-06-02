@@ -5,6 +5,7 @@
 // Deno / TypeScript — fully self-contained (no imports from amara-bot/ modules).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import Anthropic from "npm:@anthropic-ai/sdk@0.27";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,7 +68,7 @@ interface LeadRow {
 // Constants
 // ---------------------------------------------------------------------------
 
-const GEMINI_URL =
+const GEMINI_VISION_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
@@ -94,76 +95,56 @@ function uint8ToBase64(bytes: Uint8Array): string {
 }
 
 // ---------------------------------------------------------------------------
-// Gemini — text chat
+// Claude Haiku — text chat (replaces Gemini for text; higher rate limits)
 // ---------------------------------------------------------------------------
 
-async function callGemini(
+async function callClaude(
   systemPrompt: string,
   history: { role: string; content: string }[],
   userMessage: string
 ): Promise<string> {
-  // Try each available Gemini key in order until one works
-  const keys = [
-    Deno.env.get("GEMINI_API_KEY"),
-    Deno.env.get("GEMINI_API_KEY_2"),
-    Deno.env.get("GEMINI_API_KEY_3"),
-    Deno.env.get("GEMINI_API_KEY_4"),
-    Deno.env.get("GEMINI_API_KEY_5"),
-  ].filter(Boolean) as string[];
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!apiKey) {
+    console.error("ANTHROPIC_API_KEY not set");
+    await alertAdmin("⚠️ <b>student-bot</b>: ANTHROPIC_API_KEY not configured");
+    return "I'll get back to you shortly!";
+  }
 
-  // Build a strictly alternating user/model sequence from recent history to avoid
-  // Gemini 400 errors caused by consecutive turns of the same role.
+  const client = new Anthropic({ apiKey });
+
+  // Build message list — must strictly alternate user/assistant
   const recent = history.slice(-8);
-  const alternating: { role: string; content: string }[] = [];
+  const messages: Anthropic.MessageParam[] = [];
   let wantRole: "user" | "assistant" = "assistant";
   for (let i = recent.length - 1; i >= 0; i--) {
     if (recent[i].role === wantRole) {
-      alternating.unshift(recent[i]);
+      messages.unshift({ role: wantRole, content: recent[i].content });
       wantRole = wantRole === "user" ? "assistant" : "user";
     }
   }
+  messages.push({ role: "user", content: userMessage });
 
-  const contents = [
-    ...alternating.map((h) => ({
-      role: h.role === "user" ? "user" : "model",
-      parts: [{ text: h.content }],
-    })),
-    { role: "user", parts: [{ text: userMessage }] },
-  ];
-
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents,
-    generationConfig: { temperature: 0.9, maxOutputTokens: 300 },
-  });
-
-  for (const key of keys) {
-    const res = await fetch(`${GEMINI_URL}?key=${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 300,
+      system: systemPrompt,
+      messages,
     });
 
-    if (res.status === 429) {
-      await res.body?.cancel();
-      continue; // try next key
-    }
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim();
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(`Gemini chat error ${res.status}: ${errText}`);
-      await alertAdmin(`⚠️ <b>student-bot Gemini error</b>\nStatus: ${res.status}\nError: <code>${errText.slice(0, 300)}</code>`);
-      break;
-    }
-
-    const data = await res.json();
-    return (
-      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ??
-      "I'll get back to you shortly!"
-    );
+    return text || "I'll get back to you shortly!";
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.error("Claude chat error:", errMsg);
+    await alertAdmin(`⚠️ <b>student-bot Claude error</b>: <code>${errMsg.slice(0, 300)}</code>`);
+    return "I'll get back to you shortly!";
   }
-
-  return "I'll get back to you shortly!";
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +171,7 @@ async function checkPaymentScreenshot(
   ];
 
   for (const model of models) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;  // vision only
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -500,7 +481,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
               ? `The prospect sent an image with caption: "${userText}". Respond naturally and keep the conversation going.`
               : "The prospect sent an image. Acknowledge it warmly and keep the conversation going.";
 
-            const rawReply = await callGemini(fullSystemPrompt, history, imageContext);
+            const rawReply = await callClaude(fullSystemPrompt, history, imageContext);
             hotLeadReason = extractHotLead(rawReply);
             replyText = cleanResponse(rawReply);
 
@@ -577,7 +558,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (!userText) return;
 
       // 9. Call Gemini for text reply
-      const rawReply = await callGemini(fullSystemPrompt, history, userText);
+      const rawReply = await callClaude(fullSystemPrompt, history, userText);
 
       // 10. Extract DATA and HOT_LEAD signals from raw response
       const extractedData = extractData(rawReply);
