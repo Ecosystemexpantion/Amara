@@ -70,6 +70,17 @@ interface LeadRow {
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
+const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
+const BOT_TOKEN_AMARA = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
+
+async function alertAdmin(msg: string): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN_AMARA}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: ADMIN_CHAT_ID, text: msg, parse_mode: "HTML" }),
+  }).catch(() => {});
+}
+
 // ---------------------------------------------------------------------------
 // Helpers — base64 encoding (chunked to avoid call-stack overflow on large images)
 // ---------------------------------------------------------------------------
@@ -126,7 +137,9 @@ async function callGemini(
   });
 
   if (!res.ok) {
-    console.error(`Gemini chat error ${res.status}: ${await res.text()}`);
+    const errText = await res.text();
+    console.error(`Gemini chat error ${res.status}: ${errText}`);
+    await alertAdmin(`⚠️ <b>student-bot Gemini error</b>\nStatus: ${res.status}\nKey set: ${key ? "YES" : "NO (EMPTY)"}\nError: <code>${errText.slice(0, 300)}</code>`);
     return "I'll get back to you shortly!";
   }
 
