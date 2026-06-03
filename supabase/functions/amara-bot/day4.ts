@@ -61,7 +61,10 @@ async function handleStep1(student: Student, chatId: number, text: string | null
 
   if (result.verified) {
     await recordStepCompletion(student.id, 4, 1, true);
-    await advanceStep(student.id, 4, 2);
+    // Advance directly to step 3 (signature) — skipping the bridge step entirely.
+    // Advancing to step 2 first caused a race: if the student immediately sent their
+    // signature photo, handleStep2 would fire (ignoring the photo) and ask for it again.
+    await advanceStep(student.id, 4, 3);
 
     await typeMessage(chatId, `<b>YOUR BOT IS CONFIRMED LIVE! 🔥🔥🔥</b>\n\nI can see it responding perfectly! Your SRE — Smart Reply Engine from your Tech Stack 📦 — is RUNNING and making money for you 24/7!`);
     await typeMessage(chatId, `✅ GitHub Pages — 2 live sales pages\n✅ Selar store — accepting orders\n✅ Payhip affiliate — earning commissions\n✅ AI sales bot — running 24/7\n\nNow there's just ONE last step... 👇`);
