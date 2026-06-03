@@ -154,7 +154,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     const guidance = await geminiVisionGuide(
       photo.bytes,
       photo.mimeType,
-      `Student is an EEM26 graduate — they completed the full 4-day program and received their certificate. Their setup: two live sales pages (${student.sales_page_link ?? "live"} + premium), Payhip store (${student.payhip_link ?? "active"}), AI sales bot running 24/7. They may be showing you something about their business.`,
+      `This student is an EEM26 graduate. They may be sending you ANY type of image — look carefully at what is ACTUALLY visible in the photo and describe only what you genuinely see. Do not assume it is a website, dashboard, or business screenshot. It could be a document, signature, photo, or anything else. If you see handwriting or a signature, acknowledge that. Respond helpfully based on what is truly in the image.`,
       text ?? undefined
     );
     await sendMessage(chatId, guidance);

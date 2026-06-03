@@ -174,7 +174,7 @@ async function handleCompleted(
     const guidance = await geminiVisionGuide(
       photo.bytes,
       photo.mimeType,
-      `Student is an EEM26 graduate — they completed the full 4-day program. Their setup: sales pages (${student.sales_page_link ?? "live"}), Payhip store (${student.payhip_link ?? "active"}), AI sales bot running 24/7. They may be showing you something about their business or asking for help with growth.`,
+      `This student is an EEM26 graduate. Look carefully at what is ACTUALLY visible in this photo and describe only what you genuinely see — do not assume it is a website or dashboard. It could be a document, handwriting, screenshot, or anything else. Respond helpfully based only on what is truly in the image.`,
       text ?? undefined
     );
     await sendMessage(chatId, guidance);
