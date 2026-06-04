@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { NORMAL_TEMPLATE } from "./templates/normal_template.ts";
-import { PREMIUM_TEMPLATE } from "./templates/premium_template.ts";
+import { NORMAL_TEMPLATE } from "./normal_template.ts";
+import { PREMIUM_TEMPLATE } from "./premium_template.ts";
 
 // ---------------------------------------------------------------------------
 // Supabase client (service role — full access)
