@@ -430,6 +430,51 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // -------------------------------------------------------------------------
+  // Admin path: state = "admin:[chat_id]:[payhip_url]"
+  // Creates pages under the admin's GitHub account, no student DB lookup.
+  // -------------------------------------------------------------------------
+  if (state.startsWith("admin:")) {
+    const adminMatch = state.match(/^admin:(\d+):(.+)$/);
+    if (!adminMatch) return htmlResponse(ERROR_HTML, 200);
+
+    const adminChatId = adminMatch[1];
+    const payhipLink  = adminMatch[2];
+    const suffix      = Date.now().toString(36).slice(-6);
+    const repoNormal  = `eem26page-${suffix}`;
+    const repoPremium = `eem26premium-${suffix}`;
+
+    try {
+      const normalHtml  = modifyForStudent(NORMAL_TEMPLATE,  payhipLink);
+      const premiumHtml = modifyForStudent(PREMIUM_TEMPLATE, payhipLink);
+      const normalBytes  = new TextEncoder().encode(normalHtml);
+      const premiumBytes = new TextEncoder().encode(premiumHtml);
+
+      await createRepo(githubToken, repoNormal,  "EEM26 Sales Page");
+      await createRepo(githubToken, repoPremium, "EEM26 Premium Sales Page");
+      await uploadFile(githubToken, githubUsername, repoNormal,  "index.html", normalBytes,  "Add sales page");
+      await uploadFile(githubToken, githubUsername, repoPremium, "index.html", premiumBytes, "Add premium sales page");
+      await enablePages(githubToken, githubUsername, repoNormal);
+      await enablePages(githubToken, githubUsername, repoPremium);
+
+      const normalUrl  = `https://${githubUsername}.github.io/${repoNormal}/`;
+      const premiumUrl = `https://${githubUsername}.github.io/${repoPremium}/`;
+
+      await sendTg(
+        adminChatId,
+        `✅ <b>Pages created!</b>\n\n` +
+        `📌 Normal:\n${normalUrl}\n\n` +
+        `⭐ Premium:\n${premiumUrl}\n\n` +
+        `(Live in ~2 minutes as GitHub publishes them)`
+      );
+    } catch (err) {
+      console.error("Admin setup error:", err);
+      await sendTg(adminChatId, `❌ Error creating pages: <code>${String(err).slice(0, 200)}</code>`);
+    }
+
+    return htmlResponse(SUCCESS_HTML, 200);
+  }
+
+  // -------------------------------------------------------------------------
   // Step 3: Look up student in DB
   // -------------------------------------------------------------------------
   const { data: studentData, error: studentErr } = await supabase

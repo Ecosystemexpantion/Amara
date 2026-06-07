@@ -5,14 +5,12 @@
 //   list → Show all active students
 
 import { sendMessage, sendWithKeyboard, answerCallbackQuery } from "./telegram.ts";
-import { modifyTemplateForStudent } from "./html-modifier.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const BUCKET       = "student-pages";
-
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
 
 // ── Entry point (text messages) ───────────────────────────────────────────────
 
@@ -59,9 +57,39 @@ export async function handleAdminCallback(
 
   if (data.startsWith("setup:")) {
     const payhipLink = data.slice("setup:".length);
-    await runSetup(chatId, payhipLink);
+    await sendGitHubAuthLink(chatId, payhipLink);
     return;
   }
+}
+
+// ── Send GitHub OAuth link to admin ──────────────────────────────────────────
+
+async function sendGitHubAuthLink(adminChatId: number, payhipLink: string): Promise<void> {
+  const clientId   = Deno.env.get("GITHUB_OAUTH_CLIENT_ID");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+
+  if (!clientId) {
+    await sendMessage(adminChatId, `❌ <b>GITHUB_OAUTH_CLIENT_ID</b> not set in Supabase secrets.`);
+    return;
+  }
+
+  // State encodes: admin:[chat_id]:[payhip_link]
+  // github-oauth function detects "admin:" prefix and handles separately
+  const state       = `admin:${adminChatId}:${payhipLink}`;
+  const callbackUrl = `${supabaseUrl}/functions/v1/github-oauth`;
+  const oauthUrl    =
+    `https://github.com/login/oauth/authorize` +
+    `?client_id=${clientId}` +
+    `&scope=repo` +
+    `&state=${encodeURIComponent(state)}` +
+    `&redirect_uri=${encodeURIComponent(callbackUrl)}`;
+
+  await sendMessage(
+    adminChatId,
+    `Tap to authorize GitHub — I'll create the pages automatically:\n\n` +
+    `<a href="${oauthUrl}">👉 Authorize GitHub</a>\n\n` +
+    `You'll be back in Telegram within seconds ✅`
+  );
 }
 
 // ── Help ──────────────────────────────────────────────────────────────────────
@@ -70,7 +98,7 @@ async function sendHelp(chatId: number): Promise<void> {
   await sendMessage(
     chatId,
     `<b>Admin commands:</b>\n\n` +
-    `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm.\n\n` +
+    `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Show all active students and their current day/step.`
   );
 }
@@ -96,78 +124,4 @@ async function listStudents(chatId: number): Promise<void> {
   );
 
   await sendMessage(chatId, `<b>Active students (${data.length}):</b>\n\n${lines.join("\n")}`);
-}
-
-// ── Setup: host pages on Supabase Storage ─────────────────────────────────────
-
-async function runSetup(adminChatId: number, payhipLink: string): Promise<void> {
-  await sendMessage(adminChatId, `Creating pages... ⏳`);
-
-  // Load + customise HTML templates
-  let normalHtml: string;
-  let premiumHtml: string;
-  try {
-    const normalRaw  = await Deno.readTextFile(new URL("./index_normal.html",  import.meta.url));
-    const premiumRaw = await Deno.readTextFile(new URL("./index_premium.html", import.meta.url));
-    normalHtml  = modifyTemplateForStudent(normalRaw,  payhipLink);
-    premiumHtml = modifyTemplateForStudent(premiumRaw, payhipLink);
-  } catch (e) {
-    await sendMessage(adminChatId, `❌ Failed to load templates: ${String(e).slice(0, 150)}`);
-    return;
-  }
-
-  // Ensure public bucket exists
-  await ensureBucket();
-
-  // Unique filenames from timestamp
-  const suffix      = Date.now().toString(36).slice(-8);
-  const normalPath  = `${suffix}-normal.html`;
-  const premiumPath = `${suffix}-premium.html`;
-
-  try {
-    await uploadHtml(normalPath,  normalHtml);
-    await uploadHtml(premiumPath, premiumHtml);
-  } catch (e) {
-    await sendMessage(adminChatId, `❌ Upload failed: ${String(e).slice(0, 200)}`);
-    return;
-  }
-
-  const normalUrl  = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${normalPath}`;
-  const premiumUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${premiumPath}`;
-
-  await sendMessage(
-    adminChatId,
-    `✅ <b>Done! Pages are live:</b>\n\n` +
-    `📌 Normal:\n${normalUrl}\n\n` +
-    `⭐ Premium:\n${premiumUrl}`
-  );
-}
-
-// ── Storage helpers ───────────────────────────────────────────────────────────
-
-async function ensureBucket(): Promise<void> {
-  await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${SERVICE_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ id: BUCKET, name: BUCKET, public: true }),
-  });
-}
-
-async function uploadHtml(path: string, html: string): Promise<void> {
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${SERVICE_KEY}`,
-      "Content-Type": "text/html",
-      "x-upsert": "true",
-    },
-    body: html,
-  });
-  if (!res.ok) {
-    throw new Error(`Storage upload failed (${res.status}): ${await res.text()}`);
-  }
-  await res.body?.cancel();
 }
