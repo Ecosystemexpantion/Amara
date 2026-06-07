@@ -92,22 +92,25 @@ async function runSetup(adminChatId: number, studentName: string, payhipLink: st
     .eq("status", "ACTIVE")
     .limit(3);
 
-  if (!matches || matches.length === 0) {
-    await sendMessage(adminChatId, `❌ No active student matching "<b>${studentName}</b>". Check the spelling.`);
-    return;
-  }
-
-  if (matches.length > 1) {
+  if (matches && matches.length > 1) {
     const names = (matches as Student[]).map((s) => `• ${s.full_name}`).join("\n");
     await sendMessage(adminChatId, `⚠️ Multiple students match "<b>${studentName}</b>":\n\n${names}\n\nBe more specific.`);
     return;
   }
 
-  const student = matches[0] as Student;
-  await sendMessage(
-    adminChatId,
-    `Found: <b>${student.full_name}</b> (Day ${student.current_day}, Step ${student.current_step})\n\nSetting up GitHub Pages now... ⏳`
-  );
+  const student = (matches && matches.length === 1) ? matches[0] as Student : null;
+
+  if (student) {
+    await sendMessage(
+      adminChatId,
+      `Found: <b>${student.full_name}</b> (Day ${student.current_day}, Step ${student.current_step})\n\nSetting up GitHub Pages now... ⏳`
+    );
+  } else {
+    await sendMessage(
+      adminChatId,
+      `⚠️ <b>${studentName}</b> isn't registered with Amara yet.\n\nBuilding their pages anyway — you'll need to share the links manually. ⏳`
+    );
+  }
 
   // 2. Verify GitHub credentials
   const ghToken = Deno.env.get("ADMIN_GITHUB_TOKEN");
@@ -136,8 +139,8 @@ async function runSetup(adminChatId: number, studentName: string, payhipLink: st
     return;
   }
 
-  // 4. Unique repo names per student (first 6 chars of UUID)
-  const suffix      = student.id.slice(0, 6);
+  // 4. Unique repo names — use student UUID if registered, otherwise timestamp
+  const suffix      = student ? student.id.slice(0, 6) : Date.now().toString(36).slice(-6);
   const repoNormal  = `eem26page-${suffix}`;
   const repoPremium = `eem26premium-${suffix}`;
 
@@ -155,53 +158,64 @@ async function runSetup(adminChatId: number, studentName: string, payhipLink: st
     return;
   }
 
-  // 6. Compute live URLs and next-unlock time
-  const normalUrl    = `https://${ghUser}.github.io/${repoNormal}/`;
-  const premiumUrl   = `https://${ghUser}.github.io/${repoPremium}/`;
-  const now          = new Date().toISOString();
-  const nextUnlocks  = computeNextUnlockAt();
+  // 6. Compute live URLs
+  const normalUrl  = `https://${ghUser}.github.io/${repoNormal}/`;
+  const premiumUrl = `https://${ghUser}.github.io/${repoPremium}/`;
 
-  // Don't roll back a student who is already past Day 2
-  const newDay  = student.current_day  > 2 ? student.current_day  : 2;
-  const newStep = student.current_day  > 2 ? student.current_step : 0;
+  // 7. Update student record (only if student is registered with Amara)
+  if (student) {
+    const now         = new Date().toISOString();
+    const nextUnlocks = computeNextUnlockAt();
+    const newDay      = student.current_day  > 2 ? student.current_day  : 2;
+    const newStep     = student.current_day  > 2 ? student.current_step : 0;
 
-  // 7. Update student record
-  try {
-    await updateStudent(student.id, {
-      payhip_link:        payhipLink,
-      github_repo_normal: normalUrl,
-      github_repo_premium: premiumUrl,
-      sales_page_link:    normalUrl,
-      day2_completed_at:  now,
-      next_day_unlocks_at: newStep === 0 ? nextUnlocks : (student.next_day_unlocks_at ?? nextUnlocks),
-      current_day:        newDay,
-      current_step:       newStep,
-    });
-  } catch (e) {
-    console.error("DB update error:", e);
-    await sendMessage(adminChatId, `⚠️ GitHub done but DB update failed: <code>${String(e).slice(0, 200)}</code>`);
-    return;
+    try {
+      await updateStudent(student.id, {
+        payhip_link:         payhipLink,
+        github_repo_normal:  normalUrl,
+        github_repo_premium: premiumUrl,
+        sales_page_link:     normalUrl,
+        day2_completed_at:   now,
+        next_day_unlocks_at: newStep === 0 ? nextUnlocks : (student.next_day_unlocks_at ?? nextUnlocks),
+        current_day:         newDay,
+        current_step:        newStep,
+      });
+    } catch (e) {
+      console.error("DB update error:", e);
+      await sendMessage(adminChatId, `⚠️ GitHub done but DB update failed: <code>${String(e).slice(0, 200)}</code>`);
+      return;
+    }
+
+    // 8. Message the student
+    const firstName = (student.full_name ?? "").split(" ")[0];
+    await sendMessage(
+      student.telegram_chat_id,
+      `🎉 <b>Your sales pages are LIVE, ${firstName}!</b>\n\n` +
+      `Your two pages are ready — give GitHub 1-2 minutes to publish them fully:\n\n` +
+      `📌 <b>Normal page:</b>\n${normalUrl}\n\n` +
+      `⭐ <b>Premium page:</b>\n${premiumUrl}\n\n` +
+      `Day 3 unlocks tomorrow at 8AM Nigeria time — I'll ping you then! 🚀`
+    );
+
+    // 9. Confirm to admin (registered student)
+    await sendMessage(
+      adminChatId,
+      `✅ <b>Day 2 done for ${student.full_name}!</b>\n\n` +
+      `📌 Normal: ${normalUrl}\n` +
+      `⭐ Premium: ${premiumUrl}\n\n` +
+      `Student notified. Day 3 unlocks at 8AM tomorrow.`
+    );
+  } else {
+    // 9. Confirm to admin (unregistered student — share links manually)
+    await sendMessage(
+      adminChatId,
+      `✅ <b>Pages created for ${studentName}!</b>\n\n` +
+      `📌 Normal: ${normalUrl}\n` +
+      `⭐ Premium: ${premiumUrl}\n\n` +
+      `⚠️ This student isn't on Amara yet — share these links with them manually.\n` +
+      `Once they message Amara and complete Day 1, their record will be created.`
+    );
   }
-
-  // 8. Message the student
-  const firstName = (student.full_name ?? "").split(" ")[0];
-  await sendMessage(
-    student.telegram_chat_id,
-    `🎉 <b>Your sales pages are LIVE, ${firstName}!</b>\n\n` +
-    `Your two pages are ready — give GitHub 1-2 minutes to publish them fully:\n\n` +
-    `📌 <b>Normal page:</b>\n${normalUrl}\n\n` +
-    `⭐ <b>Premium page:</b>\n${premiumUrl}\n\n` +
-    `Day 3 unlocks tomorrow at 8AM Nigeria time — I'll ping you then! 🚀`
-  );
-
-  // 9. Confirm to admin
-  await sendMessage(
-    adminChatId,
-    `✅ <b>Day 2 done for ${student.full_name}!</b>\n\n` +
-    `📌 Normal: ${normalUrl}\n` +
-    `⭐ Premium: ${premiumUrl}\n\n` +
-    `Student notified. Day 3 unlocks at 8AM tomorrow.`
-  );
 }
 
 // ── GitHub API helpers ────────────────────────────────────────────────────────
