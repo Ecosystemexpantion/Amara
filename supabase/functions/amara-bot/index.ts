@@ -1,6 +1,9 @@
 import { getStudentByChatId, createStudent, touchActivity } from "./db.ts";
 import { routeMessage } from "./state-machine.ts";
+import { handleAdminCommand } from "./admin-commands.ts";
 import type { TelegramUpdate } from "./types.ts";
+
+const ADMIN_CHAT_ID_STR = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
 
 // Amara Bot — EEM26 4-Day Student Coaching Bot
 // Supabase Edge Function (Deno/TypeScript)
@@ -30,6 +33,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Gemini API + file downloads can take 3-10s which exceeds Telegram's webhook timeout.
   const processingPromise = (async () => {
     try {
+      // Admin commands — handled before any student lookup
+      if (String(chatId) === ADMIN_CHAT_ID_STR) {
+        const text = msg.text?.trim() ?? "";
+        await handleAdminCommand(chatId, text);
+        return;
+      }
+
       let student = await getStudentByChatId(String(chatId));
       if (!student) {
         student = await createStudent(String(chatId));
