@@ -1,6 +1,6 @@
 import { getStudentByChatId, createStudent, touchActivity } from "./db.ts";
 import { routeMessage } from "./state-machine.ts";
-import { handleAdminCommand } from "./admin-commands.ts";
+import { handleAdminCommand, handleAdminCallback } from "./admin-commands.ts";
 import type { TelegramUpdate } from "./types.ts";
 
 const ADMIN_CHAT_ID_STR = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
@@ -22,7 +22,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response("OK", { status: 200 });
   }
 
-  // Only handle regular messages (not edited messages, callback queries, etc.)
+  // Handle admin button taps (callback queries)
+  if (update?.callback_query) {
+    const cq = update.callback_query;
+    const cqChatId = cq.message?.chat?.id;
+    if (cqChatId && String(cqChatId) === ADMIN_CHAT_ID_STR) {
+      const promise = handleAdminCallback(cqChatId, cq.id, cq.data ?? "");
+      if (typeof EdgeRuntime !== "undefined") {
+        (EdgeRuntime as unknown as { waitUntil: (p: Promise<unknown>) => void }).waitUntil(promise);
+      } else {
+        await promise;
+      }
+    }
+    return new Response("OK", { status: 200 });
+  }
+
+  // Only handle regular messages (not edited messages, etc.)
   const msg = update?.message;
   if (!msg) return new Response("OK", { status: 200 });
 

@@ -1,10 +1,10 @@
 // Admin commands — only reachable when the message comes from ADMIN_CHAT_ID.
 //
-// Commands:
-//   setup [payhip link]   → Host two sales pages on Supabase Storage, return URLs
-//   list                  → Show all active students
+// Usage:
+//   Send any message containing a payhip link → Amara asks to confirm → tap Yes
+//   list → Show all active students
 
-import { sendMessage } from "./telegram.ts";
+import { sendMessage, sendWithKeyboard, answerCallbackQuery } from "./telegram.ts";
 import { modifyTemplateForStudent } from "./html-modifier.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -14,24 +14,54 @@ const BUCKET       = "student-pages";
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-// ── Entry point ───────────────────────────────────────────────────────────────
+// ── Entry point (text messages) ───────────────────────────────────────────────
 
 export async function handleAdminCommand(chatId: number, text: string): Promise<void> {
   const t = text.trim();
-  if (!t) { await sendHelp(chatId); return; }
 
-  const setupMatch = t.match(/^setup\s+(https?:\/\/\S+)$/i);
-  if (setupMatch) {
-    await runSetup(chatId, setupMatch[1].trim());
-    return;
-  }
-
+  // list
   if (/^list\b/i.test(t)) {
     await listStudents(chatId);
     return;
   }
 
+  // Detect a payhip link anywhere in the message
+  const payhipMatch = t.match(/https?:\/\/payhip\.com\/\S+/i);
+  if (payhipMatch) {
+    const payhipLink = payhipMatch[0].replace(/[.,;!?]+$/, ""); // strip trailing punctuation
+    await sendWithKeyboard(
+      chatId,
+      `Create pages for this Payhip link?\n\n<code>${payhipLink}</code>`,
+      [[
+        { text: "✅ Yes, create pages", callback_data: `setup:${payhipLink}` },
+        { text: "❌ Cancel",            callback_data: "setup_cancel" },
+      ]]
+    );
+    return;
+  }
+
   await sendHelp(chatId);
+}
+
+// ── Entry point (button taps / callback queries) ──────────────────────────────
+
+export async function handleAdminCallback(
+  chatId: number,
+  callbackQueryId: string,
+  data: string
+): Promise<void> {
+  await answerCallbackQuery(callbackQueryId);
+
+  if (data === "setup_cancel") {
+    await sendMessage(chatId, "Cancelled.");
+    return;
+  }
+
+  if (data.startsWith("setup:")) {
+    const payhipLink = data.slice("setup:".length);
+    await runSetup(chatId, payhipLink);
+    return;
+  }
 }
 
 // ── Help ──────────────────────────────────────────────────────────────────────
@@ -40,11 +70,8 @@ async function sendHelp(chatId: number): Promise<void> {
   await sendMessage(
     chatId,
     `<b>Admin commands:</b>\n\n` +
-    `<code>setup [payhip link]</code>\n` +
-    `→ Creates and hosts two sales pages instantly.\n` +
-    `  Returns both live URLs.\n\n` +
-    `<code>list</code>\n` +
-    `→ Show all active students and their current day/step.`
+    `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm.\n\n` +
+    `<code>list</code> → Show all active students and their current day/step.`
   );
 }
 
@@ -92,12 +119,11 @@ async function runSetup(adminChatId: number, payhipLink: string): Promise<void> 
   // Ensure public bucket exists
   await ensureBucket();
 
-  // Unique filenames
-  const suffix       = Date.now().toString(36).slice(-8);
-  const normalPath   = `${suffix}-normal.html`;
-  const premiumPath  = `${suffix}-premium.html`;
+  // Unique filenames from timestamp
+  const suffix      = Date.now().toString(36).slice(-8);
+  const normalPath  = `${suffix}-normal.html`;
+  const premiumPath = `${suffix}-premium.html`;
 
-  // Upload both files
   try {
     await uploadHtml(normalPath,  normalHtml);
     await uploadHtml(premiumPath, premiumHtml);
@@ -120,7 +146,6 @@ async function runSetup(adminChatId: number, payhipLink: string): Promise<void> 
 // ── Storage helpers ───────────────────────────────────────────────────────────
 
 async function ensureBucket(): Promise<void> {
-  // Create bucket if it doesn't exist — 409 = already exists, both are fine
   await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
     method: "POST",
     headers: {

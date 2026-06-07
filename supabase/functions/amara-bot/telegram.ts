@@ -85,6 +85,38 @@ export async function sendPhoto(
   }
 }
 
+export async function sendWithKeyboard(
+  chatId: number | string,
+  text: string,
+  buttons: { text: string; callback_data: string }[][]
+): Promise<void> {
+  try {
+    await fetch(`${TG_BASE}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        reply_markup: { inline_keyboard: buttons },
+      }),
+    });
+  } catch (e) {
+    console.error("sendWithKeyboard error:", e);
+  }
+}
+
+export async function answerCallbackQuery(callbackQueryId: string): Promise<void> {
+  try {
+    await fetch(`${TG_BASE}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: callbackQueryId }),
+    });
+  } catch (_) { /* ignore */ }
+}
+
 export async function getFilePath(fileId: string): Promise<string> {
   const res = await fetch(`${TG_BASE}/getFile?file_id=${fileId}`);
   const data = await res.json();
