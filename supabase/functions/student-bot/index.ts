@@ -756,8 +756,10 @@ async function handleLead(
   await sendMessage(token, chatId, reply);
   await saveConv(supabase, student.id, chatIdStr, userText, reply);
 
-  // New registration alert
+  // New registration: send testimony video to build excitement, then notify admin
   if (allDataNow && stage === "NEW") {
+    const vid = pickVideo("testimony");
+    await sendVideo(token, chatId, vid.fileId, vid.caption);
     await sendMessage(BOT_TOKEN_AMARA, student.telegram_chat_id,
       `✅ <b>NEW LEAD REGISTERED!</b>\n<b>Name:</b> ${data.name ?? lead.name}\n<b>Country:</b> ${data.country ?? lead.country}\n<b>Struggle:</b> ${data.pain_point ?? lead.struggle}\n<b>Email:</b> ${data.email ?? lead.email}`
     );
