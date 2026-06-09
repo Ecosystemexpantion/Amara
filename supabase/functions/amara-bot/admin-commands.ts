@@ -51,9 +51,12 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
     // Any other text = the answer
     await answerEscalation(pending, t);
     const remaining = await pendingCount();
+    const sentTo = pending.source === "student_bot"
+      ? `customer via <b>${pending.bot_name ?? "student bot"}</b>`
+      : `<b>${pending.student_name ?? "student"}</b>`;
     await sendMessage(
       chatId,
-      `✅ Answer sent to <b>${pending.student_name ?? "student"}</b> and saved to Amara's knowledge base 🧠\n\n` +
+      `✅ Answer sent to ${sentTo} and saved to Amara's knowledge base 🧠\n\n` +
       (remaining > 0
         ? `📩 <b>${remaining} more question(s) waiting.</b> Next one:\n\n"${(await getPendingEscalation())?.question ?? ""}"\n\nJust reply with the answer.`
         : `No more pending questions.`)

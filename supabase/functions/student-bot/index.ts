@@ -255,7 +255,43 @@ INTEREST:hot OR INTEREST:warm OR INTEREST:cold
   warm = asking questions, responding positively, somewhat interested
   cold = one-word replies, skeptical without engaging
 OBJECTION:brief description OR OBJECTION:none
-HOT_LEAD (output ONLY when they are ready to buy RIGHT NOW in Stage 2 — asking how to download, saying "I'm ready", asking how much)`;
+HOT_LEAD (output ONLY when they are ready to buy RIGHT NOW in Stage 2 — asking how to download, saying "I'm ready", asking how much)
+
+ESCALATION RULE: If a prospect asks something very specific you genuinely cannot answer from this prompt — for example a technical payment failure, a refund request, or a completely unique question not covered here — respond briefly and warmly, then add [ESCALATE] on its own line at the very end. Do NOT escalate standard objections (price, scam concerns, no money) — handle those yourself using the OBJECTION HANDLING section.`;
+}
+
+// ─── Escalation helpers ───────────────────────────────────────────────────────
+
+async function hasCustomerPendingEscalation(supabase: SupabaseClient, studentId: string, customerChatId: string): Promise<boolean> {
+  const { count } = await supabase
+    .from("amara_escalations")
+    .select("id", { count: "exact", head: true })
+    .eq("student_id", studentId)
+    .eq("customer_chat_id", customerChatId)
+    .eq("source", "student_bot")
+    .eq("status", "PENDING");
+  return (count ?? 0) > 0;
+}
+
+async function createBotEscalation(supabase: SupabaseClient, student: Student, customerChatId: string, question: string): Promise<void> {
+  const botName = student.full_name ? `${student.full_name}'s bot` : "a student bot";
+
+  await supabase.from("amara_escalations").insert({
+    student_id: student.id,
+    student_chat_id: student.telegram_chat_id,
+    student_name: student.full_name,
+    question,
+    source: "student_bot",
+    customer_chat_id: customerChatId,
+    bot_token: student.bot_token,
+    bot_name: botName,
+  });
+
+  await sendMessage(BOT_TOKEN_AMARA, ADMIN_CHAT_ID,
+    `📩 <b>Question via ${botName}:</b>\n\n"${question}"\n\n` +
+    `Reply here and I'll forward it to the customer instantly.\n\n` +
+    `<i>(type <code>skip</code> to ignore)</i>`
+  );
 }
 
 // ─── alertAdmin ───────────────────────────────────────────────────────────────
@@ -399,6 +435,7 @@ function parseSignals(text: string): {
   objection: string;
   hotLead: boolean;
   linkSent: boolean;
+  shouldEscalate: boolean;
 } {
   const data: Record<string, string> = {};
   const dataMatch = text.match(/^DATA:([^\n]+)$/im);
@@ -417,7 +454,8 @@ function parseSignals(text: string): {
   const objection = objMatch?.[1]?.trim() ?? "none";
   const hotLead = /^HOT_LEAD\b/im.test(text);
   const linkSent = /ecosystemexpantion\.github\.io/i.test(text);
-  return { data, interest, objection, hotLead, linkSent };
+  const shouldEscalate = /^\[ESCALATE\]\s*$/im.test(text);
+  return { data, interest, objection, hotLead, linkSent, shouldEscalate };
 }
 
 function clean(text: string): string {
@@ -427,6 +465,7 @@ function clean(text: string): string {
     .replace(/^OBJECTION:[^\n]*$/gm, "")
     .replace(/^HOT_LEAD[^\n]*$/gm, "")
     .replace(/^LINK_SENT:[^\n]*$/gm, "")
+    .replace(/^\[ESCALATE\]\s*$/gm, "")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/\*([^*]+)\*/g, "$1")
     .replace(/\n{3,}/g, "\n\n")
@@ -635,6 +674,13 @@ async function handleLead(
   }
 
   // ── LLM handles all conversation logic ───────────────────────────────────────
+
+  // If this customer is already waiting on an escalation answer, stay quiet
+  if (await hasCustomerPendingEscalation(supabase, student.id, chatIdStr)) {
+    await sendMessage(token, chatId, "I'll get back to you shortly — just confirming that for you 🙏");
+    return;
+  }
+
   const history = await getHistory(supabase, student.id, chatIdStr);
 
   // Strip old training-related history for ATTENDED leads
@@ -648,7 +694,17 @@ async function handleLead(
     userText
   );
 
-  const { data, interest, objection, hotLead, linkSent } = parseSignals(rawReply);
+  const { data, interest, objection, hotLead, linkSent, shouldEscalate } = parseSignals(rawReply);
+
+  // Escalation: bot can't answer → notify admin via Amara, stay quiet
+  if (shouldEscalate && userText) {
+    await createBotEscalation(supabase, student, chatIdStr, userText);
+    const holdMsg = "Great question! Let me confirm that for you — I'll get back to you shortly 🙏";
+    await sendMessage(token, chatId, holdMsg);
+    await saveConv(supabase, student.id, chatIdStr, userText, holdMsg);
+    return;
+  }
+
   const reply = clean(rawReply);
 
   // Build DB update

@@ -1,6 +1,7 @@
 import { sendMessage, sendChatAction, downloadFile, typeMessage } from "./telegram.ts";
 import { saveConversation, getRecentConversation } from "./db.ts";
 import { geminiAudio, geminiChat, geminiVideoTranscribe, geminiVisionGuide } from "./gemini.ts";
+import { hasStudentPendingEscalation } from "./knowledge.ts";
 import { handleOnboarding } from "./onboarding.ts";
 import { handleDay1 } from "./day1.ts";
 import { handleDay2 } from "./day2.ts";
@@ -90,6 +91,15 @@ export async function routeMessage(
     if (student.current_step === 0 && student.current_day >= 1 && student.current_day <= 3) {
       await handleDayWait(student, chatId, cleanText, photoPayload);
       return;
+    }
+
+    // If student has a pending escalation and sent a text (not a screenshot), stay quiet
+    if (student.current_day >= 1 && student.current_step > 0 && cleanText && !photoPayload) {
+      const waiting = await hasStudentPendingEscalation(student.id);
+      if (waiting) {
+        await typeMessage(chatId, "I'm still checking with Coach Victor on your question 🙏 I'll reply as soon as I have your answer!");
+        return;
+      }
     }
 
     // Route to day handler

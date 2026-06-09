@@ -59,25 +59,52 @@ export async function createEscalation(
   studentId: string,
   studentChatId: string,
   studentName: string | null,
-  question: string
+  question: string,
+  options?: {
+    source?: string;
+    customerChatId?: string;
+    botToken?: string;
+    botName?: string;
+  }
 ): Promise<void> {
+  const source = options?.source ?? "amara";
+
   const { data } = await supabase
     .from("amara_escalations")
-    .insert({ student_id: studentId, student_chat_id: studentChatId, student_name: studentName, question })
+    .insert({
+      student_id: studentId,
+      student_chat_id: studentChatId,
+      student_name: studentName,
+      question,
+      source,
+      customer_chat_id: options?.customerChatId ?? null,
+      bot_token: options?.botToken ?? null,
+      bot_name: options?.botName ?? null,
+    })
     .select("id")
     .single();
 
   if (!data) return;
 
-  const name = studentName ?? "A student";
-  await sendTg(
-    ADMIN_CHAT,
-    `📩 <b>${name} asked something I couldn't answer:</b>\n\n"${question}"\n\n` +
-    `Just reply here with your answer and I'll:\n` +
-    `✅ Forward it to them instantly\n` +
-    `🧠 Remember it for future students\n\n` +
-    `<i>(or type <code>skip</code> to ignore this one)</i>`
-  );
+  let notificationText: string;
+  if (source === "student_bot" && options?.botName) {
+    notificationText =
+      `📩 <b>Question via ${options.botName}:</b>\n\n"${question}"\n\n` +
+      `Just reply here with your answer and I'll:\n` +
+      `✅ Forward it to the customer instantly\n` +
+      `🧠 Remember it for future similar questions\n\n` +
+      `<i>(or type <code>skip</code> to ignore this one)</i>`;
+  } else {
+    const name = studentName ?? "A student";
+    notificationText =
+      `📩 <b>${name} asked something I couldn't answer:</b>\n\n"${question}"\n\n` +
+      `Just reply here with your answer and I'll:\n` +
+      `✅ Forward it to them instantly\n` +
+      `🧠 Remember it for future students\n\n` +
+      `<i>(or type <code>skip</code> to ignore this one)</i>`;
+  }
+
+  await sendTg(ADMIN_CHAT, notificationText);
 }
 
 /** Get the oldest unanswered escalation. */
@@ -86,10 +113,14 @@ export async function getPendingEscalation(): Promise<{
   student_chat_id: string;
   student_name: string | null;
   question: string;
+  source: string;
+  customer_chat_id: string | null;
+  bot_token: string | null;
+  bot_name: string | null;
 } | null> {
   const { data } = await supabase
     .from("amara_escalations")
-    .select("id, student_chat_id, student_name, question")
+    .select("id, student_chat_id, student_name, question, source, customer_chat_id, bot_token, bot_name")
     .eq("status", "PENDING")
     .order("created_at", { ascending: true })
     .limit(1)
@@ -98,9 +129,29 @@ export async function getPendingEscalation(): Promise<{
   return data ?? null;
 }
 
-/** Answer an escalation: forward to student + save to KB. */
+/** Check if a specific Amara student has any of their own pending escalations. */
+export async function hasStudentPendingEscalation(studentId: string): Promise<boolean> {
+  const { count } = await supabase
+    .from("amara_escalations")
+    .select("id", { count: "exact", head: true })
+    .eq("student_id", studentId)
+    .eq("source", "amara")
+    .eq("status", "PENDING");
+  return (count ?? 0) > 0;
+}
+
+/** Answer an escalation: forward to student/customer + save to KB. */
 export async function answerEscalation(
-  escalation: { id: string; student_chat_id: string; student_name: string | null; question: string },
+  escalation: {
+    id: string;
+    student_chat_id: string;
+    student_name: string | null;
+    question: string;
+    source: string;
+    customer_chat_id: string | null;
+    bot_token: string | null;
+    bot_name: string | null;
+  },
   answer: string
 ): Promise<void> {
   await supabase
@@ -109,7 +160,27 @@ export async function answerEscalation(
     .eq("id", escalation.id);
 
   await saveKnowledge(escalation.question, answer);
-  await sendTg(escalation.student_chat_id, answer);
+
+  if (escalation.source === "student_bot" && escalation.customer_chat_id && escalation.bot_token) {
+    // Route answer to the customer via the student's own bot token
+    await sendTgWithToken(escalation.bot_token, escalation.customer_chat_id, answer);
+    // Notify the bot owner (EEM26 student) that their customer got an answer
+    await sendTg(
+      escalation.student_chat_id,
+      `✅ Customer question answered via your bot!\n\n<b>Q:</b> ${escalation.question}\n<b>A:</b> ${answer}`
+    );
+  } else {
+    // Regular Amara escalation — forward answer to the EEM26 student
+    await sendTg(escalation.student_chat_id, answer);
+  }
+}
+
+async function sendTgWithToken(token: string, chatId: string | number, text: string): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true }),
+  }).catch(() => {});
 }
 
 /** Mark an escalation as skipped (admin typed "skip"). */

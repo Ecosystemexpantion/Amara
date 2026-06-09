@@ -245,14 +245,13 @@ export async function geminiChat(
 // ── Shared: handle AI response (strip escalation signal, notify admin) ────────
 async function handleResponse(raw: string, studentId?: string, question?: string): Promise<string> {
   const shouldEscalate = raw.includes("[ESCALATE]");
-  const text = raw.replace(/\[ESCALATE\]/g, "").trim();
-
-  if (studentId) {
-    saveConversation(studentId, "assistant", text).catch(() => {});
-  }
 
   if (shouldEscalate && studentId && question) {
-    // Look up student chat ID and name, then create escalation (fire-and-forget)
+    // Do NOT send the AI response — Amara stays quiet until admin answers
+    const holdMsg = "Let me check that with Coach Victor for you 🙏 I'll come back to you shortly!";
+    saveConversation(studentId, "assistant", holdMsg).catch(() => {});
+
+    // Look up student, create escalation (fire-and-forget)
     supabaseClient
       .from("amara_students")
       .select("telegram_chat_id, full_name")
@@ -264,6 +263,14 @@ async function handleResponse(raw: string, studentId?: string, question?: string
         }
       })
       .catch(() => {});
+
+    return holdMsg;
+  }
+
+  const text = raw.replace(/\[ESCALATE\]/g, "").trim();
+
+  if (studentId) {
+    saveConversation(studentId, "assistant", text).catch(() => {});
   }
 
   return text;
