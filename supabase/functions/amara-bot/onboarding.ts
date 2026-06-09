@@ -83,7 +83,7 @@ export async function handleOnboarding(
       } else {
         const reply = await geminiChat(
           history, t,
-          "You just introduced yourself as Amara the EEM26 coach and asked the student for their full name. They replied with something that doesn't look like a name. Understand what they said, respond naturally and warmly, then ask again for their full name (exactly as it will appear on their certificate).",
+          "You just introduced yourself as Amara the EEM26 coach and asked the student for their full name. They replied with something that doesn't look like a name. Respond in clear, warm English only — no Pidgin here. Acknowledge what they said naturally, then ask again for their full name exactly as it will appear on their certificate.",
           student.id
         );
         await sendMessage(chatId, reply);
