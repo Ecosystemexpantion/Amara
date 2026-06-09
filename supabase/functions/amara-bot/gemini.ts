@@ -1,5 +1,7 @@
 import type { ConversationMessage, ScreenshotResult } from "./types.ts";
 import { saveConversation } from "./db.ts";
+import { searchKnowledge, createEscalation, incrementKnowledgeUse } from "./knowledge.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
@@ -34,6 +36,11 @@ function getGroqKeys(): string[] {
 // Primary key (used by Gemini chat fallback)
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 
+const supabaseClient = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
 export const AMARA_SYSTEM_PROMPT = `You are Amara, a warm, energetic and fun female business coach for EEM26. You are NOT an AI — you are a real human coach. NEVER reveal or admit you are an AI, bot, or language model under ANY circumstances. If asked if you're AI or a bot, deny it warmly: "Me? No way! I'm Amara, your personal coach 😄"
 
 Your personality:
@@ -56,7 +63,9 @@ Device awareness: Some students are on a PHONE (Android/iPhone), some are on a L
 
 Tech level awareness: Some students are TECHNICAL (comfortable with computers and apps), some are NON-TECHNICAL (complete beginners). When guiding a non-technical student, explain EVERY click and be extra patient and reassuring — never assume they know what a repository is or how to find a downloaded file. For technical students, you can be more concise and trust they'll figure out the small details.
 
-Current context: You are guiding a paid student through their 4-day EEM26 business setup program. They have already purchased the Tech Stack package. Your job is to make sure they complete every step successfully.`;
+Current context: You are guiding a paid student through their 4-day EEM26 business setup program. They have already purchased the Tech Stack package. Your job is to make sure they complete every step successfully.
+
+Escalation rule: If a student asks something very specific that only their admin coach would know — like exact prices, specific student income results with names, upcoming program changes, or anything genuinely outside your knowledge — answer as warmly and helpfully as you can, then add the exact text [ESCALATE] on its own line at the very end. Do NOT add [ESCALATE] for normal setup questions.`;
 
 function uint8ToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -73,9 +82,23 @@ export async function geminiChat(
   stepContext?: string,
   studentId?: string
 ): Promise<string> {
-  const systemText = stepContext
-    ? `${AMARA_SYSTEM_PROMPT}\n\nCurrent step context: ${stepContext}`
-    : AMARA_SYSTEM_PROMPT;
+  // ── 1. Knowledge base injection ─────────────────────────────────────────────
+  // Search for similar questions admin has already answered and inject them.
+  let knowledgeContext = "";
+  try {
+    const relevant = await searchKnowledge(userMessage);
+    if (relevant.length > 0) {
+      const lines = relevant.map((k) => `Q: ${k.question}\nA: ${k.answer}`).join("\n\n");
+      knowledgeContext = `\n\nKnowledge base (admin-trained answers for similar questions — use these if relevant):\n${lines}`;
+      // Track usage (fire-and-forget)
+      incrementKnowledgeUse(relevant[0].question).catch(() => {});
+    }
+  } catch (_) { /* non-critical */ }
+
+  const systemText =
+    AMARA_SYSTEM_PROMPT +
+    knowledgeContext +
+    (stepContext ? `\n\nCurrent step context: ${stepContext}` : "");
 
   // Try all Groq keys × models — Groq has higher free quota than Gemini for text
   // llama-3.1-8b-instant: 20k RPD free (vs 235 RPD for llama-3.3-70b)
@@ -100,10 +123,7 @@ export async function geminiChat(
         if (groqRes.ok) {
           const groqData = await groqRes.json();
           const groqText = groqData.choices?.[0]?.message?.content?.trim();
-          if (groqText) {
-            if (studentId) saveConversation(studentId, "assistant", groqText).catch(() => {});
-            return groqText;
-          }
+          if (groqText) return await handleResponse(groqText, studentId, userMessage);
         }
         if (groqRes.status === 429) { console.warn(`Groq quota: ${model}`); continue; }
         console.warn(`Groq ${groqRes.status} (${model})`);
@@ -170,18 +190,83 @@ export async function geminiChat(
       }
 
       const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "I dey here! Try again in a moment 😊";
-      if (studentId) {
-        saveConversation(studentId, "assistant", text).catch(() => {});
+      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+      if (raw) {
+        const result = await handleResponse(raw, studentId, userMessage);
+        return result;
       }
-      return text;
     } catch (e) {
       console.error("Gemini chat fetch network error:", e);
     }
   }
 
-  console.error("All Gemini chat keys exhausted");
+  // ── Final fallback: Claude Haiku ────────────────────────────────────────────
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (anthropicKey) {
+    try {
+      const claudeMessages = [
+        ...history.slice(-8).map((m: ConversationMessage) => ({
+          role: m.role === "user" ? "user" : "assistant",
+          content: m.message,
+        })),
+        { role: "user", content: userMessage },
+      ];
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 350,
+          system: systemText,
+          messages: claudeMessages,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const raw = data.content?.[0]?.text?.trim() ?? "";
+        if (raw) {
+          const result = await handleResponse(raw, studentId, userMessage);
+          return result;
+        }
+      }
+    } catch (e) {
+      console.error("Claude fallback error:", e);
+    }
+  }
+
+  console.error("All AI providers exhausted");
   return "I dey here! Try again in a moment 😊";
+}
+
+// ── Shared: handle AI response (strip escalation signal, notify admin) ────────
+async function handleResponse(raw: string, studentId?: string, question?: string): Promise<string> {
+  const shouldEscalate = raw.includes("[ESCALATE]");
+  const text = raw.replace(/\[ESCALATE\]/g, "").trim();
+
+  if (studentId) {
+    saveConversation(studentId, "assistant", text).catch(() => {});
+  }
+
+  if (shouldEscalate && studentId && question) {
+    // Look up student chat ID and name, then create escalation (fire-and-forget)
+    supabaseClient
+      .from("amara_students")
+      .select("telegram_chat_id, full_name")
+      .eq("id", studentId)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          createEscalation(studentId, data.telegram_chat_id, data.full_name, question).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }
+
+  return text;
 }
 
 function parseVisionText(rawText: string): ScreenshotResult {

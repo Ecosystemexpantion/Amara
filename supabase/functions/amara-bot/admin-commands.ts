@@ -5,6 +5,7 @@
 //   list → Show all active students
 
 import { sendMessage, sendWithKeyboard, answerCallbackQuery } from "./telegram.ts";
+import { getPendingEscalation, answerEscalation, skipEscalation, pendingCount } from "./knowledge.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const supabase = createClient(
@@ -34,6 +35,28 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
         { text: "✅ Yes, create pages", callback_data: `setup:${payhipLink}` },
         { text: "❌ Cancel",            callback_data: "setup_cancel" },
       ]]
+    );
+    return;
+  }
+
+  // ── Default: check if this is a reply to a pending escalation ───────────────
+  const pending = await getPendingEscalation();
+  if (pending) {
+    if (/^skip$/i.test(t)) {
+      await skipEscalation(pending.id);
+      const remaining = await pendingCount();
+      await sendMessage(chatId, `Skipped. ${remaining > 0 ? `${remaining} question(s) still waiting.` : "No more pending questions."}`);
+      return;
+    }
+    // Any other text = the answer
+    await answerEscalation(pending, t);
+    const remaining = await pendingCount();
+    await sendMessage(
+      chatId,
+      `✅ Answer sent to <b>${pending.student_name ?? "student"}</b> and saved to Amara's knowledge base 🧠\n\n` +
+      (remaining > 0
+        ? `📩 <b>${remaining} more question(s) waiting.</b> Next one:\n\n"${(await getPendingEscalation())?.question ?? ""}"\n\nJust reply with the answer.`
+        : `No more pending questions.`)
     );
     return;
   }
