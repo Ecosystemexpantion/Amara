@@ -74,7 +74,7 @@ async function handleStep2(
 
       What they need to do: On the GitHub authorization page, they should tap the green "Authorize [app name]" button. That's the ONLY thing they need to do — just tap that green button and Amara handles everything else automatically.
 
-      If the screenshot shows the GitHub "Authorize" page: tell them they're in exactly the right place, just tap that big green "Authorize" button and Amara will take it from there — they don't need to do anything else!
+      If the screenshot shows the GitHub "Authorize" page: tell them they're in exactly the right place — they need to SCROLL DOWN to the bottom of the page to find the big green "Authorize" button, then tap it. Amara handles everything after that automatically!
 
       If it shows a GitHub login page: tell them to log in first, then they'll see the Authorize button.
 
@@ -97,15 +97,28 @@ async function handleStep2(
     const reply = await geminiChat(
       history,
       text,
-      `Student is on Day 2 of EEM26. They tapped the GitHub OAuth link and should be on the authorization page. They just need to tap the green "Authorize" button — Amara handles EVERYTHING else automatically (creates repos, uploads files, enables Pages). Answer their question warmly and briefly, then guide them to tap Authorize. OAuth link if they lost it: ${oauthUrl}`,
+      `Student is on Day 2 of EEM26. They tapped the GitHub OAuth link and should be on the authorization page. They just need to tap the green "Authorize" button — Amara handles EVERYTHING else automatically (creates repos, uploads files, enables Pages).
+
+IMPORTANT: On mobile phones, the green Authorize button is often at the BOTTOM of the page — the student may need to scroll down to see it. If they say they can't find the button, tell them to scroll down.
+
+Answer their question warmly and briefly, then guide them to scroll down and tap Authorize. OAuth link if they lost it: ${oauthUrl}`,
       student.id
     );
-    await sendMessage(chatId, reply);
+    // If Gemini failed and returned its fallback, send a helpful hardcoded message instead
+    const geminiFailedFallback = reply.includes("Try again in a moment") || reply.includes("small hiccup") || reply.includes("Had a small hiccup");
+    if (geminiFailedFallback) {
+      await typeMessage(
+        chatId,
+        `The green <b>Authorize</b> button is at the <b>bottom</b> of the GitHub page — scroll down to find it! 👇\n\nIf you've lost the page, tap here again:\n<a href="${oauthUrl}">👉 Connect GitHub</a>`
+      );
+    } else {
+      await sendMessage(chatId, reply);
+    }
     return;
   }
 
   // No text, no photo — just resend the link
-  await typeMessage(chatId, `Still waiting for your GitHub connection 🔗\n\nTap the link below, then tap the green <b>Authorize</b> button — I'll create your sales pages automatically after that! 🚀\n\n<a href="${oauthUrl}">👉 Connect GitHub here</a>`);
+  await typeMessage(chatId, `Still waiting for your GitHub connection 🔗\n\nTap the link below, log in if needed, then <b>scroll down</b> to find the green <b>Authorize</b> button and tap it — I'll create your sales pages automatically after that! 🚀\n\n<a href="${oauthUrl}">👉 Connect GitHub here</a>`);
 }
 
 async function resendOAuthLink(student: Student, chatId: number): Promise<void> {
