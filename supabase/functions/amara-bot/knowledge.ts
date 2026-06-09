@@ -21,12 +21,14 @@ const ADMIN_CHAT  = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
 
 /** Search stored Q&As for questions similar to the current one. */
 export async function searchKnowledge(question: string): Promise<{ question: string; answer: string }[]> {
-  // Build a tsquery from significant words (3+ chars)
+  // Extract significant words (2+ chars, skip stopwords) and join with OR
+  // so paraphrases like "What's the price?" match "How much does it cost?" if they share key words
+  const stopwords = new Set(["is", "it", "in", "on", "at", "to", "do", "be", "of", "or", "an", "as", "by", "up", "if"]);
   const words = question
     .replace(/[^a-zA-Z0-9 ]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length >= 3)
-    .slice(0, 8)
+    .filter((w) => w.length >= 2 && !stopwords.has(w.toLowerCase()))
+    .slice(0, 15)
     .join(" | ");
 
   if (!words) return [];
@@ -34,9 +36,9 @@ export async function searchKnowledge(question: string): Promise<{ question: str
   const { data } = await supabase
     .from("amara_knowledge")
     .select("question, answer, use_count")
-    .textSearch("question", words, { type: "plain", config: "english" })
+    .textSearch("question", words, { type: "websearch", config: "english" })
     .order("use_count", { ascending: false })
-    .limit(3);
+    .limit(5);
 
   return (data ?? []) as { question: string; answer: string }[];
 }

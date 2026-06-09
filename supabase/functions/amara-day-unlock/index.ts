@@ -233,6 +233,54 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     }
     results.silenceNudges = nudgeCount;
 
+    // ── 4. Daily Sunday training reminder for student bot leads ──────────────
+    // Runs once at 9AM Nigeria (08:00 UTC) — REGISTERED leads only
+    if (utcHour === 8 && utcMin < 5) {
+      const reminderCutoff = new Date(now.getTime() - 20 * 60 * 60 * 1000).toISOString();
+
+      const { data: botStudents } = await supabase
+        .from("amara_students")
+        .select("id, bot_token")
+        .eq("status", "ACTIVE")
+        .not("bot_token", "is", null);
+
+      let botReminderCount = 0;
+      for (const s of botStudents ?? []) {
+        if (!s.bot_token) continue;
+
+        const { data: regLeads } = await supabase
+          .from("student_bot_leads")
+          .select("chat_id, name")
+          .eq("student_id", s.id)
+          .eq("stage", "REGISTERED")
+          .or(`last_contacted_at.is.null,last_contacted_at.lt.${reminderCutoff}`);
+
+        for (const lead of regLeads ?? []) {
+          const firstName = (lead.name ?? "").split(" ")[0];
+          const greeting = firstName ? `Hey ${firstName}! ` : "Hey! ";
+          const msg =
+            `${greeting}Just a reminder — Sunday training is at <b>8PM Nigeria time</b> tonight! 🎯\n\n` +
+            `This is where everything gets revealed live. Don't miss it — see you there! 👊\n\n` +
+            `<a href="https://t.me/+jX6QLzq04uQ3OGE0">👉 Join the training group here</a>`;
+
+          await fetch(`https://api.telegram.org/bot${s.bot_token}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: lead.chat_id, text: msg, parse_mode: "HTML", disable_web_page_preview: true }),
+          }).catch(() => {});
+
+          await supabase
+            .from("student_bot_leads")
+            .update({ last_contacted_at: new Date().toISOString() })
+            .eq("student_id", s.id)
+            .eq("chat_id", lead.chat_id);
+
+          botReminderCount++;
+        }
+      }
+      results.botReminders = botReminderCount;
+    }
+
     console.log("Cron result:", JSON.stringify(results));
     return new Response(JSON.stringify({ ...results, timestamp: nowIso }), {
       status: 200,
