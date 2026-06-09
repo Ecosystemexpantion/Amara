@@ -14,41 +14,85 @@ export async function handleDay2(
   await sendChatAction(chatId, "typing");
 
   switch (student.current_step) {
-    case 1: await handleStep1(student, chatId, text); break;
+    case 1: await handleStep1(student, chatId, text, photo); break;
     case 2: await handleStep2(student, chatId, text, photo); break;
     default: await resendOAuthLink(student, chatId);
   }
 }
 
-// Step 1: Student says "ready" (or asks questions) → send GitHub OAuth link
-async function handleStep1(student: Student, chatId: number, text: string | null): Promise<void> {
-  const isReady = !text || /\b(ready|yes|start|begin|ok|okay|go|let.?s go|continue|sure|yep|yeah)\b/i.test(text);
+// Step 1: Ask about GitHub account → guide creation if needed → then OAuth link
+async function handleStep1(
+  student: Student,
+  chatId: number,
+  text: string | null,
+  photo: { bytes: Uint8Array; mimeType: string } | null
+): Promise<void> {
+  const oauthUrl = buildGitHubAuthUrl(String(chatId));
+  const history = await getRecentConversation(student.id, 6);
 
-  if (!isReady && text) {
-    // Answer any questions before sending the link
-    const history = await getRecentConversation(student.id, 6);
-    const reply = await geminiChat(
-      history,
-      text,
-      `Student is about to start Day 2 of EEM26. Today they will connect their GitHub account and Amara will automatically create their two live sales pages (EEM26page and EEM26premium) on GitHub Pages — the student doesn't have to touch any code or upload any files manually. Answer their question, then tell them to say "ready" when they want to start.`,
-      student.id
+  // Screenshot while on step 1 — guide them based on what we see
+  if (photo) {
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      `Student is on Day 2 of EEM26, creating or logging into a GitHub account so Amara can build their sales pages. Guide them based on what you see on screen.`,
+      text ?? undefined
     );
-    await sendMessage(chatId, reply);
+    await sendMessage(chatId, guidance);
     return;
   }
 
-  const oauthUrl = buildGitHubAuthUrl(String(chatId));
+  // First contact on Day 2 — introduce GitHub, ask if they have an account
+  const isFirstTrigger = !text || /^(ready|yes|start|begin|ok|okay|go|sure|yep|yeah|let.?s go)$/i.test(text.trim());
+  const alreadyAsked = history.some(m => m.message.toLowerCase().includes("github account"));
 
-  await typeMessage(
-    chatId,
-    `<b>Day 2: Your Live Sales Pages! 🌐</b>\n\nToday I'm building your TWO sales pages — a normal version and a premium version. These are YOUR shop links from your Tech Stack 📦\n\nOnce done, you'll have live links to share anywhere and start making money 💰`
-  );
-  await typeMessage(
-    chatId,
-    `To do this, I need to connect to your GitHub account once. GitHub is where your pages will be hosted (it's free).\n\n<b>Tap the link below to connect GitHub to me — I'll set up EVERYTHING automatically after that! 🤖</b>\n\n<a href="${oauthUrl}">👉 Connect GitHub here</a>\n\n(If you don't have a GitHub account, the link will let you create one first)`
-  );
+  if (isFirstTrigger && !alreadyAsked) {
+    await typeMessage(
+      chatId,
+      `<b>Day 2: Your Live Sales Pages! 🌐</b>\n\nToday I'm building your TWO sales pages — a normal version and a premium version — fully automated from your Tech Stack 📦\n\nOnce they're live, you'll have real shop links to share and start making sales 💰`
+    );
+    await typeMessage(
+      chatId,
+      `To create your pages I need to connect to a <b>GitHub account</b>.\n\nDo you already have a GitHub account, or do I need to help you create one first? 🙋`
+    );
+    return;
+  }
 
-  await advanceStep(student.id, 2, 2);
+  if (!text) return;
+
+  const t = text.trim().toLowerCase();
+
+  // Detect "yes, I have an account"
+  const hasAccount = /\b(yes|i have|have one|have it|already have|got one|i got|have github|have a github|i do|yes i do|yeah i have|yep i have|done|created|made one|have now|i created|just created|just made)\b/i.test(t);
+
+  // Detect "no, I don't have one"
+  const noAccount = /\b(no|don.?t have|do not have|never|nope|not yet|need to create|i need|create one|new account|don.?t|dont)\b/i.test(t);
+
+  if (hasAccount) {
+    await typeMessage(
+      chatId,
+      `Perfect! Now tap the link below — log into your GitHub account and I'll create BOTH your sales pages automatically! 🤖\n\n<a href="${oauthUrl}">👉 Connect GitHub here</a>\n\n<i>📱 On mobile: scroll down to the bottom of that page to find the green <b>Authorize</b> button, then tap it.</i>`
+    );
+    await advanceStep(student.id, 2, 2);
+    return;
+  }
+
+  if (noAccount) {
+    await typeMessage(
+      chatId,
+      `No worries at all! Creating a GitHub account is free and takes about 2 minutes 😊\n\n👉 Go to: <a href="https://github.com/signup">github.com/signup</a>\n\nFill in:\n• <b>Username</b> — any name you like (e.g. your first name)\n• <b>Email address</b>\n• <b>Password</b>\n\nThen verify your email and finish signup. Send me a screenshot when you're on your GitHub dashboard and I'll take it from there! 📸`
+    );
+    return;
+  }
+
+  // Anything else — let Gemini handle it
+  const reply = await geminiChat(
+    history,
+    text,
+    `Student is on Day 2 of EEM26. Before connecting GitHub (OAuth), Amara asked whether they have a GitHub account. Help them — if they don't have one, guide them to github.com/signup (free, 2 minutes). If they do or just created one, tell them to tap this link to connect: ${oauthUrl} — on mobile they need to scroll down to tap the green Authorize button.`,
+    student.id
+  );
+  await sendMessage(chatId, reply);
 }
 
 // Step 2: Waiting for the OAuth callback (github-oauth function will advance to step 0)
