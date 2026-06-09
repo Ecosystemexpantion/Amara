@@ -109,14 +109,28 @@ function pickVideo(category: keyof typeof VIDEOS) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// ─── Bot identity ─────────────────────────────────────────────────────────────
+
+async function getBotDisplayName(token: string): Promise<string> {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    if (!res.ok) return "Alex";
+    const data = await res.json();
+    return (data.result?.first_name ?? "Alex") as string;
+  } catch {
+    return "Alex";
+  }
+}
+
+function buildOpeningHook(botName: string): string {
+  return (
+    `Hello dear,\n\nMy name is <b>${botName}</b>! 😊\n\n` +
+    `What's your name so I can register you for Sunday's setup? 👇`
+  );
+}
+
 // ─── Opening hook (hardcoded — instant, no LLM delay) ─────────────────────────
 
-const OPENING_HOOK =
-  `Hey! So glad you're here 🔥\n\n` +
-  `EEM26 Selar Training is one of the fastest ways to build a real income online right now — ` +
-  `people are going from zero to their first digital income in just 4 days.\n\n` +
-  `What's your name, which country are you from, and what's your biggest challenge ` +
-  `when it comes to making money online? 👇`;
 
 // ─── Master system prompt ─────────────────────────────────────────────────────
 
@@ -176,11 +190,12 @@ Objections raised so far: ${lead?.objections_raised ?? "none"}
 
 STAGE 1A — NEW (data NOT collected yet):
 Your ONLY job: collect name, country, struggle, email — then register them.
-- Ask name + country + biggest struggle all in ONE message
-- Once you have those 3, ask for email only
+- NAME FIRST: The opening message already asked for their name. If they reply with anything that is NOT a real name — e.g. "good morning", "hi", "hello", "how are you", "ok", "what is this", any greeting, any question, or any phrase that is clearly not a person's name — acknowledge it warmly and ask again: "Haha! What should I call you? 😊" Do NOT ask for country or struggle until you have a real name.
+- Once you have a real name: greet them by name, then ask country + biggest struggle in ONE message
+- Once you have name + country + struggle: ask for email only
 - Once all 4 confirmed: output DATA line + confirm registration excitedly
 - NEVER mention Tech Stack, price, or product yet
-- If asked "what is EEM26": "It's a complete digital business model helping people across Nigeria and Ghana earn consistently — what's your name and where are you based?"
+- If asked "what is EEM26": "It's a complete digital business model helping people across Nigeria and Ghana earn consistently — what's your name first? 😊"
 - If asked about cost: "Sunday training is completely free. Just show up at 8PM Nigeria time."
 
 STAGE 1B — REGISTERED (data already collected):
@@ -587,9 +602,11 @@ async function handleLead(
 
   // Commands → opening hook
   if (userText.startsWith("/")) {
-    await sendMessage(token, chatId, OPENING_HOOK);
+    const botName = await getBotDisplayName(token);
+    const openingMsg = buildOpeningHook(botName);
+    await sendMessage(token, chatId, openingMsg);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
-    await saveConv(supabase, student.id, chatIdStr, userText, OPENING_HOOK);
+    await saveConv(supabase, student.id, chatIdStr, userText, openingMsg);
     return;
   }
 
@@ -658,18 +675,22 @@ async function handleLead(
   // No text and not a new lead → ignore
   if (!userText) {
     if (!lead) {
-      await sendMessage(token, chatId, OPENING_HOOK);
+      const botName = await getBotDisplayName(token);
+      const openingMsg = buildOpeningHook(botName);
+      await sendMessage(token, chatId, openingMsg);
       await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
-      await saveConv(supabase, student.id, chatIdStr, "[started]", OPENING_HOOK);
+      await saveConv(supabase, student.id, chatIdStr, "[started]", openingMsg);
     }
     return;
   }
 
   // Brand new lead → send opening hook first
   if (!lead) {
-    await sendMessage(token, chatId, OPENING_HOOK);
+    const botName = await getBotDisplayName(token);
+    const openingMsg = buildOpeningHook(botName);
+    await sendMessage(token, chatId, openingMsg);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
-    await saveConv(supabase, student.id, chatIdStr, userText, OPENING_HOOK);
+    await saveConv(supabase, student.id, chatIdStr, userText, openingMsg);
     return;
   }
 
