@@ -272,7 +272,7 @@ INTEREST:hot OR INTEREST:warm OR INTEREST:cold
 OBJECTION:brief description OR OBJECTION:none
 HOT_LEAD (output ONLY when they are ready to buy RIGHT NOW in Stage 2 — asking how to download, saying "I'm ready", asking how much)
 
-ESCALATION RULE: If a prospect asks something very specific you genuinely cannot answer from this prompt — for example a technical payment failure, a refund request, or a completely unique question not covered here — respond briefly and warmly, then add [ESCALATE] on its own line at the very end. Do NOT escalate standard objections (price, scam concerns, no money) — handle those yourself using the OBJECTION HANDLING section.`;
+ESCALATION RULE: ONLY escalate for: refund requests, payment failure/dispute claims, or questions that are completely impossible to answer from anything in this prompt. Do NOT escalate student results questions (answers are in this prompt), price questions, scam concerns, "how much did students make", "is this legit", "does it work" — handle ALL of those yourself. When escalating, respond briefly and warmly first, then add [ESCALATE] on its own line at the very end.`;
 }
 
 // ─── Escalation helpers ───────────────────────────────────────────────────────
@@ -330,16 +330,28 @@ function uint8ToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-// ─── Groq — free text chat ───────────────────────────────────────────────────
+// ─── Groq — free text chat (multi-key, multi-model rotation) ─────────────────
+
+function getGroqKeys(): string[] {
+  const keys: string[] = [];
+  for (const name of ["GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_API_KEY_4", "GROQ_API_KEY_5"]) {
+    const k = Deno.env.get(name);
+    if (k) keys.push(k);
+  }
+  return keys;
+}
+
+// llama-3.1-8b-instant: ~20k RPD free (vs ~235 RPD for 70b)
+const GROQ_MODELS = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "llama3-70b-8192"];
 
 async function callGroq(
   systemPrompt: string,
   history: { role: string; content: string }[],
   userMessage: string
 ): Promise<string> {
-  const apiKey = Deno.env.get("GROQ_API_KEY");
-  if (!apiKey) {
-    await alertAdmin("⚠️ <b>student-bot</b>: GROQ_API_KEY not set");
+  const groqKeys = getGroqKeys();
+  if (groqKeys.length === 0) {
+    await alertAdmin("⚠️ <b>student-bot</b>: no GROQ_API_KEY set");
     return "I'll get back to you shortly!";
   }
 
@@ -354,31 +366,39 @@ async function callGroq(
   }
   if (userMessage) messages.push({ role: "user", content: userMessage });
 
-  try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
-        max_tokens: 500,
-        temperature: 0.85,
-      }),
-    });
+  for (const apiKey of groqKeys) {
+    for (const model of GROQ_MODELS) {
+      try {
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: systemPrompt }, ...messages],
+            max_tokens: 500,
+            temperature: 0.85,
+          }),
+        });
 
-    if (!res.ok) {
-      const err = await res.text();
-      console.error(`Groq ${res.status}: ${err}`);
-      await alertAdmin(`⚠️ <b>student-bot Groq error</b> ${res.status}: <code>${err.slice(0, 200)}</code>`);
-      return "I'll get back to you shortly!";
+        if (res.status === 429) { console.warn(`student-bot Groq quota: ${model}`); continue; }
+
+        if (!res.ok) {
+          const err = await res.text();
+          console.error(`Groq ${res.status} (${model}): ${err}`);
+          continue;
+        }
+
+        const data = await res.json();
+        const text = data?.choices?.[0]?.message?.content?.trim();
+        if (text) return text;
+      } catch (e) {
+        console.error(`Groq error (${model}):`, e);
+      }
     }
-
-    const data = await res.json();
-    return data?.choices?.[0]?.message?.content?.trim() ?? "I'll get back to you shortly!";
-  } catch (e) {
-    console.error("Groq error:", e);
-    return "I'll get back to you shortly!";
   }
+
+  await alertAdmin("⚠️ <b>student-bot</b>: all Groq keys/models exhausted");
+  return "I'll get back to you shortly!";
 }
 
 // ─── Gemini vision — extract payment amount ───────────────────────────────────
@@ -728,6 +748,12 @@ async function handleLead(
 
   const reply = clean(rawReply);
 
+  // Safety net: if lead sent an email in this message but LLM missed it in DATA, capture it
+  if (!data.email) {
+    const emailInMessage = userText?.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/)?.[0];
+    if (emailInMessage) data.email = emailInMessage;
+  }
+
   // Build DB update
   const updates: Record<string, unknown> = { last_contacted_at: new Date().toISOString() };
   if (data.name) updates.name = data.name;
@@ -738,11 +764,13 @@ async function handleLead(
   if (objection && objection.toLowerCase() !== "none") updates.objections_raised = objection;
   if (linkSent) updates.download_link_sent_at = new Date().toISOString();
 
+  // Only register when ALL 4 fields are genuinely collected (email must look like an email)
+  const resolvedEmail = data.email || lead.email;
   const allDataNow = !!(
     (data.name || lead.name) &&
     (data.country || lead.country) &&
     (data.pain_point || lead.struggle) &&
-    (data.email || lead.email)
+    resolvedEmail && resolvedEmail.includes("@")
   );
 
   if (allDataNow && stage === "NEW") {
