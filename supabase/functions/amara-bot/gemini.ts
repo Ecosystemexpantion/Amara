@@ -7,12 +7,30 @@ const GEMINI_URL =
 // Returns all configured Gemini API keys so vision can rotate through them on 429
 function getGeminiKeys(): string[] {
   const keys: string[] = [];
-  for (const name of ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"]) {
+  for (const name of [
+    "GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3",
+    "GEMINI_API_KEY_4", "GEMINI_API_KEY_5", "GEMINI_API_KEY_6",
+    "GEMINI_API_KEY_7", "GEMINI_API_KEY_8", "GEMINI_API_KEY_9", "GEMINI_API_KEY_10",
+  ]) {
     const k = Deno.env.get(name);
     if (k) keys.push(k);
   }
   return keys;
 }
+
+// Returns all configured Groq API keys
+function getGroqKeys(): string[] {
+  const keys: string[] = [];
+  for (const name of [
+    "GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3",
+    "GROQ_API_KEY_4", "GROQ_API_KEY_5",
+  ]) {
+    const k = Deno.env.get(name);
+    if (k) keys.push(k);
+  }
+  return keys;
+}
+
 // Primary key (used by Gemini chat fallback)
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 
@@ -59,51 +77,42 @@ export async function geminiChat(
     ? `${AMARA_SYSTEM_PROMPT}\n\nCurrent step context: ${stepContext}`
     : AMARA_SYSTEM_PROMPT;
 
-  // Prefer Groq Llama for text chat — far higher free-tier quota than Gemini
-  const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-  if (GROQ_API_KEY) {
-    const messages = [
-      { role: "system", content: systemText },
-      ...history.slice(-10).map((m: ConversationMessage) => ({
-        role: m.role === "user" ? "user" : "assistant",
-        content: m.message,
-      })),
-      { role: "user", content: userMessage },
-    ];
-    try {
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages, temperature: 0.9, max_tokens: 350 }),
-      });
-      if (groqRes.ok) {
-        const groqData = await groqRes.json();
-        const groqText = groqData.choices?.[0]?.message?.content?.trim() ?? "I dey here! Try again in a moment 😊";
-        if (studentId) saveConversation(studentId, "assistant", groqText).catch(() => {});
-        return groqText;
-      }
-      // If model not found, retry with older model name
-      if (groqRes.status === 400 || groqRes.status === 404) {
-        const retryRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  // Try all Groq keys × models — Groq has higher free quota than Gemini for text
+  // llama-3.1-8b-instant: 20k RPD free (vs 235 RPD for llama-3.3-70b)
+  const GROQ_MODELS = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "llama3-70b-8192"];
+  const groqKeys = getGroqKeys();
+  const messages = [
+    { role: "system", content: systemText },
+    ...history.slice(-10).map((m: ConversationMessage) => ({
+      role: m.role === "user" ? "user" : "assistant",
+      content: m.message,
+    })),
+    { role: "user", content: userMessage },
+  ];
+  for (const groqKey of groqKeys) {
+    for (const model of GROQ_MODELS) {
+      try {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
-          body: JSON.stringify({ model: "llama3-70b-8192", messages, temperature: 0.9, max_tokens: 350 }),
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+          body: JSON.stringify({ model, messages, temperature: 0.9, max_tokens: 350 }),
         });
-        if (retryRes.ok) {
-          const retryData = await retryRes.json();
-          const retryText = retryData.choices?.[0]?.message?.content?.trim() ?? "I dey here! Try again in a moment 😊";
-          if (studentId) saveConversation(studentId, "assistant", retryText).catch(() => {});
-          return retryText;
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          const groqText = groqData.choices?.[0]?.message?.content?.trim();
+          if (groqText) {
+            if (studentId) saveConversation(studentId, "assistant", groqText).catch(() => {});
+            return groqText;
+          }
         }
-        console.error(`Groq retry error ${retryRes.status}: ${await retryRes.text()}`);
-      } else {
-        console.error(`Groq chat error ${groqRes.status}: ${await groqRes.text()}`);
+        if (groqRes.status === 429) { console.warn(`Groq quota: ${model}`); continue; }
+        console.warn(`Groq ${groqRes.status} (${model})`);
+      } catch (e) {
+        console.error(`Groq network error (${model}):`, e);
       }
-    } catch (e) {
-      console.error("Groq fetch network error:", e);
     }
-    // Fall through to Gemini
   }
+  // Fall through to Gemini
 
   const contents: unknown[] = [];
 
