@@ -1,10 +1,11 @@
 // Admin commands — only reachable when the message comes from ADMIN_CHAT_ID.
 //
 // Usage:
+//   approved → approve Payhip affiliate accounts for students awaiting approval
 //   Send any message containing a payhip link → Amara asks to confirm → tap Yes
 //   list → Show all active students
 
-import { sendMessage, sendWithKeyboard, answerCallbackQuery } from "./telegram.ts";
+import { sendMessage, sendWithKeyboard, answerCallbackQuery, typeMessage } from "./telegram.ts";
 import { getPendingEscalation, answerEscalation, skipEscalation, pendingCount } from "./knowledge.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -21,6 +22,12 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
   // list
   if (/^list\b/i.test(t)) {
     await listStudents(chatId);
+    return;
+  }
+
+  // approved — release students waiting for Payhip affiliate approval
+  if (/^approved$/i.test(t)) {
+    await approvePayhipStudents(chatId);
     return;
   }
 
@@ -118,12 +125,47 @@ async function sendGitHubAuthLink(adminChatId: number, payhipLink: string): Prom
   );
 }
 
+// ── Approve Payhip students ───────────────────────────────────────────────────
+
+async function approvePayhipStudents(adminChatId: number): Promise<void> {
+  const { data: waiting } = await supabase
+    .from("amara_students")
+    .select("id, telegram_chat_id, full_name")
+    .eq("status", "ACTIVE")
+    .eq("current_day", 1)
+    .eq("current_step", 5);
+
+  if (!waiting || waiting.length === 0) {
+    await sendMessage(adminChatId, "No students are currently waiting for Payhip approval.");
+    return;
+  }
+
+  for (const s of waiting as { id: string; telegram_chat_id: string; full_name: string | null }[]) {
+    const { count } = await supabase
+      .from("amara_students")
+      .update({ current_step: 6, updated_at: new Date().toISOString() })
+      .eq("id", s.id)
+      .eq("current_step", 5); // optimistic lock
+
+    if ((count ?? 0) === 0) continue;
+
+    await typeMessage(
+      s.telegram_chat_id,
+      `Great news! 🎉 Your Payhip affiliate account has been <b>approved!</b>\n\nNow go to your Payhip dashboard and find your <b>affiliate link</b> — it looks like <code>payhip.com/YourUsername</code> 🔗\n\nCopy it and paste it here!`
+    );
+  }
+
+  const names = (waiting as { full_name: string | null }[]).map((s) => s.full_name ?? "unnamed").join(", ");
+  await sendMessage(adminChatId, `✅ Approved and notified ${waiting.length} student(s): ${names}\n\nThey're now collecting their Payhip affiliate link!`);
+}
+
 // ── Help ──────────────────────────────────────────────────────────────────────
 
 async function sendHelp(chatId: number): Promise<void> {
   await sendMessage(
     chatId,
     `<b>Admin commands:</b>\n\n` +
+    `<code>approved</code> → Release students waiting for Payhip affiliate approval.\n\n` +
     `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Show all active students and their current day/step.`
   );

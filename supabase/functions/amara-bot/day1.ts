@@ -31,6 +31,9 @@ export async function handleDay1(
     case 5:
       await handleStep5(student, chatId, text, photo);
       break;
+    case 6:
+      await handleStep6(student, chatId, text, photo);
+      break;
     default:
       await sendMessage(chatId, "Oya let's continue! Send me that screenshot when you're ready 📸");
   }
@@ -150,34 +153,17 @@ async function sendStep4Prompt(chatId: number): Promise<void> {
   await typeMessage(chatId, `You'll see a <b>"Join as an Affiliate"</b> form — fill in your name, email and create a password, then click <b>"Create account"</b>.\n\nOnce your dashboard is ready, drop a screenshot here 📸`);
 }
 
-// Step 4: Payhip — collect payhip_link text AND dashboard screenshot
-// Sub-step tracking: if payhip_link is not set yet, we're waiting for text + photo
+// Step 4: Verify Payhip dashboard — then notify admin and wait for approval
 async function handleStep4(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
-  // If they send text that looks like a Payhip link, save it
-  if (text && /payhip\.com\//i.test(text)) {
-    const linkMatch = text.match(/payhip\.com\/[A-Za-z0-9_-]+/i);
-    if (linkMatch) {
-      const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "");
-      await updateStudent(student.id, { payhip_link: payhipLink });
-      await typeMessage(
-        chatId,
-        `Got your Payhip link! ✅ <code>${payhipLink}</code>\n\nNow show me a screenshot of your Payhip dashboard so I can confirm your account is active 📸`
-      );
-      return;
-    }
-  }
-
   if (!photo) {
     if (text) {
       const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text, `Student is on Day 1 Step 4 — they need to create a Payhip affiliate account using the link https://payhip.com/auth/register/af650fe07ce1c3c. They will see a "Join as an Affiliate" form to fill in. After signing up they'll have a Payhip affiliate dashboard and an affiliate link. ${student.payhip_link ? "They already sent their Payhip link: " + student.payhip_link + ". Now waiting for the dashboard screenshot." : "They haven't sent their affiliate link yet."}`, student.id);
+      const reply = await geminiChat(history, text,
+        `Student is on Day 1 Step 4 — they need to create a Payhip affiliate account using the link https://payhip.com/auth/register/af650fe07ce1c3c. They will see a "Join as an Affiliate" form. After signing up, ask them to send a screenshot of their Payhip dashboard.`,
+        student.id);
       await sendMessage(chatId, reply);
     } else {
-      if (!student.payhip_link) {
-        await sendStep4Prompt(chatId);
-      } else {
-        await sendMessage(chatId, "Great! Now send me a screenshot of your Payhip affiliate dashboard 📸");
-      }
+      await sendStep4Prompt(chatId);
     }
     return;
   }
@@ -197,25 +183,21 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     const isForm = /form/i.test(pageType) || /sign.?up|register|join|create.{0,10}account/i.test(result.reason ?? "");
 
     if (isForm) {
-      await typeMessage(chatId, `You're on the right page! 🎉\n\nNow fill in the form:\n📝 Enter your <b>First Name</b>, <b>Last Name</b>, <b>Email</b> and create a <b>Password</b>\n✅ Click <b>"Create account"</b>`);
+      await typeMessage(chatId, `You're on the right page! 🎉\n\nFill in the form:\n📝 Enter your <b>First Name</b>, <b>Last Name</b>, <b>Email</b> and create a <b>Password</b>\n✅ Click <b>"Create account"</b>`);
       await typeMessage(chatId, `Once your account is ready, send me a screenshot of your <b>Payhip dashboard</b> 📸`);
       return;
     }
 
-    // They have their affiliate dashboard
-    const updates: Partial<Student> = { payhip_account_created: true };
-    if (!student.payhip_link) {
-      await recordStepCompletion(student.id, 1, 4, true);
-      await updateStudent(student.id, updates);
-      await typeMessage(
-        chatId,
-        `Payhip account confirmed! ✅ You don do am! 🙌\n\nNow find your <b>affiliate link</b> in your Payhip dashboard and send it to me — that's the link that earns you commissions 🔗`
-      );
-      return;
-    }
+    // Dashboard confirmed — notify admin to approve and put student in waiting state
     await recordStepCompletion(student.id, 1, 4, true);
-    await advanceStep(student.id, 1, 5, updates);
-    await sendDay1Complete(student, chatId);
+    await advanceStep(student.id, 1, 5, { payhip_account_created: true });
+    await typeMessage(
+      chatId,
+      `Your Payhip account is set up! ✅ You don do am! 🙌\n\nI've notified your coach to approve your affiliate request — hold on a moment while I get that sorted for you 🙏`
+    );
+    await notifyAdmin(
+      `📋 <b>PAYHIP APPROVAL NEEDED</b>\n\nStudent: <b>${student.full_name}</b> just created their Payhip affiliate account!\n\nPlease go to Payhip and <b>approve their affiliate request</b> so they can get their link.\n\nReply <code>approved</code> when done 👇`
+    );
   } else {
     await handleFailedScreenshot(student, chatId, result.reason,
       result.guidance || "Use this link to sign up: <a href=\"https://payhip.com/auth/register/af650fe07ce1c3c\">https://payhip.com/auth/register/af650fe07ce1c3c</a> — you should see a 'Join as an Affiliate' form to fill in 📸",
@@ -223,31 +205,70 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   }
 }
 
+// Step 5: Waiting for admin to approve Payhip affiliate request
 async function handleStep5(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
-  // If they send a screenshot (e.g. showing their Payhip dashboard), guide them
   if (photo) {
     const guidance = await geminiVisionGuide(
       photo.bytes,
       photo.mimeType,
-      `Student is finishing Day 1. They have completed their Payhip dashboard screenshot and just need to share their Payhip store link (e.g. payhip.com/TheirUsername). ${student.payhip_link ? "They already shared their link: " + student.payhip_link + ". Day 1 is almost done!" : "They haven't shared their Payhip store link yet."}`,
+      `Student on Day 1 of EEM26 just created their Payhip affiliate account and is waiting for coach approval. They don't need to do anything else right now — just wait. Respond warmly and let them know their coach is reviewing their request.`,
       text ?? undefined
     );
     await sendMessage(chatId, guidance);
     return;
   }
 
-  // If we're in step 5 but payhip_link was just sent as text
-  if (text && /payhip\.com\//i.test(text) && !student.payhip_link) {
+  if (!text) {
+    await typeMessage(chatId, `Still waiting for your Payhip affiliate approval 🙏 Your coach will confirm shortly — hang tight! 😊`);
+    return;
+  }
+
+  const history = await getRecentConversation(student.id, 4);
+  const reply = await geminiChat(
+    history,
+    text,
+    `Student on Day 1 of EEM26 created their Payhip affiliate account and is waiting for their coach to approve their affiliate request. Once approved, Amara will guide them to find their link. Respond warmly and reassure them — approval usually comes quickly!`,
+    student.id
+  );
+  await sendMessage(chatId, reply);
+}
+
+// Step 6: Collect affiliate link after admin approval
+async function handleStep6(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
+  if (photo) {
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      `Student on Day 1 of EEM26 has their Payhip affiliate account approved! They need to find their affiliate/store link (looks like payhip.com/TheirUsername) in the Payhip dashboard and send it. Guide them based on what you see on screen.`,
+      text ?? undefined
+    );
+    await sendMessage(chatId, guidance);
+    return;
+  }
+
+  if (text && /payhip\.com\//i.test(text)) {
     const linkMatch = text.match(/payhip\.com\/[A-Za-z0-9_-]+/i);
     if (linkMatch) {
       const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "");
-      await advanceStep(student.id, 1, 5, { payhip_link: payhipLink });
+      await updateStudent(student.id, { payhip_link: payhipLink });
       await sendDay1Complete({ ...student, payhip_link: payhipLink }, chatId);
       return;
     }
   }
-  // Otherwise just trigger completion (already in step 5 = day 1 done)
-  await sendDay1Complete(student, chatId);
+
+  if (text) {
+    const history = await getRecentConversation(student.id, 6);
+    const reply = await geminiChat(
+      history,
+      text,
+      `Student on Day 1 of EEM26 has their Payhip affiliate account approved! They need to find their Payhip affiliate/store link (looks like payhip.com/TheirUsername) in their dashboard and paste it here. Help them find it.`,
+      student.id
+    );
+    await sendMessage(chatId, reply);
+    return;
+  }
+
+  await typeMessage(chatId, `Find your <b>Payhip affiliate link</b> in your dashboard — it looks like <code>payhip.com/YourUsername</code> 🔗\n\nCopy it and paste it here! 👇`);
 }
 
 async function sendDay1Complete(student: Student, chatId: number): Promise<void> {
