@@ -2,6 +2,7 @@ import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
 import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, computeNextUnlockAt, getRecentConversation } from "./db.ts";
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin } from "./admin.ts";
+import { createEscalation } from "./knowledge.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const READY_WORDS = /\b(ready|let'?s go|start|begin|ok|okay|yes|go|proceed|continue|oya|sure|done)\b/i;
@@ -205,13 +206,45 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   }
 }
 
-// Step 5: Waiting for admin to approve Payhip affiliate request
+// Step 5: Waiting for admin to approve Payhip affiliate request.
+// If the student already has their link (approved externally), accept it right here.
 async function handleStep5(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
+  // Student pastes their payhip link → they're already approved externally, complete Day 1
+  if (text && /payhip\.com\//i.test(text)) {
+    const linkMatch = text.match(/payhip\.com\/[A-Za-z0-9_\/-]+/i);
+    if (linkMatch) {
+      const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+      await updateStudent(student.id, { payhip_link: payhipLink });
+      await typeMessage(chatId, `Got it! 🎉 Your affiliate link is saved and you're all set!`);
+      await sendDay1Complete({ ...student, payhip_link: payhipLink }, chatId);
+      return;
+    }
+  }
+
+  // Photo — check if affiliate link is visible in the screenshot; if so, extract and proceed
   if (photo) {
+    const prompt = buildVerificationPrompt(
+      "Does this screenshot show a Payhip page where an affiliate link URL is clearly visible? The URL looks like 'payhip.com/b/XXXX' or 'https://payhip.com/b/XXXX/...'.",
+      ["affiliate_link: paste the exact payhip URL you can see (e.g. https://payhip.com/b/xeqSM), or write 'none' if no link is clearly visible"]
+    );
+    const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
+
+    if (result.verified && result.extracted?.affiliate_link && result.extracted.affiliate_link !== "none") {
+      const raw = result.extracted.affiliate_link;
+      const linkMatch = raw.match(/payhip\.com\/[A-Za-z0-9_\/-]+/i);
+      if (linkMatch) {
+        const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+        await updateStudent(student.id, { payhip_link: payhipLink });
+        await typeMessage(chatId, `I can see your affiliate link right there! ✅ You're already approved — let's wrap up Day 1! 🎉`);
+        await sendDay1Complete({ ...student, payhip_link: payhipLink }, chatId);
+        return;
+      }
+    }
+
     const guidance = await geminiVisionGuide(
       photo.bytes,
       photo.mimeType,
-      `Student on Day 1 of EEM26 just created their Payhip affiliate account and is waiting for coach approval. They don't need to do anything else right now — just wait. Respond warmly and let them know their coach is reviewing their request.`,
+      `Student on Day 1 of EEM26 is waiting for Payhip affiliate approval. If their screenshot shows an affiliate link (payhip.com/...), tell them to copy it and paste it in the chat. Otherwise respond warmly and ask them to hang on.`,
       text ?? undefined
     );
     await sendMessage(chatId, guidance);
@@ -219,7 +252,7 @@ async function handleStep5(student: Student, chatId: number, text: string | null
   }
 
   if (!text) {
-    await typeMessage(chatId, `Still waiting for your Payhip affiliate approval 🙏 Your coach will confirm shortly — hang tight! 😊`);
+    await typeMessage(chatId, `Still waiting for your Payhip affiliate approval 🙏 If you already see a link in your Payhip dashboard, just paste it here and we'll move on! Otherwise hang tight — your coach will confirm shortly 😊`);
     return;
   }
 
@@ -227,7 +260,7 @@ async function handleStep5(student: Student, chatId: number, text: string | null
   const reply = await geminiChat(
     history,
     text,
-    `Student on Day 1 of EEM26 created their Payhip affiliate account and is waiting for their coach to approve their affiliate request. Once approved, Amara will guide them to find their link. Respond warmly and reassure them — approval usually comes quickly!`,
+    `Student on Day 1 of EEM26 is waiting for Payhip affiliate approval. If they say they're already approved or have their link, ask them to paste the link (payhip.com/...) or send a screenshot showing the link. If they're just waiting, reassure them warmly.`,
     student.id
   );
   await sendMessage(chatId, reply);
@@ -247,9 +280,9 @@ async function handleStep6(student: Student, chatId: number, text: string | null
   }
 
   if (text && /payhip\.com\//i.test(text)) {
-    const linkMatch = text.match(/payhip\.com\/[A-Za-z0-9_-]+/i);
+    const linkMatch = text.match(/payhip\.com\/[A-Za-z0-9_\/-]+/i);
     if (linkMatch) {
-      const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "");
+      const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "").replace(/\/+$/, "");
       await updateStudent(student.id, { payhip_link: payhipLink });
       await sendDay1Complete({ ...student, payhip_link: payhipLink }, chatId);
       return;
@@ -261,7 +294,7 @@ async function handleStep6(student: Student, chatId: number, text: string | null
     const reply = await geminiChat(
       history,
       text,
-      `Student on Day 1 of EEM26 has their Payhip affiliate account approved! They need to find their Payhip affiliate/store link (looks like payhip.com/TheirUsername) in their dashboard and paste it here. Help them find it.`,
+      `Student on Day 1 of EEM26 has their Payhip affiliate account approved! They need to find their Payhip affiliate/store link (looks like payhip.com/YourUsername or payhip.com/b/XXXX) in their dashboard and paste it here. Help them find it.`,
       student.id
     );
     await sendMessage(chatId, reply);
@@ -300,11 +333,25 @@ async function handleFailedScreenshot(
   }
   const attempts = student.screenshot_attempts + 1;
   await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
-  if (attempts >= 5) {
+
+  // After 4 failed attempts, escalate to admin with full context so they can reply directly
+  if (attempts >= 4) {
     await resetScreenshotAttempts(student.id);
-    await notifyAdmin(
-      `⚠️ <b>STUDENT STUCK — 5 ATTEMPTS</b>\n\nName: ${student.full_name}\nDay: ${student.current_day}, Step: ${student.current_step}\n\nAmara has guided this student ${attempts} times without success.\nLast screenshot: ${reason}\n\nManual help may be needed.`
+    const recentHistory = await getRecentConversation(student.id, 6);
+    const recentText = recentHistory
+      .slice(-6)
+      .map((m) => `${m.role === "user" ? "Student" : "Amara"}: ${m.message}`)
+      .join("\n\n");
+
+    await createEscalation(
+      student.id,
+      String(chatId),
+      student.full_name,
+      `Student stuck on Day ${student.current_day} Step ${student.current_step} after ${attempts} attempts.\n\nLast screenshot showed: "${reason}"\n\nRecent conversation:\n${recentText}`
     );
+
+    await typeMessage(chatId, `I've passed this straight to Coach Victor 🙏 He'll check your situation and I'll bring his answer right back to you — just hold on! 😊`);
+    return;
   }
 
   if (photo && stepContext) {
