@@ -281,6 +281,30 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       results.botReminders = botReminderCount;
     }
 
+    // ── 5. Daily Saturday session reminder for COMPLETED graduates ────────────
+    // Runs once at 8AM Nigeria (07:00 UTC) every morning
+    if (utcHour === 7 && utcMin < 5) {
+      const morningCutoff = new Date(now);
+      morningCutoff.setUTCHours(6, 55, 0, 0);
+
+      const { data: graduates } = await supabase
+        .from("amara_students")
+        .select("id, telegram_chat_id")
+        .eq("status", "COMPLETED")
+        .or(`last_proactive_at.is.null,last_proactive_at.lt.${morningCutoff.toISOString()}`);
+
+      let graduateReminderCount = 0;
+      for (const s of graduates ?? []) {
+        await sendTelegram(
+          s.telegram_chat_id,
+          `☀️ <b>Good morning, EEM26 graduate!</b>\n\nJust a reminder — Coach Victor's <b>Final Stage Setup session</b> is every <b>Saturday at 8:30 PM Nigeria time</b> 🎯\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n⚠️ Don't miss it — see you there! 🏆`
+        );
+        await markProactiveSent(s.id);
+        graduateReminderCount++;
+      }
+      results.graduateReminders = graduateReminderCount;
+    }
+
     console.log("Cron result:", JSON.stringify(results));
     return new Response(JSON.stringify({ ...results, timestamp: nowIso }), {
       status: 200,

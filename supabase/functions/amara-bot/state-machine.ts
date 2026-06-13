@@ -103,6 +103,9 @@ export async function routeMessage(
     }
 
     // Route to day handler
+    // Completed students get no reply — the cron sends daily Saturday session reminders
+    if (student.status === "COMPLETED") return;
+
     switch (student.current_day) {
       case 0:
         await handleOnboarding(msg, student, chatId, cleanText);

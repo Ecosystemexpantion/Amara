@@ -196,11 +196,15 @@ async function sendGrandFinale(student: Student, chatId: number): Promise<void> 
   );
   await typeMessage(
     chatId,
-    `<b>Welcome to the EEM26 family. Now go make money! 🔥</b>\n\nAsk me anything, any time — I dey here for you! 💪`
+    `<b>Welcome to the EEM26 family. Now go make money! 🔥</b>`
   );
   await typeMessage(
     chatId,
-    `🎯 <b>One more thing — your Final Stage Setup with Coach Victor!</b>\n\nEvery <b>Saturday at 8:30 PM Nigeria time</b>, Coach Victor holds a live session for EEM26 graduates to complete your final stage setup.\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group now</a>\n\n⚠️ Miss it and you wait another full week — so make sure you're there! 🏆`
+    `🎯 <b>One last thing — your Final Stage Setup with Coach Victor!</b>\n\nEvery <b>Saturday at 8:30 PM Nigeria time</b>, Coach Victor holds a live session for EEM26 graduates.\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group now</a>\n\n⚠️ Miss it and you wait another full week — don't miss it! 🏆`
+  );
+  await typeMessage(
+    chatId,
+    `I'll send you a morning reminder every day until you attend the session 📅 See you on Saturday! 💪`
   );
 
   await notifyAdmin(
