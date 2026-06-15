@@ -345,19 +345,26 @@ export async function geminiVision(
     }
   }
 
-  // All Gemini quota exhausted — try Groq vision as last resort
-  const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-  if (GROQ_API_KEY) {
-    const groqModels = [
-      "meta-llama/llama-4-scout-17b-16e-instruct",
-      "llama-3.2-90b-vision-preview",
-      "llama-3.2-11b-vision-preview",
-    ];
+  // All Gemini quota exhausted — try Groq vision keys
+  const groqModels = [
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "llama-3.2-90b-vision-preview",
+    "llama-3.2-11b-vision-preview",
+  ];
+  const groqKeys = [
+    Deno.env.get("GROQ_API_KEY"),
+    Deno.env.get("GROQ_API_KEY_2"),
+    Deno.env.get("GROQ_API_KEY_3"),
+    Deno.env.get("GROQ_API_KEY_4"),
+    Deno.env.get("GROQ_API_KEY_5"),
+  ].filter(Boolean) as string[];
+
+  for (const groqKey of groqKeys) {
     for (const model of groqModels) {
       try {
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
           body: JSON.stringify({
             model,
             messages: [{
@@ -383,6 +390,41 @@ export async function geminiVision(
       } catch (e) {
         console.error(`Groq vision exception (${model}):`, e);
       }
+    }
+  }
+
+  // All Gemini and Groq exhausted — try Claude as final fallback
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (anthropicKey) {
+    try {
+      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 700,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } },
+              { type: "text", text: verificationPrompt },
+            ],
+          }],
+        }),
+      });
+      if (claudeRes.ok) {
+        const claudeData = await claudeRes.json();
+        const rawText: string = claudeData.content?.[0]?.text?.trim() ?? "";
+        if (rawText) { console.log("Vision OK: claude-haiku fallback"); return parseVisionText(rawText); }
+      } else {
+        console.warn(`Claude vision ${claudeRes.status}: ${await claudeRes.text()}`);
+      }
+    } catch (e) {
+      console.error("Claude vision exception:", e);
     }
   }
 
@@ -447,19 +489,26 @@ Respond in Amara's warm, natural style with Nigerian Pidgin where it fits.`;
     }
   }
 
-  // Groq vision fallback
-  const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-  if (GROQ_API_KEY) {
-    const groqModels = [
-      "meta-llama/llama-4-scout-17b-16e-instruct",
-      "llama-3.2-90b-vision-preview",
-      "llama-3.2-11b-vision-preview",
-    ];
-    for (const model of groqModels) {
+  // Groq vision fallback — all keys
+  const guideGroqModels = [
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "llama-3.2-90b-vision-preview",
+    "llama-3.2-11b-vision-preview",
+  ];
+  const guideGroqKeys = [
+    Deno.env.get("GROQ_API_KEY"),
+    Deno.env.get("GROQ_API_KEY_2"),
+    Deno.env.get("GROQ_API_KEY_3"),
+    Deno.env.get("GROQ_API_KEY_4"),
+    Deno.env.get("GROQ_API_KEY_5"),
+  ].filter(Boolean) as string[];
+
+  for (const groqKey of guideGroqKeys) {
+    for (const model of guideGroqModels) {
       try {
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
           body: JSON.stringify({
             model,
             messages: [{ role: "user", content: [
@@ -480,6 +529,39 @@ Respond in Amara's warm, natural style with Nigerian Pidgin where it fits.`;
       } catch (e) {
         console.error(`geminiVisionGuide Groq exception (${model}):`, e);
       }
+    }
+  }
+
+  // Claude final fallback
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (anthropicKey) {
+    try {
+      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 400,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } },
+              { type: "text", text: prompt },
+            ],
+          }],
+        }),
+      });
+      if (claudeRes.ok) {
+        const claudeData = await claudeRes.json();
+        const text: string = claudeData.content?.[0]?.text?.trim() ?? "";
+        if (text) { console.log("VisionGuide OK: claude-haiku fallback"); return text; }
+      }
+    } catch (e) {
+      console.error("geminiVisionGuide Claude exception:", e);
     }
   }
 
