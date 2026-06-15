@@ -3,6 +3,7 @@ import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreensho
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { generateCertificate } from "./certificate.ts";
 import { notifyAdmin } from "./admin.ts";
+import { createEscalation } from "./knowledge.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 export async function handleDay4(
@@ -221,16 +222,32 @@ async function handleFailed(
   stepContext?: string
 ): Promise<void> {
   if (reason === "verification_unavailable") {
-    await sendMessage(chatId, "Photo check had a small hiccup 😊 — please send that screenshot again!");
+    await createEscalation(
+      student.id,
+      String(chatId),
+      student.full_name,
+      `Vision check failed for Day 4 Step ${student.current_step}. Student sent a screenshot but Amara couldn't read it (API issue). They need to: ${retryMsg}. What should I tell them?`
+    );
+    await typeMessage(chatId, `I'm checking on this for you 🙏 Just a moment!`);
     return;
   }
   const attempts = student.screenshot_attempts + 1;
   await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
-  if (attempts >= 5) {
+  if (attempts >= 4) {
     await resetScreenshotAttempts(student.id);
-    await notifyAdmin(
-      `⚠️ <b>STUDENT STUCK — 5 ATTEMPTS</b>\nName: ${student.full_name}\nDay: 4, Step: ${student.current_step}\n\nAmara has guided ${attempts} times without success.\nLast screenshot: ${reason}\n\nManual help may be needed.`
+    const recentHistory = await getRecentConversation(student.id, 6);
+    const recentText = recentHistory
+      .slice(-6)
+      .map((m) => `${m.role === "user" ? "Student" : "Amara"}: ${m.message}`)
+      .join("\n\n");
+    await createEscalation(
+      student.id,
+      String(chatId),
+      student.full_name,
+      `Student stuck on Day 4 Step ${student.current_step} after ${attempts} attempts.\n\nLast screenshot showed: "${reason}"\n\nRecent conversation:\n${recentText}`
     );
+    await typeMessage(chatId, `I've passed this straight to Coach Victor 🙏 He'll check your situation and I'll bring his answer right back to you — just hold on! 😊`);
+    return;
   }
 
   if (photo && stepContext) {

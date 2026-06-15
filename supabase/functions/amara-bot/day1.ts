@@ -328,7 +328,14 @@ async function handleFailedScreenshot(
   stepContext?: string
 ): Promise<void> {
   if (reason === "verification_unavailable") {
-    await sendMessage(chatId, "Photo check had a small hiccup 😊 — please send that screenshot again!");
+    // Vision API failed — escalate so admin can reply with guidance that goes back to student
+    await createEscalation(
+      student.id,
+      String(chatId),
+      student.full_name,
+      `Vision check failed for Day ${student.current_day} Step ${student.current_step}. Student sent a screenshot but Amara couldn't read it (API issue). They need to: ${retryMessage}. What should I tell them?`
+    );
+    await typeMessage(chatId, `I'm checking on this for you 🙏 Just a moment!`);
     return;
   }
   const attempts = student.screenshot_attempts + 1;
