@@ -93,8 +93,16 @@ async function handleStep2(student: Student, chatId: number, text: string | null
   }
 
   const prompt = buildVerificationPrompt(
-    "Does this screenshot show anything from Selar.com? This includes: the Selar registration/signup page, the Selar login page, OR the Selar creator/seller dashboard (with products, sales, customers). ANY of these count as valid.",
-    ["page_type: write exactly 'dashboard' if they are logged in showing their creator account stats, write 'registration' if showing a signup or login form"]
+    "Does this screenshot show anything from Selar.com — including partial or cropped views?\n\n" +
+    "ACCEPT as valid if you see ANY of these:\n" +
+    "- Selar logo or the word 'Selar' anywhere\n" +
+    "- A purple/dark sidebar or header labeled 'Creator Profile'\n" +
+    "- A menu with items like: Home, Sales, Products, Customers, Affiliates, Bookings, Coupons — these are Selar's specific menu items\n" +
+    "- A Selar signup/registration/login page\n" +
+    "- A Selar seller dashboard showing stats, sales numbers, or product listings\n" +
+    "- The URL 'selar.com' visible anywhere\n\n" +
+    "A cropped screenshot showing ONLY the sidebar menu with these items still counts as a valid Selar screenshot.",
+    ["page_type: write 'dashboard' if they appear to be logged in (sidebar, menu, or stats visible), write 'registration' if showing a signup or login form"]
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
@@ -131,7 +139,13 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   }
 
   const prompt = buildVerificationPrompt(
-    "Does this screenshot show a Selar seller or creator dashboard? Look for the Selar logo, navigation menu, seller stats, or a creator/seller account dashboard."
+    "Does this screenshot show a Selar creator or seller account — including partial/cropped views?\n\n" +
+    "ACCEPT as valid if you see ANY of these:\n" +
+    "- A purple/dark sidebar or header labeled 'Creator Profile'\n" +
+    "- Menu items like: Home, Sales, Products, Show Love, Customers, Affiliates, Bookings, Coupons/Discounts — these are Selar's unique navigation items\n" +
+    "- Selar logo or 'selar.com' in the URL\n" +
+    "- A logged-in seller dashboard showing sales stats, products list, or earnings\n\n" +
+    "A cropped screenshot showing ONLY the sidebar/menu area with these items still counts as a valid Selar dashboard."
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
