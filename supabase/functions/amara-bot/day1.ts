@@ -93,24 +93,33 @@ async function handleStep2(student: Student, chatId: number, text: string | null
   }
 
   const prompt = buildVerificationPrompt(
-    "Does this screenshot show anything from Selar.com — including partial or cropped views?\n\n" +
-    "ACCEPT as valid if you see ANY of these:\n" +
+    "Does this screenshot show anything related to Selar.com — the Nigerian digital product marketplace?\n\n" +
+    "ACCEPT as valid (write verified=true) if you see ANY of these:\n" +
     "- Selar logo or the word 'Selar' anywhere\n" +
     "- A purple/dark sidebar or header labeled 'Creator Profile'\n" +
-    "- A menu with items like: Home, Sales, Products, Customers, Affiliates, Bookings, Coupons — these are Selar's specific menu items\n" +
+    "- Menu items: Home, Sales, Products, Customers, Affiliates, Bookings, Coupons — Selar's unique menu\n" +
     "- A Selar signup/registration/login page\n" +
-    "- A Selar seller dashboard showing stats, sales numbers, or product listings\n" +
-    "- The URL 'selar.com' visible anywhere\n\n" +
-    "A cropped screenshot showing ONLY the sidebar menu with these items still counts as a valid Selar screenshot.",
-    ["page_type: write 'dashboard' if they appear to be logged in (sidebar, menu, or stats visible), write 'registration' if showing a signup or login form"]
+    "- A seller/creator dashboard showing stats, products, or earnings\n" +
+    "- selar.com in any URL bar\n" +
+    "- An account Profile Settings page with name/email fields (even without Selar logo — this means they are logged in as a creator)\n" +
+    "- A product creation page listing types like: Digital, Course, Subscription, Physical Product, Bundle\n" +
+    "- A store page showing 'Store Home', 'Dashboard', 'Purchases', 'Logout' (this is a logged-in Selar user viewing their store)\n\n" +
+    "REJECT only if the screenshot clearly shows a completely different website (not Selar at all).\n" +
+    "When in doubt, accept — it is better to accept a genuine student than to reject them.",
+    ["page_type: write 'dashboard' if logged in and on any account/management/store page, write 'registration' if showing a signup or login form, write 'store_buyer_view' if showing a store page with Store Home/Dashboard/Purchases links"]
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.verified) {
     await recordStepCompletion(student.id, 1, 2, true);
-    const isDashboard = /dashboard/i.test(result.extracted?.page_type ?? "") || /dashboard/i.test(result.reason ?? "");
+    const pageType = result.extracted?.page_type ?? "";
+    const isBuyerView = /store_buyer_view/i.test(pageType);
+    const isDashboard = !isBuyerView && (/dashboard/i.test(pageType) || /dashboard/i.test(result.reason ?? ""));
 
-    if (isDashboard) {
+    if (isBuyerView) {
+      // Student is on their store page as a logged-in user — guide them to creator dashboard
+      await typeMessage(chatId, `You're on your Selar store! Almost there 🎉\n\nNow tap <b>"Dashboard"</b> from that menu to get to your creator dashboard, then send me a screenshot of what you see 📸`);
+    } else if (isDashboard) {
       await advanceStep(student.id, 1, 4, { selar_account_created: true });
       await typeMessage(chatId, `Ayyyy you're already on Selar!! ✅ You don do am! 🙌`);
       await new Promise((r) => setTimeout(r, 300));
@@ -121,7 +130,7 @@ async function handleStep2(student: Student, chatId: number, text: string | null
     }
   } else {
     await handleFailedScreenshot(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and screenshot the Selar page 📸",
-      photo, "Student needs to be on the Selar website (selar.com) — either the signup/registration page or their creator/seller dashboard. Guide them based on exactly what you can see on their screen.");
+      photo, "Student needs to be on the Selar website (selar.com). Guide them based on exactly what you can see on their screen. If they are on a Profile Settings page or any account management page, tell them to go back to selar.com and click on Dashboard.");
   }
 }
 
@@ -139,13 +148,15 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   }
 
   const prompt = buildVerificationPrompt(
-    "Does this screenshot show a Selar creator or seller account — including partial/cropped views?\n\n" +
+    "Does this screenshot show a logged-in Selar creator or seller account?\n\n" +
     "ACCEPT as valid if you see ANY of these:\n" +
-    "- A purple/dark sidebar or header labeled 'Creator Profile'\n" +
-    "- Menu items like: Home, Sales, Products, Show Love, Customers, Affiliates, Bookings, Coupons/Discounts — these are Selar's unique navigation items\n" +
-    "- Selar logo or 'selar.com' in the URL\n" +
-    "- A logged-in seller dashboard showing sales stats, products list, or earnings\n\n" +
-    "A cropped screenshot showing ONLY the sidebar/menu area with these items still counts as a valid Selar dashboard."
+    "- Creator Profile sidebar (purple/dark) with menu items: Home, Sales, Products, Customers, Affiliates, Bookings\n" +
+    "- A Selar seller dashboard showing stats, product listings, or earnings\n" +
+    "- An account management page (Profile Settings, Payout settings) with name/email fields — this means logged in as creator\n" +
+    "- A product creation/management page with product types (Digital, Course, Bundle, Subscription, Physical Product)\n" +
+    "- selar.com visible in a URL bar\n\n" +
+    "REJECT only if it is clearly a completely different website, not Selar.\n" +
+    "When in doubt, accept — a student showing any Selar account page has completed this step."
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
@@ -290,14 +301,24 @@ async function handleStep6(student: Student, chatId: number, text: string | null
     const reply = await geminiChat(
       history,
       text,
-      `Student on Day 1 of EEM26 has their Payhip affiliate account approved! They need to find their Payhip affiliate/store link (looks like payhip.com/YourUsername or payhip.com/b/XXXX) in their dashboard and paste it here. Help them find it.`,
+      `Student on Day 1 of EEM26 has their Payhip affiliate account approved! They need to find their Payhip affiliate/store link.
+
+How to find the Payhip affiliate link:
+1. On the Payhip dashboard, they will see their product listed (e.g. TECH-STACK)
+2. Click on the product name to open it
+3. Look for a section that says "This is your affiliate product link, share it to start selling:" — the link is shown right there (looks like payhip.com/b/XXXX)
+4. They can also look at the "Dashboard" page — it says "Grab your affiliate links below to start promoting"
+
+The affiliate link does NOT appear on the Sales page. If the student is on the Sales page, tell them to go back to their Payhip Dashboard.
+
+Ask them to copy the link and paste it here.`,
       student.id
     );
     await sendMessage(chatId, reply);
     return;
   }
 
-  await typeMessage(chatId, `Find your <b>Payhip affiliate link</b> in your dashboard — it looks like <code>payhip.com/YourUsername</code> 🔗\n\nCopy it and paste it here! 👇`);
+  await typeMessage(chatId, `Your affiliate link is on your <b>Payhip Dashboard</b> — click on your product name (TECH-STACK) and look for the section that says <b>"This is your affiliate product link"</b> 🔗\n\nCopy that link and paste it here! 👇`);
 }
 
 async function sendDay1Complete(student: Student, chatId: number): Promise<void> {
