@@ -221,9 +221,10 @@ async function handleStep4(student: Student, chatId: number, text: string | null
 }
 
 // Step 5: Waiting for admin to approve Payhip affiliate request.
-// If the student already has their link (approved externally), accept it right here.
+// Amara is SILENT here — student was already told to wait.
+// Only exception: if they paste/show their link (approved externally), accept it immediately.
 async function handleStep5(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
-  // Student pastes their payhip link → they're already approved externally, complete Day 1
+  // Student pastes their payhip link → already approved externally, complete Day 1
   if (text && /payhip\.com\//i.test(text)) {
     const linkMatch = text.match(/payhip\.com\/[A-Za-z0-9_\/-]+/i);
     if (linkMatch) {
@@ -235,7 +236,7 @@ async function handleStep5(student: Student, chatId: number, text: string | null
     }
   }
 
-  // Photo — check if affiliate link is visible in the screenshot; if so, extract and proceed
+  // Photo — check if affiliate link is visible; if so, extract and proceed
   if (photo) {
     const prompt = buildVerificationPrompt(
       "Does this screenshot show a Payhip page where an affiliate link URL is clearly visible? The URL looks like 'payhip.com/b/XXXX' or 'https://payhip.com/b/XXXX/...'.",
@@ -254,30 +255,11 @@ async function handleStep5(student: Student, chatId: number, text: string | null
         return;
       }
     }
-
-    const guidance = await geminiVisionGuide(
-      photo.bytes,
-      photo.mimeType,
-      `Student on Day 1 of EEM26 is waiting for Payhip affiliate approval. If their screenshot shows an affiliate link (payhip.com/...), tell them to copy it and paste it in the chat. Otherwise respond warmly and ask them to hang on.`,
-      text ?? undefined
-    );
-    await sendMessage(chatId, guidance);
+    // Photo sent but no link visible — stay silent
     return;
   }
 
-  if (!text) {
-    await typeMessage(chatId, `Still waiting for your Payhip affiliate approval 🙏 If you already see a link in your Payhip dashboard, just paste it here and we'll move on! Otherwise hang tight — your coach will confirm shortly 😊`);
-    return;
-  }
-
-  const history = await getRecentConversation(student.id, 4);
-  const reply = await geminiChat(
-    history,
-    text,
-    `Student on Day 1 of EEM26 is waiting for Payhip affiliate approval. If they say they're already approved or have their link, ask them to paste the link (payhip.com/...) or send a screenshot showing the link. If they're just waiting, reassure them warmly.`,
-    student.id
-  );
-  await sendMessage(chatId, reply);
+  // Everything else — complete silence. Student was already told to wait once.
 }
 
 // Step 6: Collect affiliate link after admin approval
