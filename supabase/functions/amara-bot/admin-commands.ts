@@ -31,6 +31,12 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
     return;
   }
 
+  // skip stage2 — skip Payhip for all stuck Day 1 students, unlock Day 2 immediately
+  if (/^skip\s+stage\s*2$/i.test(t)) {
+    await skipStage2ForStuckStudents(chatId);
+    return;
+  }
+
   // Detect a payhip link anywhere in the message
   const payhipMatch = t.match(/https?:\/\/payhip\.com\/\S+/i);
   if (payhipMatch) {
@@ -125,6 +131,53 @@ async function sendGitHubAuthLink(adminChatId: number, payhipLink: string): Prom
   );
 }
 
+// ── Skip stage 2 for stuck students ──────────────────────────────────────────
+
+async function skipStage2ForStuckStudents(adminChatId: number): Promise<void> {
+  // Find all active students stuck anywhere in Day 1 step 4 or 5 (Payhip steps)
+  const { data: stuck } = await supabase
+    .from("amara_students")
+    .select("id, telegram_chat_id, full_name, current_step")
+    .eq("status", "ACTIVE")
+    .eq("current_day", 1)
+    .in("current_step", [4, 5]);
+
+  if (!stuck || stuck.length === 0) {
+    await sendMessage(adminChatId, "No students are currently stuck on stage 2 (Payhip steps).");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let count = 0;
+
+  for (const s of stuck as { id: string; telegram_chat_id: string; full_name: string | null; current_step: number }[]) {
+    // Mark Day 1 complete and unlock Day 2 immediately (step 1 = ready to start)
+    await supabase
+      .from("amara_students")
+      .update({
+        current_day: 2,
+        current_step: 1,
+        day1_completed_at: now,
+        next_day_unlocks_at: null,
+        updated_at: now,
+      })
+      .eq("id", s.id)
+      .eq("current_day", 1);
+
+    await typeMessage(
+      s.telegram_chat_id,
+      `Great news! 🎉 Coach Victor has personally promised to complete your <b>Payhip affiliate setup</b> for you during the <b>Final Stage Setup session on Saturday at 8:30 PM Nigeria time</b>! 🏆\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a> so you don't miss it — Coach Victor will handle your Payhip link there!\n\nIn the meantime, your <b>Day 2 is now UNLOCKED!</b> 🚀 Let's keep moving — reply <b>"ready"</b> to continue! 💪`
+    );
+    count++;
+  }
+
+  const names = (stuck as { full_name: string | null }[]).map((s) => s.full_name ?? "unnamed").join(", ");
+  await sendMessage(
+    adminChatId,
+    `✅ Skipped stage 2 and unlocked Day 2 for ${count} student(s):\n\n${names}\n\nThey've been told Coach Victor will handle their Payhip setup on Saturday.`
+  );
+}
+
 // ── Approve Payhip students ───────────────────────────────────────────────────
 
 async function approvePayhipStudents(adminChatId: number): Promise<void> {
@@ -166,6 +219,7 @@ async function sendHelp(chatId: number): Promise<void> {
     chatId,
     `<b>Admin commands:</b>\n\n` +
     `<code>approved</code> → Release students waiting for Payhip affiliate approval.\n\n` +
+    `<code>skip stage2</code> → Skip Payhip for ALL students stuck on Day 1 Steps 4–5, tell them Coach Victor will handle it on Saturday, and unlock Day 2 immediately.\n\n` +
     `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Show all active students and their current day/step.`
   );
