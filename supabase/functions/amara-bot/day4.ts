@@ -60,6 +60,17 @@ async function handleStep1(student: Student, chatId: number, text: string | null
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
+  if (result.reason === "verification_unavailable") {
+    notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 4 Step 1 for ${student.full_name}`).catch(() => {});
+    await recordStepCompletion(student.id, 4, 1, true);
+    await advanceStep(student.id, 4, 3);
+    await typeMessage(chatId, `<b>YOUR BOT IS CONFIRMED LIVE! 🔥🔥🔥</b>\n\nYour SRE — Smart Reply Engine from your Tech Stack 📦 — is RUNNING and making money for you 24/7!`);
+    await typeMessage(chatId, `✅ GitHub Pages — 2 live sales pages\n✅ Selar store — accepting orders\n✅ Payhip affiliate — earning commissions\n✅ AI sales bot — running 24/7\n\nNow there's just ONE last step... 👇`);
+    await new Promise((r) => setTimeout(r, 300));
+    await sendCertificateRequest(chatId);
+    return;
+  }
+
   if (result.verified) {
     await recordStepCompletion(student.id, 4, 1, true);
     // Advance directly to step 3 (signature) — skipping the bridge step entirely.
@@ -221,16 +232,6 @@ async function handleFailed(
   photo?: { bytes: Uint8Array; mimeType: string } | null,
   stepContext?: string
 ): Promise<void> {
-  if (reason === "verification_unavailable") {
-    await createEscalation(
-      student.id,
-      String(chatId),
-      student.full_name,
-      `Vision check failed for Day 4 Step ${student.current_step}. Student sent a screenshot but Amara couldn't read it (API issue). They need to: ${retryMsg}. What should I tell them?`
-    );
-    await typeMessage(chatId, `I'm checking on this for you 🙏 Just a moment!`);
-    return;
-  }
   const attempts = student.screenshot_attempts + 1;
   await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
   if (attempts >= 4) {

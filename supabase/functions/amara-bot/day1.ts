@@ -110,6 +110,14 @@ async function handleStep2(student: Student, chatId: number, text: string | null
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
+  if (result.reason === "verification_unavailable") {
+    notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 1 Step 2 for ${student.full_name}`).catch(() => {});
+    await recordStepCompletion(student.id, 1, 2, true);
+    await advanceStep(student.id, 1, 3);
+    await typeMessage(chatId, `You're on the right page! 🎉\n\nNow <b>complete the registration</b> — fill in your details and verify your email.\n\nOnce your Selar <b>dashboard</b> is active, snap a screenshot and send it over 📸`);
+    return;
+  }
+
   if (result.verified) {
     await recordStepCompletion(student.id, 1, 2, true);
     const pageType = result.extracted?.page_type ?? "";
@@ -160,6 +168,16 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
+  if (result.reason === "verification_unavailable") {
+    notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 1 Step 3 for ${student.full_name}`).catch(() => {});
+    await recordStepCompletion(student.id, 1, 3, true);
+    await advanceStep(student.id, 1, 4, { selar_account_created: true });
+    await typeMessage(chatId, `Selar account — DONE! ✅ You don do am! 🙌`);
+    await new Promise((r) => setTimeout(r, 300));
+    await sendStep4Prompt(chatId);
+    return;
+  }
+
   if (result.verified) {
     await recordStepCompletion(student.id, 1, 3, true);
     await advanceStep(student.id, 1, 4, { selar_account_created: true });
@@ -203,6 +221,16 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     ["page_type: write 'form' if showing the affiliate signup form, write 'dashboard' if showing a logged-in affiliate dashboard"]
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
+
+  if (result.reason === "verification_unavailable") {
+    // Vision APIs exhausted — assume they have the dashboard ready, advance and notify admin
+    notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 1 Step 4 for ${student.full_name}`).catch(() => {});
+    await recordStepCompletion(student.id, 1, 4, true);
+    await advanceStep(student.id, 1, 5, { payhip_account_created: true });
+    await typeMessage(chatId, `Your Payhip account is set up! ✅ You don do am! 🙌\n\nI've notified your coach to approve your affiliate request — hold on a moment while I get that sorted for you 🙏`);
+    await notifyAdmin(`📋 <b>PAYHIP APPROVAL NEEDED</b>\n\nStudent: <b>${student.full_name}</b> just created their Payhip affiliate account!\n\nPlease go to Payhip and <b>approve their affiliate request</b> so they can get their link.\n\nReply <code>approved</code> when done 👇`);
+    return;
+  }
 
   if (result.verified) {
     const pageType = result.extracted?.page_type ?? "";
@@ -344,17 +372,6 @@ async function handleFailedScreenshot(
   photo?: { bytes: Uint8Array; mimeType: string } | null,
   stepContext?: string
 ): Promise<void> {
-  if (reason === "verification_unavailable") {
-    // Vision API failed — escalate so admin can reply with guidance that goes back to student
-    await createEscalation(
-      student.id,
-      String(chatId),
-      student.full_name,
-      `Vision check failed for Day ${student.current_day} Step ${student.current_step}. Student sent a screenshot but Amara couldn't read it (API issue). They need to: ${retryMessage}. What should I tell them?`
-    );
-    await typeMessage(chatId, `I'm checking on this for you 🙏 Just a moment!`);
-    return;
-  }
   const attempts = student.screenshot_attempts + 1;
   await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
 
