@@ -7,6 +7,24 @@ import type { Student, TelegramMessage } from "./types.ts";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[\+\d\s\-\(\)]{7,25}$/;
 
+// Common non-name words — if a "name" is entirely these words, it's not a real name
+const NON_NAME_WORDS = new Set([
+  'help', 'please', 'sir', 'ma', 'ok', 'okay', 'yes', 'no', 'ready', 'start', 'begin',
+  'done', 'test', 'hi', 'hello', 'hey', 'thanks', 'thank', 'sorry', 'wait', 'bye',
+  'good', 'morning', 'evening', 'night', 'afternoon', 'day', 'need', 'want',
+  'i', 'can', 'you', 'me', 'my', 'am', 'is', 'it', 'the', 'a', 'an', 'in', 'on',
+  'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up', 'out', 'as', 'just',
+  'now', 'here', 'there', 'this', 'that', 'what', 'who', 'how', 'when', 'where',
+  'why', 'which', 'all', 'any', 'some', 'one', 'two', 'three', 'not', 'dear',
+  'oya', 'send', 'give', 'see', 'check', 'go', 'come', 'get', 'use', 'try',
+]);
+
+function looksLikeAName(name: string): boolean {
+  const words = name.toLowerCase().split(/\s+/);
+  // Reject if every single word is a common non-name word
+  return !words.every(w => NON_NAME_WORDS.has(w));
+}
+
 function extractName(text: string): string | null {
   const greetings =
     /^(hello+|hi+|hey+|heyy+|hii+|yoo+|oya|good[\s-]*(morning|evening|afternoon|day|night)|gud[\s-]*(morning|evening|afternoon|day|night)|morning|evening|afternoon|ok+|okay|yes+|no+|sure|start|begin|help|test|ping|hm+|lol|😊|👋|how\s+are\s+(you|u)|whatsup|wassup|what\s*sup|am\s+ready|i\s+am\s+ready|i'm\s+ready|ready|just\s+checking|checking\s+in|what\s+is\s+this|what'?s\s+this|hello\s+dear|hi\s+there|hey\s+there|good\s+one)$/i;
@@ -21,7 +39,7 @@ function extractName(text: string): string | null {
     const match = text.match(pattern);
     if (match) {
       const name = match[1].trim();
-      if (name.split(" ").length <= 5 && !greetings.test(name)) {
+      if (name.split(" ").length <= 5 && !greetings.test(name) && looksLikeAName(name)) {
         return name;
       }
     }
