@@ -37,6 +37,14 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
     return;
   }
 
+  // fix stuck [payhip-link] — apologize, send link to stuck students, complete Day 1
+  const fixStuckMatch = t.match(/^fix\s+stuck\s+(https?:\/\/payhip\.com\/\S+)/i);
+  if (fixStuckMatch) {
+    const link = fixStuckMatch[1].replace(/[.,;!?]+$/, "");
+    await fixStuckStudents(chatId, link);
+    return;
+  }
+
   // Detect a payhip link anywhere in the message
   const payhipMatch = t.match(/https?:\/\/payhip\.com\/\S+/i);
   if (payhipMatch) {
@@ -131,6 +139,54 @@ async function sendGitHubAuthLink(adminChatId: number, payhipLink: string): Prom
   );
 }
 
+// ── Fix stuck students — send payhip link + apologize + advance to Day 2 ────
+
+async function fixStuckStudents(adminChatId: number, payhipLink: string): Promise<void> {
+  const { data: stuck } = await supabase
+    .from("amara_students")
+    .select("id, telegram_chat_id, full_name, current_step")
+    .eq("status", "ACTIVE")
+    .eq("current_day", 1)
+    .in("current_step", [4, 5]);
+
+  if (!stuck || stuck.length === 0) {
+    await sendMessage(adminChatId, "No students are currently stuck on stage 2 (Payhip steps).");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let count = 0;
+
+  for (const s of stuck as { id: string; telegram_chat_id: string; full_name: string | null; current_step: number }[]) {
+    await supabase
+      .from("amara_students")
+      .update({
+        payhip_link: payhipLink,
+        payhip_account_created: true,
+        current_day: 2,
+        current_step: 1,
+        day1_completed_at: now,
+        next_day_unlocks_at: null,
+        updated_at: now,
+      })
+      .eq("id", s.id)
+      .eq("current_day", 1);
+
+    const firstName = s.full_name?.split(" ")[0] ?? "";
+    await typeMessage(
+      s.telegram_chat_id,
+      `Hey ${firstName}! 😊 So sorry for keeping you waiting — Payhip was having some issues on their end.\n\nGood news — everything is sorted now! Here's your affiliate link:\n\n<code>${payhipLink}</code>\n\nYour <b>Day 2 is now UNLOCKED!</b> 🚀 Reply <b>"ready"</b> to continue! 💪`
+    );
+    count++;
+  }
+
+  const names = (stuck as { full_name: string | null }[]).map((s) => s.full_name ?? "unnamed").join(", ");
+  await sendMessage(
+    adminChatId,
+    `✅ Sent apology + Payhip link to ${count} student(s) and unlocked Day 2:\n\n${names}`
+  );
+}
+
 // ── Skip stage 2 for stuck students ──────────────────────────────────────────
 
 async function skipStage2ForStuckStudents(adminChatId: number): Promise<void> {
@@ -220,6 +276,7 @@ async function sendHelp(chatId: number): Promise<void> {
     `<b>Admin commands:</b>\n\n` +
     `<code>approved</code> → Release students waiting for Payhip affiliate approval.\n\n` +
     `<code>skip stage2</code> → Skip Payhip for ALL students stuck on Day 1 Steps 4–5, tell them Coach Victor will handle it on Saturday, and unlock Day 2 immediately.\n\n` +
+    `<code>fix stuck [payhip-link]</code> → Apologize to stuck students, send them the Payhip link, save it, and unlock Day 2.\nExample: <code>fix stuck https://payhip.com/b/xeqSM/af69dc0c939dc7a</code>\n\n` +
     `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Show all active students and their current day/step.`
   );

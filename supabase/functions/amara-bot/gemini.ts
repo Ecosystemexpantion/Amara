@@ -291,13 +291,138 @@ function parseVisionText(rawText: string): ScreenshotResult {
   }
 }
 
-// Each Gemini model has its own free quota bucket — trying all of them maximises capacity
-const GEMINI_VISION_MODELS = [
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-1.5-flash-8b",
-];
+// ── Shared vision call helpers (return raw text or null on failure) ──────────
+
+async function callGeminiVision(
+  base64: string, mimeType: string, prompt: string,
+  key: string, model: string, temp: number, maxTokens: number
+): Promise<string | null> {
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { inline_data: { mime_type: mimeType, data: base64 } },
+          { text: prompt },
+        ]}],
+        generationConfig: { temperature: temp, maxOutputTokens: maxTokens, candidateCount: 1 },
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    if (text) console.log(`Vision OK: gemini/${model}`);
+    return text;
+  } catch { return null; }
+}
+
+async function callGroqVision(
+  base64: string, mimeType: string, prompt: string,
+  key: string, model: string, temp: number, maxTokens: number
+): Promise<string | null> {
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: [
+          { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+          { type: "text", text: prompt },
+        ]}],
+        temperature: temp,
+        max_tokens: maxTokens,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content?.trim() || null;
+    if (text) console.log(`Vision OK: groq/${model}`);
+    return text;
+  } catch { return null; }
+}
+
+async function callClaudeVision(
+  base64: string, mimeType: string, prompt: string,
+  apiKey: string, maxTokens: number
+): Promise<string | null> {
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } },
+          { type: "text", text: prompt },
+        ]}],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.content?.[0]?.text?.trim() || null;
+    if (text) console.log("Vision OK: claude-haiku");
+    return text;
+  } catch { return null; }
+}
+
+// Returns the first non-null result from parallel promises (like Promise.any but for nullable)
+async function raceForText(attempts: Promise<string | null>[]): Promise<string | null> {
+  const wrapped = attempts.map(p => p.then(r => {
+    if (!r) throw new Error("empty");
+    return r;
+  }));
+  try {
+    return await Promise.any(wrapped);
+  } catch {
+    return null;
+  }
+}
+
+// Build all vision attempts for parallel execution
+function buildVisionAttempts(
+  base64: string, mimeType: string, prompt: string,
+  temp: number, maxTokens: number
+): Promise<string | null>[] {
+  const keys = getGeminiKeys();
+  const groqKeys = getGroqKeys();
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const attempts: Promise<string | null>[] = [];
+
+  // Gemini: all keys × primary model (each key has independent quota)
+  for (const key of keys) {
+    attempts.push(callGeminiVision(base64, mimeType, prompt, key, "gemini-2.0-flash", temp, maxTokens));
+  }
+  // Gemini: first 2 keys × alternate models (separate model quota buckets)
+  for (const key of keys.slice(0, 2)) {
+    for (const model of ["gemini-1.5-flash", "gemini-2.0-flash-lite"]) {
+      attempts.push(callGeminiVision(base64, mimeType, prompt, key, model, temp, maxTokens));
+    }
+  }
+  // Groq: all keys × best vision model
+  for (const key of groqKeys) {
+    attempts.push(callGroqVision(base64, mimeType, prompt, key, "meta-llama/llama-4-scout-17b-16e-instruct", temp, maxTokens));
+  }
+  // Groq: first 2 keys × alternate model
+  for (const key of groqKeys.slice(0, 2)) {
+    attempts.push(callGroqVision(base64, mimeType, prompt, key, "llama-3.2-90b-vision-preview", temp, maxTokens));
+  }
+  // Claude: reliable paid API — always tried alongside free providers
+  if (anthropicKey) {
+    attempts.push(callClaudeVision(base64, mimeType, prompt, anthropicKey, maxTokens));
+  }
+
+  return attempts;
+}
+
+// ── Vision verification (structured JSON) ────────────────────────────────────
 
 export async function geminiVision(
   imageBytes: Uint8Array,
@@ -305,134 +430,16 @@ export async function geminiVision(
   verificationPrompt: string
 ): Promise<ScreenshotResult> {
   const base64 = uint8ToBase64(imageBytes);
-
-  const body = {
-    contents: [{ parts: [
-      { inline_data: { mime_type: mimeType, data: base64 } },
-      { text: verificationPrompt },
-    ]}],
-    generationConfig: { temperature: 0.1, maxOutputTokens: 700, candidateCount: 1 },
-  };
-
-  // Try every key × every model — each combination has its own daily quota
-  const keys = getGeminiKeys();
-  for (const key of keys) {
-    for (const model of GEMINI_VISION_MODELS) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (res.status === 429) {
-          console.warn(`Gemini vision quota: ${model} key[...${key.slice(-6)}]`);
-          continue;
-        }
-        if (!res.ok) {
-          console.warn(`Gemini vision ${res.status} for ${model}: ${await res.text()}`);
-          continue;
-        }
-        const data = await res.json();
-        const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-        if (rawText) {
-          console.log(`Vision OK: ${model}`);
-          return parseVisionText(rawText);
-        }
-      } catch (e) {
-        console.error(`Gemini vision exception (${model}):`, e);
-      }
-    }
-  }
-
-  // All Gemini quota exhausted — try Groq vision keys
-  const groqModels = [
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    "llama-3.2-90b-vision-preview",
-    "llama-3.2-11b-vision-preview",
-  ];
-  const groqKeys = [
-    Deno.env.get("GROQ_API_KEY"),
-    Deno.env.get("GROQ_API_KEY_2"),
-    Deno.env.get("GROQ_API_KEY_3"),
-    Deno.env.get("GROQ_API_KEY_4"),
-    Deno.env.get("GROQ_API_KEY_5"),
-  ].filter(Boolean) as string[];
-
-  for (const groqKey of groqKeys) {
-    for (const model of groqModels) {
-      try {
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-          body: JSON.stringify({
-            model,
-            messages: [{
-              role: "user",
-              content: [
-                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
-                { type: "text", text: verificationPrompt },
-              ],
-            }],
-            temperature: 0.1,
-            max_tokens: 700,
-          }),
-        });
-        if (groqRes.ok) {
-          const groqData = await groqRes.json();
-          const rawText: string = groqData.choices?.[0]?.message?.content?.trim() ?? "";
-          if (rawText) { console.log(`Groq vision OK: ${model}`); return parseVisionText(rawText); }
-        } else if (groqRes.status === 429) {
-          console.warn(`Groq vision quota: ${model}`);
-        } else {
-          console.warn(`Groq vision ${groqRes.status} (${model}): ${await groqRes.text()}`);
-        }
-      } catch (e) {
-        console.error(`Groq vision exception (${model}):`, e);
-      }
-    }
-  }
-
-  // All Gemini and Groq exhausted — try Claude as final fallback
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (anthropicKey) {
-    try {
-      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 700,
-          messages: [{
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } },
-              { type: "text", text: verificationPrompt },
-            ],
-          }],
-        }),
-      });
-      if (claudeRes.ok) {
-        const claudeData = await claudeRes.json();
-        const rawText: string = claudeData.content?.[0]?.text?.trim() ?? "";
-        if (rawText) { console.log("Vision OK: claude-haiku fallback"); return parseVisionText(rawText); }
-      } else {
-        console.warn(`Claude vision ${claudeRes.status}: ${await claudeRes.text()}`);
-      }
-    } catch (e) {
-      console.error("Claude vision exception:", e);
-    }
-  }
+  const attempts = buildVisionAttempts(base64, mimeType, verificationPrompt, 0.1, 700);
+  const rawText = await raceForText(attempts);
+  if (rawText) return parseVisionText(rawText);
 
   console.error("All vision providers exhausted");
   return { verified: false, reason: "verification_unavailable", guidance: undefined, extracted: {} };
 }
 
-// Read a screenshot and return warm, natural-language guidance (not JSON verification)
+// ── Vision guidance (natural language) ───────────────────────────────────────
+
 export async function geminiVisionGuide(
   imageBytes: Uint8Array,
   mimeType: string,
@@ -460,110 +467,9 @@ Look at this screenshot carefully and respond as Amara:
 Respond in Amara's warm, natural style with Nigerian Pidgin where it fits.`;
 
   const base64 = uint8ToBase64(imageBytes);
-  const body = {
-    contents: [{ parts: [
-      { inline_data: { mime_type: mimeType, data: base64 } },
-      { text: prompt },
-    ]}],
-    generationConfig: { temperature: 0.7, maxOutputTokens: 400, candidateCount: 1 },
-  };
-
-  const keys = getGeminiKeys();
-  for (const key of keys) {
-    for (const model of GEMINI_VISION_MODELS) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (res.status === 429) { console.warn(`geminiVisionGuide quota: ${model}`); continue; }
-        if (!res.ok) { console.warn(`geminiVisionGuide ${res.status} (${model})`); continue; }
-        const data = await res.json();
-        const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-        if (text) return text;
-      } catch (e) {
-        console.error(`geminiVisionGuide exception (${model}):`, e);
-      }
-    }
-  }
-
-  // Groq vision fallback — all keys
-  const guideGroqModels = [
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    "llama-3.2-90b-vision-preview",
-    "llama-3.2-11b-vision-preview",
-  ];
-  const guideGroqKeys = [
-    Deno.env.get("GROQ_API_KEY"),
-    Deno.env.get("GROQ_API_KEY_2"),
-    Deno.env.get("GROQ_API_KEY_3"),
-    Deno.env.get("GROQ_API_KEY_4"),
-    Deno.env.get("GROQ_API_KEY_5"),
-  ].filter(Boolean) as string[];
-
-  for (const groqKey of guideGroqKeys) {
-    for (const model of guideGroqModels) {
-      try {
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: "user", content: [
-              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
-              { type: "text", text: prompt },
-            ]}],
-            temperature: 0.7,
-            max_tokens: 400,
-          }),
-        });
-        if (groqRes.ok) {
-          const groqData = await groqRes.json();
-          const text: string = groqData.choices?.[0]?.message?.content?.trim() ?? "";
-          if (text) return text;
-        } else if (groqRes.status !== 429) {
-          console.warn(`geminiVisionGuide Groq ${groqRes.status} (${model})`);
-        }
-      } catch (e) {
-        console.error(`geminiVisionGuide Groq exception (${model}):`, e);
-      }
-    }
-  }
-
-  // Claude final fallback
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (anthropicKey) {
-    try {
-      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 400,
-          messages: [{
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } },
-              { type: "text", text: prompt },
-            ],
-          }],
-        }),
-      });
-      if (claudeRes.ok) {
-        const claudeData = await claudeRes.json();
-        const text: string = claudeData.content?.[0]?.text?.trim() ?? "";
-        if (text) { console.log("VisionGuide OK: claude-haiku fallback"); return text; }
-      }
-    } catch (e) {
-      console.error("geminiVisionGuide Claude exception:", e);
-    }
-  }
+  const attempts = buildVisionAttempts(base64, mimeType, prompt, 0.7, 400);
+  const rawText = await raceForText(attempts);
+  if (rawText) return rawText;
 
   return "I can see your screenshot! 😊 Can you tell me which step you're having trouble with? I'll guide you through it!";
 }
