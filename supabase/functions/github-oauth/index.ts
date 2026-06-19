@@ -490,6 +490,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const student = studentData;
 
+  if (student.day2_completed_at) {
+    return htmlResponse(SUCCESS_HTML, 200);
+  }
+
   // -------------------------------------------------------------------------
   // Step 4: Save token + username immediately (so we have it even if next
   //          steps fail)
