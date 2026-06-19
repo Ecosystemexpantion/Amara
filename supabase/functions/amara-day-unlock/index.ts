@@ -281,23 +281,42 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       results.botReminders = botReminderCount;
     }
 
-    // ── 5. Daily Saturday session reminder for COMPLETED graduates ────────────
-    // Runs once at 8AM Nigeria (07:00 UTC) every morning
+    // ── 5. Saturday session reminder for COMPLETED graduates ─────────────────
+    // Runs once at 8AM Nigeria (07:00 UTC) every morning.
+    // Reminds graduates daily UNTIL their first Saturday session (8:30PM Nigeria
+    // = 19:30 UTC) has passed — after that Saturday, Amara goes silent entirely.
     if (utcHour === 7 && utcMin < 5) {
       const morningCutoff = new Date(now);
       morningCutoff.setUTCHours(6, 55, 0, 0);
 
       const { data: graduates } = await supabase
         .from("amara_students")
-        .select("id, telegram_chat_id")
+        .select("id, telegram_chat_id, day4_completed_at")
         .eq("status", "COMPLETED")
         .or(`last_proactive_at.is.null,last_proactive_at.lt.${morningCutoff.toISOString()}`);
 
       let graduateReminderCount = 0;
       for (const s of graduates ?? []) {
+        // Skip if their first Saturday session has already passed (silent forever after).
+        if (s.day4_completed_at) {
+          const grad = new Date(s.day4_completed_at);
+          const session = new Date(grad);
+          // Walk forward to the first Saturday 19:30 UTC at/after graduation
+          for (let i = 0; i < 8; i++) {
+            const candidate = new Date(grad);
+            candidate.setUTCDate(grad.getUTCDate() + i);
+            candidate.setUTCHours(19, 30, 0, 0);
+            if (candidate.getUTCDay() === 6 && candidate.getTime() >= grad.getTime()) {
+              session.setTime(candidate.getTime());
+              break;
+            }
+          }
+          if (now.getTime() >= session.getTime()) continue; // their Saturday passed → silent
+        }
+
         await sendTelegram(
           s.telegram_chat_id,
-          `☀️ <b>Good morning, EEM26 graduate!</b>\n\nJust a reminder — Coach Victor's <b>Final Stage Setup session</b> is every <b>Saturday at 8:30 PM Nigeria time</b> 🎯\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n⚠️ Don't miss it — see you there! 🏆`
+          `☀️ <b>Good morning, EEM26 graduate!</b>\n\nJust a reminder — Coach Victor's <b>Final Stage Setup session</b> is this <b>Saturday at 8:30 PM Nigeria time</b> 🎯\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n⚠️ Don't miss it — see you there! 🏆`
         );
         await markProactiveSent(s.id);
         graduateReminderCount++;
