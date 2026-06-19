@@ -215,8 +215,8 @@ export async function generateCertificate(
     color: navy,
   });
 
-  // Signature line for Victor (decorative script-style text)
-  page.drawText("Victor Nwaji", {
+  // Signature line for the coach (decorative script-style text)
+  page.drawText("EEM26", {
     x: 60,
     y: sigY + 18,
     font: fontItalic,
