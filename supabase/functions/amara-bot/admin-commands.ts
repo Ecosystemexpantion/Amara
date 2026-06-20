@@ -37,6 +37,12 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
     return;
   }
 
+  // announce saturday — blast "training is TODAY" to graduates + Day 4 students
+  if (/^announce\s+saturday$/i.test(t)) {
+    await announceSaturday(chatId);
+    return;
+  }
+
   // fix stuck [payhip-link] — apologize, send link to stuck students, complete Day 1
   const fixStuckMatch = t.match(/^fix\s+stuck\s+(https?:\/\/payhip\.com\/\S+)/i);
   if (fixStuckMatch) {
@@ -277,9 +283,75 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>approved</code> → Release students waiting for Payhip affiliate approval.\n\n` +
     `<code>skip stage2</code> → Skip Payhip for ALL students stuck on Day 1 Steps 4–5, tell them Coach Victor will handle it on Saturday, and unlock Day 2 immediately.\n\n` +
     `<code>fix stuck [payhip-link]</code> → Apologize to stuck students, send them the Payhip link, save it, and unlock Day 2.\nExample: <code>fix stuck https://payhip.com/b/xeqSM/af69dc0c939dc7a</code>\n\n` +
+    `<code>announce saturday</code> → Blast "training is TONIGHT" to all graduates + Day 4 students.\n\n` +
     `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Show all active students and their current day/step.`
   );
+}
+
+// ── Announce Saturday training ───────────────────────────────────────────────
+
+async function announceSaturday(adminChatId: number): Promise<void> {
+  const now = new Date();
+
+  // 1. COMPLETED graduates whose first Saturday session hasn't passed yet
+  const { data: graduates } = await supabase
+    .from("amara_students")
+    .select("id, telegram_chat_id, day4_completed_at")
+    .eq("status", "COMPLETED");
+
+  const eligibleGrads: { telegram_chat_id: string }[] = [];
+  for (const s of graduates ?? []) {
+    if (s.day4_completed_at) {
+      const grad = new Date(s.day4_completed_at);
+      let sessionTime = new Date(grad);
+      for (let i = 0; i < 8; i++) {
+        const candidate = new Date(grad);
+        candidate.setUTCDate(grad.getUTCDate() + i);
+        candidate.setUTCHours(19, 30, 0, 0);
+        if (candidate.getUTCDay() === 6 && candidate.getTime() >= grad.getTime()) {
+          sessionTime = candidate;
+          break;
+        }
+      }
+      if (now.getTime() >= sessionTime.getTime()) continue;
+    }
+    eligibleGrads.push(s);
+  }
+
+  // 2. Day 4 active students
+  const { data: day4Students } = await supabase
+    .from("amara_students")
+    .select("telegram_chat_id")
+    .eq("status", "ACTIVE")
+    .eq("current_day", 4);
+
+  const allChatIds = new Set<string>();
+  for (const s of eligibleGrads) allChatIds.add(String(s.telegram_chat_id));
+  for (const s of day4Students ?? []) allChatIds.add(String(s.telegram_chat_id));
+
+  if (allChatIds.size === 0) {
+    await sendMessage(adminChatId, "No eligible students to announce to right now.");
+    return;
+  }
+
+  const announcement =
+    `🚨 <b>TODAY is the day!</b>\n\n` +
+    `Coach Victor's <b>Final Stage Setup session</b> is <b>TONIGHT at 8:30 PM Nigeria time!</b> 🎯\n\n` +
+    `👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n` +
+    `Be there — this is where your business goes live! 🔥`;
+
+  let sent = 0;
+  for (const chatId of allChatIds) {
+    try {
+      await sendMessage(Number(chatId), announcement);
+      sent++;
+    } catch (e) {
+      console.error(`Failed to send Saturday announcement to ${chatId}:`, e);
+    }
+  }
+
+  await sendMessage(adminChatId, `✅ Saturday announcement sent to <b>${sent}</b> student(s).`);
 }
 
 // ── List students ─────────────────────────────────────────────────────────────
