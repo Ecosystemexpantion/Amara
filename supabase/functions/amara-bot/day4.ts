@@ -38,7 +38,15 @@ async function handleStep1(student: Student, chatId: number, text: string | null
       const reply = await geminiChat(
         history,
         text,
-        `Student is on Day 4 Step 1. They need to test their Telegram bot by opening it and sending it a message, then send a screenshot showing the bot replying. Amara already set the bot up automatically — they just need to find it on Telegram and test it. The bot is ${botName}.`,
+        `Student is on Day 4 Step 1. They need to test their Telegram bot by opening it and sending it a message, then send a screenshot showing the bot replying. Amara already set the bot up automatically — they just need to find it on Telegram and test it. The bot is ${botName}.
+
+IMPORTANT guidance for confused students:
+- They must search from the MAIN Telegram screen (the chat list), NOT inside any group chat
+- They should tap the search/magnifying glass icon at the TOP of Telegram
+- They should search for the bot username they chose during Day 3 (it ends in "bot")
+- They should NOT search for "BotFather" — BotFather is only for creating bots, not for testing
+- If they don't remember their bot username, tell them to scroll up in their chat with you (Amara) — the bot username was shown when setup completed on Day 3
+- Common mistake: searching inside the EEM26 group chat — they need to EXIT the group and search from the main screen`,
         student.id
       );
       await sendMessage(chatId, reply);
@@ -56,7 +64,7 @@ async function handleStep1(student: Student, chatId: number, text: string | null
   }
 
   const prompt = buildVerificationPrompt(
-    "Does this screenshot show a Telegram chat where a bot is replying to messages? Look for a bot account (bot icon or name ending in Bot) responding with text."
+    "Does this screenshot show a Telegram chat where a bot is replying to messages? Look for a bot account (bot icon or name ending in Bot) responding with text. If verified=false, describe EXACTLY what you see (group chat, BotFather, wrong screen, etc.) and give step-by-step instructions to find and test their own bot."
   );
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
@@ -73,9 +81,6 @@ async function handleStep1(student: Student, chatId: number, text: string | null
 
   if (result.verified) {
     await recordStepCompletion(student.id, 4, 1, true);
-    // Advance directly to step 3 (signature) — skipping the bridge step entirely.
-    // Advancing to step 2 first caused a race: if the student immediately sent their
-    // signature photo, handleStep2 would fire (ignoring the photo) and ask for it again.
     await advanceStep(student.id, 4, 3);
 
     await typeMessage(chatId, `<b>YOUR BOT IS CONFIRMED LIVE! 🔥🔥🔥</b>\n\nI can see it responding perfectly! Your SRE — Smart Reply Engine from your Tech Stack 📦 — is RUNNING and making money for you 24/7!`);
@@ -87,7 +92,15 @@ async function handleStep1(student: Student, chatId: number, text: string | null
       student, chatId, result.reason,
       result.guidance || "Open Telegram, find your bot by username, send it a message, screenshot the reply 📸",
       photo,
-      `Student is on Day 4. Their Telegram bot was set up automatically and should be running. They need to open Telegram, find their bot (search for its username from BotFather), send it any message, and screenshot the bot's reply. If they can't find the bot, ask them to search for the username they chose during Day 3.`
+      `Student is on Day 4 Step 1. Their Telegram bot was set up automatically on Day 3 and should be running. They need to find their bot on Telegram and test it.
+
+LOOK AT THE SCREENSHOT and tell them EXACTLY what's wrong and what to do:
+- If you see a GROUP CHAT (like "EEM26" group): Tell them "I can see you're inside a group chat — that's not where your bot is! Go BACK to your main Telegram chat list, tap the search icon at the TOP, and search for the bot username you chose on Day 3 (it ends in 'bot')."
+- If you see BOTFATHER: Tell them "BotFather is only for creating bots — you already did that! Go back to your main chat list, tap search, and look for YOUR bot (the username you created)."
+- If you see the MAIN CHAT LIST with no bot: Tell them "I can see your chat list but no bot chat yet. Tap the search/magnifying glass at the top and type the bot username you chose on Day 3. If you don't remember, scroll up in our chat — I told you when it was set up!"
+- If you see SOMETHING ELSE: Describe exactly what you see and give precise steps to navigate to the right place.
+
+Be warm, patient, and specific. Never say "I can't see your screenshot" — you CAN see it. Describe what you see first, then guide them.`
     );
   }
 }
