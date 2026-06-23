@@ -298,7 +298,18 @@ async function handleStep5(student: Student, chatId: number, text: string | null
     return;
   }
 
-  // Everything else — complete silence. Student was already told to wait once.
+  if (text) {
+    const history = await getRecentConversation(student.id, 6);
+    const reply = await geminiChat(
+      history,
+      text,
+      `Student is on Day 1 Step 5 — they've created their Payhip affiliate account and are waiting for Coach Victor to approve their affiliate request. This can take a few hours. They were already told "hold on a moment while I get that sorted for you."
+
+Respond warmly. Reassure them their request is being processed. If they say "ready" or ask to continue, explain that their Payhip approval is still being processed by Coach Victor and they'll be notified as soon as it's done — they don't need to do anything right now. Keep it short and encouraging.`,
+      student.id
+    );
+    await sendMessage(chatId, reply);
+  }
 }
 
 // Step 6: Collect affiliate link after admin approval
