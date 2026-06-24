@@ -43,6 +43,13 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
     return;
   }
 
+  // skip [name] to day 3 — jump a specific student to SRE setup
+  const skipToDay3Match = t.match(/^skip\s+(.+?)\s+to\s+(?:day\s*3|sre)/i);
+  if (skipToDay3Match) {
+    await skipStudentToDay3(chatId, skipToDay3Match[1].trim());
+    return;
+  }
+
   // fix stuck [payhip-link] — apologize, send link to stuck students, complete Day 1
   const fixStuckMatch = t.match(/^fix\s+stuck\s+(https?:\/\/payhip\.com\/\S+)/i);
   if (fixStuckMatch) {
@@ -283,9 +290,64 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>approved</code> → Release students waiting for Payhip affiliate approval.\n\n` +
     `<code>skip stage2</code> → Skip Payhip for ALL students stuck on Day 1 Steps 4–5, tell them Coach Victor will handle it on Saturday, and unlock Day 2 immediately.\n\n` +
     `<code>fix stuck [payhip-link]</code> → Apologize to stuck students, send them the Payhip link, save it, and unlock Day 2.\nExample: <code>fix stuck https://payhip.com/b/xeqSM/af69dc0c939dc7a</code>\n\n` +
+    `<code>skip [name] to day 3</code> → Skip a specific student to Day 3 (SRE bot setup).\nExample: <code>skip Funke Adams to day 3</code>\n\n` +
     `<code>announce saturday</code> → Blast "training is TONIGHT" to all graduates + Day 4 students.\n\n` +
     `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Show all active students and their current day/step.`
+  );
+}
+
+// ── Skip a specific student to Day 3 (SRE setup) ───────────────────────────
+
+async function skipStudentToDay3(adminChatId: number, name: string): Promise<void> {
+  const { data: matches } = await supabase
+    .from("amara_students")
+    .select("id, telegram_chat_id, full_name, current_day, current_step, status")
+    .eq("status", "ACTIVE")
+    .ilike("full_name", `%${name}%`);
+
+  if (!matches || matches.length === 0) {
+    await sendMessage(adminChatId, `❌ No active student found matching "<b>${name}</b>".`);
+    return;
+  }
+
+  if (matches.length > 1) {
+    const list = (matches as { full_name: string | null; current_day: number; current_step: number }[])
+      .map(s => `• ${s.full_name ?? "unnamed"} (Day ${s.current_day}, Step ${s.current_step})`)
+      .join("\n");
+    await sendMessage(adminChatId, `Multiple students match "<b>${name}</b>":\n\n${list}\n\nPlease use a more specific name.`);
+    return;
+  }
+
+  const student = matches[0] as { id: string; telegram_chat_id: string; full_name: string | null; current_day: number; current_step: number };
+
+  if (student.current_day >= 3) {
+    await sendMessage(adminChatId, `<b>${student.full_name}</b> is already on Day ${student.current_day} Step ${student.current_step} — no skip needed.`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  await supabase
+    .from("amara_students")
+    .update({
+      current_day: 3,
+      current_step: 1,
+      day1_completed_at: student.current_day < 1 ? now : undefined,
+      day2_completed_at: student.current_day < 2 ? now : undefined,
+      next_day_unlocks_at: null,
+      updated_at: now,
+    })
+    .eq("id", student.id);
+
+  const firstName = student.full_name?.split(" ")[0] ?? "";
+  await typeMessage(
+    student.telegram_chat_id,
+    `Hey ${firstName}! 🔥 Great news — let's jump straight to <b>Day 3: Your AI Sales Bot (SRE)!</b> 🤖\n\nToday you get your own AI bot that sells for you 24/7. Here's what to do:\n\n1️⃣ Open Telegram and search for <b>@BotFather</b>\n2️⃣ Send <b>/newbot</b>\n3️⃣ Choose a display name (like "${firstName} EEM26 Assistant")\n4️⃣ Choose a username (must end in "bot", like "${firstName.toLowerCase()}eem26bot")\n5️⃣ Copy the <b>token</b> BotFather gives you and paste it right here\n\nI'll handle everything else automatically — no coding needed! 💪`
+  );
+
+  await sendMessage(
+    adminChatId,
+    `✅ Skipped <b>${student.full_name}</b> to Day 3 Step 1 (SRE setup). They've been messaged with BotFather instructions.`
   );
 }
 
