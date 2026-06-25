@@ -50,6 +50,13 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
     return;
   }
 
+  // confirm [name] — manually confirm Tech Stack purchase, unlock Day 2 GitHub step
+  const confirmMatch = t.match(/^confirm\s+(.+)/i);
+  if (confirmMatch) {
+    await confirmTechStack(chatId, confirmMatch[1].trim());
+    return;
+  }
+
   // fix stuck [payhip-link] — apologize, send link to stuck students, complete Day 1
   const fixStuckMatch = t.match(/^fix\s+stuck\s+(https?:\/\/payhip\.com\/\S+)/i);
   if (fixStuckMatch) {
@@ -297,11 +304,58 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>approved</code> → Release students waiting for Payhip affiliate approval.\n\n` +
     `<code>skip stage2</code> → Skip Payhip for ALL students stuck on Day 1 Steps 4–5, tell them Coach Victor will handle it on Saturday, and unlock Day 2 immediately.\n\n` +
     `<code>fix stuck [payhip-link]</code> → Apologize to stuck students, send them the Payhip link, save it, and unlock Day 2.\nExample: <code>fix stuck https://payhip.com/b/xeqSM/af69dc0c939dc7a</code>\n\n` +
+    `<code>confirm [name]</code> → Manually confirm a student's Tech Stack purchase and unlock their Day 2 setup.\nExample: <code>confirm Funke Adams</code>\n\n` +
     `<code>skip [name] to day 3</code> → Skip a specific student to Day 3 (SRE bot setup).\nExample: <code>skip Funke Adams to day 3</code>\n\n` +
     `<code>announce saturday</code> → Blast "training is TONIGHT" to all graduates + Day 4 students.\n\n` +
     `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Show all active students and their current day/step.`
   );
+}
+
+// ── Confirm Tech Stack purchase — unlock Day 2 GitHub step ──────────────────
+
+async function confirmTechStack(adminChatId: number, name: string): Promise<void> {
+  const { data: matches } = await supabase
+    .from("amara_students")
+    .select("id, telegram_chat_id, full_name, current_day, current_step, status")
+    .eq("status", "ACTIVE")
+    .ilike("full_name", `%${name}%`);
+
+  if (!matches || matches.length === 0) {
+    await sendMessage(adminChatId, `❌ No active student found matching "<b>${name}</b>".`);
+    return;
+  }
+
+  if (matches.length > 1) {
+    const list = (matches as { full_name: string | null; current_day: number; current_step: number }[])
+      .map(s => `• ${s.full_name ?? "unnamed"} (Day ${s.current_day}, Step ${s.current_step})`)
+      .join("\n");
+    await sendMessage(adminChatId, `Multiple students match "<b>${name}</b>":\n\n${list}\n\nPlease use a more specific name.`);
+    return;
+  }
+
+  const student = matches[0] as { id: string; telegram_chat_id: string; full_name: string | null; current_day: number; current_step: number };
+
+  if (student.current_day !== 2 || student.current_step !== 1) {
+    await sendMessage(adminChatId, `<b>${student.full_name}</b> is on Day ${student.current_day} Step ${student.current_step} — not waiting for Tech Stack confirmation.`);
+    return;
+  }
+
+  await supabase
+    .from("amara_students")
+    .update({
+      current_step: 2,
+      screenshot_attempts: 0,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", student.id);
+
+  await typeMessage(
+    student.telegram_chat_id,
+    `Your Tech Stack purchase has been confirmed! ✅ Let's build your sales pages now! 🔥\n\nTo create your pages I need to connect to a <b>GitHub account</b>.\n\nDo you already have a GitHub account, or do I need to help you create one first? 🙋`
+  );
+
+  await sendMessage(adminChatId, `✅ Confirmed <b>${student.full_name}</b> — they've been moved to GitHub setup.`);
 }
 
 // ── Skip a specific student to Day 3 (SRE setup) ───────────────────────────

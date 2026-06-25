@@ -30,7 +30,7 @@ export async function handleDay1(
       await handleStep4(student, chatId, text, photo);
       break;
     case 5:
-      await handleStep5(student, chatId, text, photo);
+      await sendMessage(chatId, "Oya let's continue! Send me that screenshot when you're ready 📸");
       break;
     default:
       await sendMessage(chatId, "Oya let's continue! Send me that screenshot when you're ready 📸");
@@ -222,8 +222,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   if (result.reason === "verification_unavailable") {
     notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 1 Step 4 for ${student.full_name}`).catch(() => {});
     await recordStepCompletion(student.id, 1, 4, true);
-    await advanceStep(student.id, 1, 5, { payhip_account_created: true });
-    await sendPaymentProofPrompt(chatId);
+    await sendDay1Complete({ ...student, payhip_account_created: true }, chatId);
     return;
   }
 
@@ -238,70 +237,12 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     }
 
     await recordStepCompletion(student.id, 1, 4, true);
-    await advanceStep(student.id, 1, 5, { payhip_account_created: true });
-    await typeMessage(chatId, `Payhip account — DONE! ✅ You don do am! 🙌`);
-    await new Promise((r) => setTimeout(r, 300));
-    await sendPaymentProofPrompt(chatId);
+    await sendDay1Complete({ ...student, payhip_account_created: true }, chatId);
   } else {
     await handleFailedScreenshot(student, chatId, result.reason,
       result.guidance || "Use this link to sign up: <a href=\"https://payhip.com/auth/register/af650fe07ce1c3c\">https://payhip.com/auth/register/af650fe07ce1c3c</a> — you should see a 'Join as an Affiliate' form to fill in 📸",
       photo, "Student is signing up for Payhip as an affiliate using the link payhip.com/auth/register/af650fe07ce1c3c. They should see either the 'Join as an Affiliate' form OR their affiliate dashboard after signup. Guide them based on exactly what you see on their screen.");
   }
-}
-
-// Step 5: Verify proof of payment for the EEM26 Tech Stack
-async function handleStep5(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
-  if (!photo) {
-    if (text) {
-      const history = await getRecentConversation(student.id, 6);
-      const reply = await geminiChat(history, text,
-        `Student is on Day 1 Step 5. They need to send a screenshot of their proof of payment for the EEM26 Tech Stack package. This can be:
-- A bank/payment app receipt (OPay, Paystack, bank transfer confirmation, etc.)
-- The confirmation email from EEM26 saying "Payment Confirmed! Your Access is Ready"
-- Any screenshot showing a successful payment for the Tech Stack
-
-Ask them warmly to send the receipt or confirmation screenshot so we can verify and continue.`,
-        student.id);
-      await sendMessage(chatId, reply);
-    } else {
-      await sendPaymentProofPrompt(chatId);
-    }
-    return;
-  }
-
-  const prompt = buildVerificationPrompt(
-    "Does this screenshot show proof of payment or a purchase confirmation? Accept ANY of these:\n" +
-    "- A bank or payment app receipt (OPay, Paystack, Flutterwave, bank transfer) showing a successful transaction\n" +
-    "- An email or page saying 'Payment Confirmed', 'Your Access is Ready', 'Order Successful', 'Transaction Successful' or similar\n" +
-    "- A Selar order confirmation or purchase receipt\n" +
-    "- Any document clearly showing a completed payment\n" +
-    "verified=true if this clearly shows a successful payment/purchase. verified=false if it shows something unrelated."
-  );
-  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
-
-  if (result.reason === "verification_unavailable") {
-    notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted payment proof for ${student.full_name}`).catch(() => {});
-    await recordStepCompletion(student.id, 1, 5, true, "Payment proof (auto-accepted)");
-    await sendDay1Complete(student, chatId);
-    return;
-  }
-
-  if (result.verified) {
-    await recordStepCompletion(student.id, 1, 5, true, "Payment proof verified");
-    await typeMessage(chatId, `Payment confirmed! ✅ You're all verified — let's wrap up Day 1! 🎉`);
-    await sendDay1Complete(student, chatId);
-  } else {
-    await handleFailedScreenshot(student, chatId, result.reason,
-      result.guidance || "Send me a screenshot of your payment receipt or the confirmation email you got after purchasing the EEM26 Tech Stack 📸",
-      photo,
-      `Student needs to send proof of payment for the EEM26 Tech Stack. This can be a bank receipt (OPay, Paystack, etc.), a confirmation email saying "Payment Confirmed", or any screenshot showing a successful purchase. Look at what they sent and guide them — tell them exactly what you see and what they should send instead.`);
-  }
-}
-
-async function sendPaymentProofPrompt(chatId: number): Promise<void> {
-  await typeMessage(chatId,
-    `<b>Almost done! One last thing 📋</b>\n\nBefore we unlock Day 2, I need to verify your <b>EEM26 Tech Stack</b> purchase.\n\nSend me a screenshot of your <b>proof of payment</b> — this can be:\n\n💳 Your bank/payment app receipt (OPay, Paystack, etc.)\n📧 The confirmation email from EEM26\n🧾 Any screenshot showing your payment was successful\n\nJust drop it here! 📸`
-  );
 }
 
 async function sendDay1Complete(student: Student, chatId: number): Promise<void> {
