@@ -32,9 +32,6 @@ export async function handleDay1(
     case 5:
       await handleStep5(student, chatId, text, photo);
       break;
-    case 6:
-      await handleStep6(student, chatId, text, photo);
-      break;
     default:
       await sendMessage(chatId, "Oya let's continue! Send me that screenshot when you're ready 📸");
   }
@@ -225,7 +222,8 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   if (result.reason === "verification_unavailable") {
     notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 1 Step 4 for ${student.full_name}`).catch(() => {});
     await recordStepCompletion(student.id, 1, 4, true);
-    await sendDay1Complete({ ...student, payhip_account_created: true }, chatId);
+    await advanceStep(student.id, 1, 5, { payhip_account_created: true });
+    await sendPaymentProofPrompt(chatId);
     return;
   }
 
@@ -240,7 +238,10 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     }
 
     await recordStepCompletion(student.id, 1, 4, true);
-    await sendDay1Complete({ ...student, payhip_account_created: true }, chatId);
+    await advanceStep(student.id, 1, 5, { payhip_account_created: true });
+    await typeMessage(chatId, `Payhip account — DONE! ✅ You don do am! 🙌`);
+    await new Promise((r) => setTimeout(r, 300));
+    await sendPaymentProofPrompt(chatId);
   } else {
     await handleFailedScreenshot(student, chatId, result.reason,
       result.guidance || "Use this link to sign up: <a href=\"https://payhip.com/auth/register/af650fe07ce1c3c\">https://payhip.com/auth/register/af650fe07ce1c3c</a> — you should see a 'Join as an Affiliate' form to fill in 📸",
@@ -248,105 +249,59 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   }
 }
 
-// Step 5: Waiting for admin to approve Payhip affiliate request.
-// Amara is SILENT here — student was already told to wait.
-// Only exception: if they paste/show their link (approved externally), accept it immediately.
+// Step 5: Verify proof of payment for the EEM26 Tech Stack
 async function handleStep5(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
-  // Student pastes their payhip link → already approved externally, complete Day 1
-  if (text && /payhip\.com\//i.test(text)) {
-    const linkMatch = text.match(/payhip\.com\/[A-Za-z0-9_\/-]+/i);
-    if (linkMatch) {
-      const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-      await updateStudent(student.id, { payhip_link: payhipLink });
-      await typeMessage(chatId, `Got it! 🎉 Your affiliate link is saved and you're all set!`);
-      await sendDay1Complete({ ...student, payhip_link: payhipLink }, chatId);
-      return;
-    }
-  }
+  if (!photo) {
+    if (text) {
+      const history = await getRecentConversation(student.id, 6);
+      const reply = await geminiChat(history, text,
+        `Student is on Day 1 Step 5. They need to send a screenshot of their proof of payment for the EEM26 Tech Stack package. This can be:
+- A bank/payment app receipt (OPay, Paystack, bank transfer confirmation, etc.)
+- The confirmation email from EEM26 saying "Payment Confirmed! Your Access is Ready"
+- Any screenshot showing a successful payment for the Tech Stack
 
-  // Photo — check if affiliate link is visible; if so, extract and proceed
-  if (photo) {
-    const prompt = buildVerificationPrompt(
-      "Does this screenshot show a Payhip page where an affiliate link URL is clearly visible? The URL looks like 'payhip.com/b/XXXX' or 'https://payhip.com/b/XXXX/...'.",
-      ["affiliate_link: paste the exact payhip URL you can see (e.g. https://payhip.com/b/xeqSM), or write 'none' if no link is clearly visible"]
-    );
-    const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
-
-    if (result.verified && result.extracted?.affiliate_link && result.extracted.affiliate_link !== "none") {
-      const raw = result.extracted.affiliate_link;
-      const linkMatch = raw.match(/payhip\.com\/[A-Za-z0-9_\/-]+/i);
-      if (linkMatch) {
-        const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-        await updateStudent(student.id, { payhip_link: payhipLink });
-        await typeMessage(chatId, `I can see your affiliate link right there! ✅ You're already approved — let's wrap up Day 1! 🎉`);
-        await sendDay1Complete({ ...student, payhip_link: payhipLink }, chatId);
-        return;
-      }
+Ask them warmly to send the receipt or confirmation screenshot so we can verify and continue.`,
+        student.id);
+      await sendMessage(chatId, reply);
+    } else {
+      await sendPaymentProofPrompt(chatId);
     }
-    // Photo sent but no link visible — stay silent
     return;
   }
 
-  if (text) {
-    const history = await getRecentConversation(student.id, 6);
-    const reply = await geminiChat(
-      history,
-      text,
-      `Student is on Day 1 Step 5 — they've created their Payhip affiliate account and are waiting for Coach Victor to approve their affiliate request. This can take a few hours. They were already told "hold on a moment while I get that sorted for you."
+  const prompt = buildVerificationPrompt(
+    "Does this screenshot show proof of payment or a purchase confirmation? Accept ANY of these:\n" +
+    "- A bank or payment app receipt (OPay, Paystack, Flutterwave, bank transfer) showing a successful transaction\n" +
+    "- An email or page saying 'Payment Confirmed', 'Your Access is Ready', 'Order Successful', 'Transaction Successful' or similar\n" +
+    "- A Selar order confirmation or purchase receipt\n" +
+    "- Any document clearly showing a completed payment\n" +
+    "verified=true if this clearly shows a successful payment/purchase. verified=false if it shows something unrelated."
+  );
+  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
-Respond warmly. Reassure them their request is being processed. If they say "ready" or ask to continue, explain that their Payhip approval is still being processed by Coach Victor and they'll be notified as soon as it's done — they don't need to do anything right now. Keep it short and encouraging.`,
-      student.id
-    );
-    await sendMessage(chatId, reply);
+  if (result.reason === "verification_unavailable") {
+    notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted payment proof for ${student.full_name}`).catch(() => {});
+    await recordStepCompletion(student.id, 1, 5, true, "Payment proof (auto-accepted)");
+    await sendDay1Complete(student, chatId);
+    return;
+  }
+
+  if (result.verified) {
+    await recordStepCompletion(student.id, 1, 5, true, "Payment proof verified");
+    await typeMessage(chatId, `Payment confirmed! ✅ You're all verified — let's wrap up Day 1! 🎉`);
+    await sendDay1Complete(student, chatId);
+  } else {
+    await handleFailedScreenshot(student, chatId, result.reason,
+      result.guidance || "Send me a screenshot of your payment receipt or the confirmation email you got after purchasing the EEM26 Tech Stack 📸",
+      photo,
+      `Student needs to send proof of payment for the EEM26 Tech Stack. This can be a bank receipt (OPay, Paystack, etc.), a confirmation email saying "Payment Confirmed", or any screenshot showing a successful purchase. Look at what they sent and guide them — tell them exactly what you see and what they should send instead.`);
   }
 }
 
-// Step 6: Collect affiliate link after admin approval
-async function handleStep6(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
-  if (photo) {
-    const guidance = await geminiVisionGuide(
-      photo.bytes,
-      photo.mimeType,
-      `Student on Day 1 of EEM26 has their Payhip affiliate account approved! They need to find their affiliate/store link (looks like payhip.com/TheirUsername) in the Payhip dashboard and send it. Guide them based on what you see on screen.`,
-      text ?? undefined
-    );
-    await sendMessage(chatId, guidance);
-    return;
-  }
-
-  if (text && /payhip\.com\//i.test(text)) {
-    const linkMatch = text.match(/payhip\.com\/[A-Za-z0-9_\/-]+/i);
-    if (linkMatch) {
-      const payhipLink = "https://" + linkMatch[0].replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-      await updateStudent(student.id, { payhip_link: payhipLink });
-      await sendDay1Complete({ ...student, payhip_link: payhipLink }, chatId);
-      return;
-    }
-  }
-
-  if (text) {
-    const history = await getRecentConversation(student.id, 6);
-    const reply = await geminiChat(
-      history,
-      text,
-      `Student on Day 1 of EEM26 has their Payhip affiliate account approved! They need to find their Payhip affiliate/store link.
-
-How to find the Payhip affiliate link:
-1. On the Payhip dashboard, they will see their product listed (e.g. TECH-STACK)
-2. Click on the product name to open it
-3. Look for a section that says "This is your affiliate product link, share it to start selling:" — the link is shown right there (looks like payhip.com/b/XXXX)
-4. They can also look at the "Dashboard" page — it says "Grab your affiliate links below to start promoting"
-
-The affiliate link does NOT appear on the Sales page. If the student is on the Sales page, tell them to go back to their Payhip Dashboard.
-
-Ask them to copy the link and paste it here.`,
-      student.id
-    );
-    await sendMessage(chatId, reply);
-    return;
-  }
-
-  await typeMessage(chatId, `Your affiliate link is on your <b>Payhip Dashboard</b> — click on your product name (TECH-STACK) and look for the section that says <b>"This is your affiliate product link"</b> 🔗\n\nCopy that link and paste it here! 👇`);
+async function sendPaymentProofPrompt(chatId: number): Promise<void> {
+  await typeMessage(chatId,
+    `<b>Almost done! One last thing 📋</b>\n\nBefore we unlock Day 2, I need to verify your <b>EEM26 Tech Stack</b> purchase.\n\nSend me a screenshot of your <b>proof of payment</b> — this can be:\n\n💳 Your bank/payment app receipt (OPay, Paystack, etc.)\n📧 The confirmation email from EEM26\n🧾 Any screenshot showing your payment was successful\n\nJust drop it here! 📸`
+  );
 }
 
 async function sendDay1Complete(student: Student, chatId: number): Promise<void> {
