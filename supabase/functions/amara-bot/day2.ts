@@ -39,7 +39,11 @@ async function handleTechStackVerification(
     if (!alreadyAsked || !text) {
       await typeMessage(
         chatId,
-        `<b>🚀 Day 2: Your Live Sales Pages!</b>\n\nToday I'm building your <b>TWO sales pages</b> and setting up your money-making tools — all from your <b>Tech Stack 📦</b>\n\nBut first — have you downloaded the Tech Stack yet? I need it to set up everything for you.\n\n👉 <a href="${TECH_STACK_URL}">Download your Tech Stack here</a>\n\nOnce you've downloaded it, send me a <b>screenshot of your proof of payment</b> (receipt or confirmation email) so I can verify and we continue immediately! 💰\n\nOur target is <b>₦500k in a week</b> — let's go! 🔥`
+        `<b>🚀 Day 2: Your Live Sales Pages!</b>\n\nToday I'm building your <b>TWO live sales pages</b> — but I need your <b>Tech Stack 📦</b> to do it. Here's what's inside that we need for today:\n\n1️⃣ <b>Landing page code</b> — your ready-made sales page template\n2️⃣ <b>The hot-selling product</b> — currently making students <b>₦51M+</b> 🔥\n3️⃣ <b>Premium page template</b> — your high-ticket version\n4️⃣ <b>Product images & graphics</b> — professional visuals for your pages\n5️⃣ <b>Sales copy & descriptions</b> — proven words that convert visitors to buyers\n\nAll of these are inside the Tech Stack — I can't build without them!`
+      );
+      await typeMessage(
+        chatId,
+        `Have you downloaded the Tech Stack yet?\n\n👉 <a href="${TECH_STACK_URL}">Download your Tech Stack here</a>\n\nOnce you've downloaded it, send me a <b>screenshot of your proof of payment</b> (receipt or confirmation email) so we can continue immediately! 💰\n\nOur target is <b>₦500k in a week</b> — let's go! 🔥`
       );
       return;
     }
