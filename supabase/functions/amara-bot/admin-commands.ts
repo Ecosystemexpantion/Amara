@@ -263,22 +263,29 @@ async function approvePayhipStudents(adminChatId: number): Promise<void> {
   }
 
   for (const s of waiting as { id: string; telegram_chat_id: string; full_name: string | null }[]) {
+    const now = new Date().toISOString();
     const { count } = await supabase
       .from("amara_students")
-      .update({ current_step: 6, updated_at: new Date().toISOString() })
+      .update({
+        current_day: 2,
+        current_step: 1,
+        day1_completed_at: now,
+        next_day_unlocks_at: null,
+        updated_at: now,
+      })
       .eq("id", s.id)
-      .eq("current_step", 5); // optimistic lock
+      .eq("current_step", 5);
 
     if ((count ?? 0) === 0) continue;
 
     await typeMessage(
       s.telegram_chat_id,
-      `Great news! 🎉 Your Payhip affiliate account has been <b>approved!</b>\n\nNow go to your Payhip dashboard and find your <b>affiliate link</b> — it looks like <code>payhip.com/YourUsername</code> 🔗\n\nCopy it and paste it here!`
+      `Great news! 🎉 Your Payhip affiliate account has been <b>approved!</b> ✅\n\nYour <b>Day 2 is now UNLOCKED!</b> 🚀 Let's keep moving — reply <b>"ready"</b> to continue! 💪`
     );
   }
 
   const names = (waiting as { full_name: string | null }[]).map((s) => s.full_name ?? "unnamed").join(", ");
-  await sendMessage(adminChatId, `✅ Approved and notified ${waiting.length} student(s): ${names}\n\nThey're now collecting their Payhip affiliate link!`);
+  await sendMessage(adminChatId, `✅ Approved ${waiting.length} student(s) and unlocked Day 2: ${names}`);
 }
 
 // ── Help ──────────────────────────────────────────────────────────────────────
