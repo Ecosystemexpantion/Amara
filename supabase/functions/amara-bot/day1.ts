@@ -223,12 +223,9 @@ async function handleStep4(student: Student, chatId: number, text: string | null
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
   if (result.reason === "verification_unavailable") {
-    // Vision APIs exhausted — assume they have the dashboard ready, advance and notify admin
     notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 1 Step 4 for ${student.full_name}`).catch(() => {});
     await recordStepCompletion(student.id, 1, 4, true);
-    await advanceStep(student.id, 1, 5, { payhip_account_created: true });
-    await typeMessage(chatId, `Your Payhip account is set up! ✅ You don do am! 🙌\n\nI've notified your coach to approve your affiliate request — hold on a moment while I get that sorted for you 🙏`);
-    await notifyAdmin(`📋 <b>PAYHIP APPROVAL NEEDED</b>\n\nStudent: <b>${student.full_name}</b> just created their Payhip affiliate account!\n\nPlease go to Payhip and <b>approve their affiliate request</b> so they can get their link.\n\nReply <code>approved</code> when done 👇`);
+    await sendDay1Complete({ ...student, payhip_account_created: true }, chatId);
     return;
   }
 
@@ -242,16 +239,8 @@ async function handleStep4(student: Student, chatId: number, text: string | null
       return;
     }
 
-    // Dashboard confirmed — notify admin to approve and put student in waiting state
     await recordStepCompletion(student.id, 1, 4, true);
-    await advanceStep(student.id, 1, 5, { payhip_account_created: true });
-    await typeMessage(
-      chatId,
-      `Your Payhip account is set up! ✅ You don do am! 🙌\n\nI've notified your coach to approve your affiliate request — hold on a moment while I get that sorted for you 🙏`
-    );
-    await notifyAdmin(
-      `📋 <b>PAYHIP APPROVAL NEEDED</b>\n\nStudent: <b>${student.full_name}</b> just created their Payhip affiliate account!\n\nPlease go to Payhip and <b>approve their affiliate request</b> so they can get their link.\n\nReply <code>approved</code> when done 👇`
-    );
+    await sendDay1Complete({ ...student, payhip_account_created: true }, chatId);
   } else {
     await handleFailedScreenshot(student, chatId, result.reason,
       result.guidance || "Use this link to sign up: <a href=\"https://payhip.com/auth/register/af650fe07ce1c3c\">https://payhip.com/auth/register/af650fe07ce1c3c</a> — you should see a 'Join as an Affiliate' form to fill in 📸",
@@ -363,6 +352,7 @@ Ask them to copy the link and paste it here.`,
 async function sendDay1Complete(student: Student, chatId: number): Promise<void> {
   const nextUnlock = computeNextUnlockAt();
   await advanceStep(student.id, 1, 0, {
+    payhip_account_created: true,
     day1_completed_at: new Date().toISOString(),
     next_day_unlocks_at: nextUnlock,
   });
