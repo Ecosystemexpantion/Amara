@@ -135,7 +135,26 @@ async function handleGitHubAccount(
     const guidance = await geminiVisionGuide(
       photo.bytes,
       photo.mimeType,
-      `Student is on Day 2 of EEM26, creating or logging into a GitHub account so Amara can build their sales pages. Guide them based on what you see on screen.`,
+      `Student is on Day 2 of EEM26. Amara asked if they have a GitHub account.
+
+IMPORTANT — look at what's in the screenshot:
+
+1. If they're on the GitHub HOME PAGE, DASHBOARD, or PROFILE (they're logged in):
+   → They ALREADY have a GitHub account! Tell them: "You already have a GitHub account — that's all I needed to know! 🎉 Just type 'yes' or 'I have one' in the chat and I'll send you the connection link to build your sales pages automatically!"
+   → Do NOT tell them to create a repository, tap plus icons, or do anything on GitHub. Amara handles everything automatically.
+
+2. If they're on the GitHub SIGNUP page:
+   → Guide them to fill in username, email, password, verify email, and finish creating their account. Once done, come back and tell Amara.
+
+3. If they're on the GitHub LOGIN page:
+   → Tell them to log in with their email and password. Once logged in, come back to Amara and type "I have one" or "yes".
+
+4. If they're somewhere else on GitHub (settings, repos list, etc.):
+   → They have an account! Tell them to come back to Amara's chat and type "yes" or "I have a GitHub account".
+
+NEVER tell the student to create a repository, tap plus icons, or navigate GitHub menus. Amara creates everything automatically once they connect their account.
+
+Be warm, short (2-3 sentences), and specific about what you see on their screen.`,
       text ?? undefined
     );
     await sendMessage(chatId, guidance);
@@ -177,7 +196,12 @@ async function handleGitHubAccount(
   const reply = await geminiChat(
     history,
     text,
-    `Student is on Day 2 of EEM26. Before connecting GitHub (OAuth), Amara asked whether they have a GitHub account. Help them — if they don't have one, guide them to github.com/signup (free, 2 minutes). If they do or just created one, tell them to tap this link to connect: ${oauthUrl} — on mobile they need to scroll down to tap the green Authorize button.`,
+    `Student is on Day 2 of EEM26. Amara asked whether they have a GitHub account.
+
+If they DON'T have one: guide them to github.com/signup (free, 2 minutes) — fill in username, email, password, verify email.
+If they DO have one or just created one: tell them to tap this link to connect: ${oauthUrl} — on mobile they need to scroll down to tap the green Authorize button.
+
+IMPORTANT: Do NOT tell the student to create repositories, tap plus icons, or navigate GitHub menus. Amara creates EVERYTHING automatically once they connect. The student only needs to: 1) have a GitHub account, 2) tap the OAuth link, 3) tap the green Authorize button.`,
     student.id
   );
   await sendMessage(chatId, reply);
