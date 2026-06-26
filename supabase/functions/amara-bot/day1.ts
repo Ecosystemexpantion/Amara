@@ -3,6 +3,7 @@ import { advanceStep, updateStudent, incrementScreenshotAttempts, resetScreensho
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin } from "./admin.ts";
 import { createEscalation } from "./knowledge.ts";
+import { handleDay2 } from "./day2.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const READY_WORDS = /\b(ready|let'?s go|start|begin|ok|okay|yes|go|proceed|continue|oya|sure|done)\b/i;
@@ -29,12 +30,35 @@ export async function handleDay1(
     case 4:
       await handleStep4(student, chatId, text, photo);
       break;
-    case 5:
-      await sendMessage(chatId, "Oya let's continue! Send me that screenshot when you're ready 📸");
-      break;
     default:
-      await sendMessage(chatId, "Oya let's continue! Send me that screenshot when you're ready 📸");
+      // Legacy students stuck on the old Payhip approval/link steps (5, 6).
+      // They already finished Selar + Payhip — rescue them into Day 2 now
+      // instead of looping forever on a dead-end message.
+      await rescueLegacyStudentToDay2(student, chatId);
   }
+}
+
+// Rescue students stranded on removed Day 1 steps (old Payhip approval/link flow).
+// Move them into Day 2 and immediately start the Day 2 Tech Stack step so they
+// never sit on the "Oya let's continue" loop.
+async function rescueLegacyStudentToDay2(
+  student: Student,
+  chatId: number
+): Promise<void> {
+  await advanceStep(student.id, 2, 1, {
+    payhip_account_created: true,
+    day1_completed_at: student.day1_completed_at ?? new Date().toISOString(),
+    next_day_unlocks_at: null,
+  });
+  // Always start Day 2 fresh with the Tech Stack intro (pass null/null) so the
+  // student gets the download link, not vision-guidance on a stale screenshot.
+  await handleDay2(
+    {} as TelegramMessage,
+    { ...student, current_day: 2, current_step: 1 },
+    chatId,
+    null,
+    null
+  );
 }
 
 // Step 1: Q&A phase — wait for "ready"
