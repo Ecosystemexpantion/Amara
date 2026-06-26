@@ -15,6 +15,30 @@ const supabase = createClient(
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TG_BASE   = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
+const TECH_STACK_URL = "https://ecosystemexpantion.github.io/Tech_stack/";
+
+// Day 2 Step 1 intro — kept identical to amara-bot/day2.ts handleTechStackVerification
+// so a proactively-rescued student sees the same flow as one who messages in.
+const DAY2_TECH_STACK_INTRO = `<b>🚀 Day 2: Your Live Sales Pages!</b>
+
+Today I'm building your <b>TWO live sales pages</b> — but I need your <b>Tech Stack 📦</b> to do it. Here's what's inside that we need for today:
+
+1️⃣ <b>Landing page code</b> — your ready-made sales page template
+2️⃣ <b>The hot-selling product</b> — currently making students <b>₦51M+</b> 🔥
+3️⃣ <b>Premium page template</b> — your high-ticket version
+4️⃣ <b>Product images & graphics</b> — professional visuals for your pages
+5️⃣ <b>Sales copy & descriptions</b> — proven words that convert visitors to buyers
+
+All of these are inside the Tech Stack — I can't build without them!`;
+
+const DAY2_TECH_STACK_ASK = `Have you downloaded the Tech Stack yet?
+
+👉 <a href="${TECH_STACK_URL}">Download your Tech Stack here</a>
+
+Once you've downloaded it, send me a <b>screenshot of your proof of payment</b> (receipt or confirmation email) so we can continue immediately! 💰
+
+Our target is <b>₦500k in a week</b> — let's go! 🔥`;
+
 // ── Day-unlock messages (sent at 8AM Nigeria) ──────────────────────────────────
 
 const DAY_UNLOCK_MESSAGES: Record<number, string> = {
@@ -139,6 +163,60 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     const now = new Date();
     const nowIso = now.toISOString();
     const results: Record<string, unknown> = {};
+
+    // ── 0. Rescue legacy students stranded on the removed Payhip-approval step ──
+    // Day 1 step 5 (and 6) were the old "wait for Coach Victor's approval" flow,
+    // which no longer exists. Students there finished Selar + Payhip and are
+    // frozen forever waiting for an approval that will never come. Move them
+    // straight into Day 2 (Tech Stack verification) and message them proactively
+    // so the silent/frustrated ones don't have to send a message to get unstuck.
+    const { data: strandedStudents } = await supabase
+      .from("amara_students")
+      .select("id, telegram_chat_id, full_name, day1_completed_at")
+      .eq("status", "ACTIVE")
+      .eq("current_day", 1)
+      .gte("current_step", 5);
+
+    let rescuedCount = 0;
+    for (const s of strandedStudents ?? []) {
+      try {
+        // Optimistic lock: only advance if still stranded (avoids double-sends if
+        // the student messaged and the bot rescued them in the same window).
+        // .select() returns the rows actually updated — empty means already moved.
+        const { data: updated } = await supabase
+          .from("amara_students")
+          .update({
+            current_day: 2,
+            current_step: 1,
+            payhip_account_created: true,
+            day1_completed_at: s.day1_completed_at ?? nowIso,
+            next_day_unlocks_at: null,
+            updated_at: nowIso,
+          })
+          .eq("id", s.id)
+          .eq("current_day", 1)
+          .gte("current_step", 5)
+          .select("id");
+
+        if (!updated || updated.length === 0) continue;
+
+        // Warm bridge first — these students have been waiting (some for days),
+        // so reassure them their setup is approved before asking for anything.
+        await sendTelegram(
+          s.telegram_chat_id,
+          `🎉 <b>Great news${s.full_name ? `, ${s.full_name.split(" ")[0]}` : ""}!</b>\n\nYour Day 1 setup is fully approved ✅ — no more waiting! We're moving straight to <b>Day 2</b> right now 🚀`
+        );
+        await new Promise((r) => setTimeout(r, 400));
+        await sendTelegram(s.telegram_chat_id, DAY2_TECH_STACK_INTRO);
+        await new Promise((r) => setTimeout(r, 400));
+        await sendTelegram(s.telegram_chat_id, DAY2_TECH_STACK_ASK);
+        await markProactiveSent(s.id);
+        rescuedCount++;
+      } catch (err) {
+        console.error(`Rescue error for ${s.id}:`, err);
+      }
+    }
+    results.legacyRescued = rescuedCount;
 
     // ── 1. Morning day-unlock ──────────────────────────────────────────────────
     const { data: unlockStudents, error: unlockError } = await supabase
