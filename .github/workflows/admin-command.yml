@@ -1,10 +1,16 @@
 name: Send Amara Admin Command
 
-# Manually send an admin command to Amara (as the admin chat), e.g.
-# "skip Funke Adams to day 3", "announce saturday", "confirm Mexdon".
-# Amara replies with the result in the admin's Telegram chat.
+# Sends the contents of .amara-admin-command to Amara as an admin-chat
+# message whenever that file changes, e.g. "skip Funke Adams to day 3",
+# "announce saturday", "confirm Mexdon". Amara replies with the result
+# in the admin's Telegram chat. Also supports manual dispatch.
 
 on:
+  push:
+    branches:
+      - claude/amara-eem26-bot-hqB4R
+    paths:
+      - ".amara-admin-command"
   workflow_dispatch:
     inputs:
       command:
@@ -16,10 +22,15 @@ jobs:
   send:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Send command to Amara webhook
         env:
-          CMD: ${{ inputs.command }}
+          CMD_INPUT: ${{ inputs.command }}
         run: |
+          CMD="${CMD_INPUT:-$(head -c 500 .amara-admin-command)}"
+          echo "Sending admin command: $CMD"
           BODY=$(jq -n --arg text "$CMD" '{update_id: 999, message: {message_id: 999, chat: {id: 5870771695, type: "private"}, text: $text}}')
           curl -sS -X POST "https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/amara-bot" \
             -H "Content-Type: application/json" \
