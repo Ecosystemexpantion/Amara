@@ -37,9 +37,13 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
     return;
   }
 
-  // announce saturday — blast "training is TODAY" to graduates + Day 4 students
-  if (/^announce\s+saturday$/i.test(t)) {
-    await announceSaturday(chatId);
+  // announce saturday — blast "training is TODAY" to graduates + Day 4 students.
+  // Optional time (Nigeria, PM assumed): "announce saturday 9:30"
+  const announceMatch = t.match(/^announce\s+saturday(?:\s+(\d{1,2})[:.](\d{2}))?$/i);
+  if (announceMatch) {
+    const hour = announceMatch[1] ? parseInt(announceMatch[1], 10) : 8;
+    const min = announceMatch[2] ? parseInt(announceMatch[2], 10) : 30;
+    await announceSaturday(chatId, hour, min);
     return;
   }
 
@@ -306,7 +310,7 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>fix stuck [payhip-link]</code> → Apologize to stuck students, send them the Payhip link, save it, and unlock Day 2.\nExample: <code>fix stuck https://payhip.com/b/xeqSM/af69dc0c939dc7a</code>\n\n` +
     `<code>confirm [name]</code> → Manually confirm a student's Tech Stack purchase and unlock their Day 2 setup.\nExample: <code>confirm Funke Adams</code>\n\n` +
     `<code>skip [name] to day 3</code> → Skip a specific student to Day 3 (SRE bot setup).\nExample: <code>skip Funke Adams to day 3</code>\n\n` +
-    `<code>announce saturday</code> → Blast "training is TONIGHT" to all graduates + Day 4 students.\n\n` +
+    `<code>announce saturday</code> → Blast "training is TONIGHT at 8:30 PM" to all graduates + Day 4 students.\nCustom time: <code>announce saturday 9:30</code> (PM Nigeria time)\n\n` +
     `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Show all active students and their current day/step.`
   );
@@ -414,8 +418,12 @@ async function skipStudentToDay3(adminChatId: number, name: string): Promise<voi
 
 // ── Announce Saturday training ───────────────────────────────────────────────
 
-async function announceSaturday(adminChatId: number): Promise<void> {
+async function announceSaturday(adminChatId: number, pmHour = 8, minute = 30): Promise<void> {
   const now = new Date();
+  const timeLabel = `${pmHour}:${String(minute).padStart(2, "0")} PM`;
+  // Session time in UTC: Nigeria (WAT) is UTC+1, PM hours assumed
+  const sessionUtcHour = pmHour + 12 - 1;
+  const sessionUtcMin = minute;
 
   // 1. COMPLETED graduates whose first Saturday session hasn't passed yet
   const { data: graduates } = await supabase
@@ -431,7 +439,7 @@ async function announceSaturday(adminChatId: number): Promise<void> {
       for (let i = 0; i < 8; i++) {
         const candidate = new Date(grad);
         candidate.setUTCDate(grad.getUTCDate() + i);
-        candidate.setUTCHours(19, 30, 0, 0);
+        candidate.setUTCHours(sessionUtcHour, sessionUtcMin, 0, 0);
         if (candidate.getUTCDay() === 6 && candidate.getTime() >= grad.getTime()) {
           sessionTime = candidate;
           break;
@@ -460,7 +468,7 @@ async function announceSaturday(adminChatId: number): Promise<void> {
 
   const announcement =
     `🚨 <b>TODAY is the day!</b>\n\n` +
-    `Coach Victor's <b>Final Stage Setup session</b> is <b>TONIGHT at 8:30 PM Nigeria time!</b> 🎯\n\n` +
+    `Coach Victor's <b>Final Stage Setup session</b> is <b>TONIGHT at ${timeLabel} Nigeria time!</b> 🎯\n\n` +
     `👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n` +
     `Be there — this is where your business goes live! 🔥`;
 
