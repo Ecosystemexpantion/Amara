@@ -419,36 +419,16 @@ async function skipStudentToDay3(adminChatId: number, name: string): Promise<voi
 // ── Announce Saturday training ───────────────────────────────────────────────
 
 async function announceSaturday(adminChatId: number, pmHour = 8, minute = 30): Promise<void> {
-  const now = new Date();
   const timeLabel = `${pmHour}:${String(minute).padStart(2, "0")} PM`;
-  // Session time in UTC: Nigeria (WAT) is UTC+1, PM hours assumed
-  const sessionUtcHour = pmHour + 12 - 1;
-  const sessionUtcMin = minute;
 
-  // 1. COMPLETED graduates whose first Saturday session hasn't passed yet
+  // 1. ALL COMPLETED graduates — no matter when they finished. The admin
+  // controls when to blast, so every graduate hears about the session.
   const { data: graduates } = await supabase
     .from("amara_students")
-    .select("id, telegram_chat_id, day4_completed_at")
+    .select("telegram_chat_id")
     .eq("status", "COMPLETED");
 
-  const eligibleGrads: { telegram_chat_id: string }[] = [];
-  for (const s of graduates ?? []) {
-    if (s.day4_completed_at) {
-      const grad = new Date(s.day4_completed_at);
-      let sessionTime = new Date(grad);
-      for (let i = 0; i < 8; i++) {
-        const candidate = new Date(grad);
-        candidate.setUTCDate(grad.getUTCDate() + i);
-        candidate.setUTCHours(sessionUtcHour, sessionUtcMin, 0, 0);
-        if (candidate.getUTCDay() === 6 && candidate.getTime() >= grad.getTime()) {
-          sessionTime = candidate;
-          break;
-        }
-      }
-      if (now.getTime() >= sessionTime.getTime()) continue;
-    }
-    eligibleGrads.push(s);
-  }
+  const eligibleGrads: { telegram_chat_id: string }[] = graduates ?? [];
 
   // 2. Day 4 active students
   const { data: day4Students } = await supabase
