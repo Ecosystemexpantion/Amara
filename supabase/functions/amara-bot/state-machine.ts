@@ -2,7 +2,7 @@ import { sendMessage, sendChatAction, downloadFile, typeMessage } from "./telegr
 import { saveConversation, getRecentConversation } from "./db.ts";
 import { geminiAudio, geminiChat, geminiVideoTranscribe, geminiVisionGuide } from "./gemini.ts";
 import { handleOnboarding } from "./onboarding.ts";
-import { handleDay1, handleGate, isGated, isLegacyUnpaid, migrateLegacyToSre } from "./day1.ts";
+import { handleDay1, handleGate, isGated, isLegacyUnpaid, migrateLegacyToSre, isWaitingForNextDay, handleWaitingMessage } from "./day1.ts";
 import { handleDay2 } from "./day2.ts";
 import { handleDay3 } from "./day3.ts";
 import { handleDay4 } from "./day4.ts";
@@ -19,6 +19,16 @@ export async function routeMessage(
       await handleGate(msg, student, chatId);
     } catch (e) {
       console.error("handleGate error:", e);
+    }
+    return;
+  }
+
+  // Day finished, next one not open yet — no reply and no AI; the admin sees the message instead.
+  if (isWaitingForNextDay(student)) {
+    try {
+      await handleWaitingMessage(msg, student);
+    } catch (e) {
+      console.error("handleWaitingMessage error:", e);
     }
     return;
   }
@@ -101,12 +111,6 @@ export async function routeMessage(
       ? textPayload.slice("[Voice message] ".length)
       : textPayload;
 
-    // Check if student is waiting for next day to unlock
-    if (student.current_step === 0 && student.current_day >= 1 && student.current_day <= 3) {
-      await handleDayWait(student, chatId, cleanText, photoPayload);
-      return;
-    }
-
     // Route to day handler
     // Completed students get no reply — the cron sends daily Saturday session reminders
     if (student.status === "COMPLETED") return;
@@ -136,48 +140,6 @@ export async function routeMessage(
     try {
       await typeMessage(chatId, "I dey here! Had a small hiccup — try again in a moment 😊");
     } catch (_) { /* ignore */ }
-  }
-}
-
-// Student is between days — waiting for unlock
-async function handleDayWait(
-  student: Student,
-  chatId: number,
-  text: string | null,
-  photo: { bytes: Uint8Array; mimeType: string } | null = null
-): Promise<void> {
-  const nextDay = student.current_day + 1;
-  let unlockInfo = "tomorrow at 8AM Nigeria time";
-
-  if (student.next_day_unlocks_at) {
-    const unlockDate = new Date(student.next_day_unlocks_at);
-    const nigeriaTime = new Date(unlockDate.getTime() + 60 * 60 * 1000);
-    unlockInfo = `tomorrow at ${nigeriaTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} Nigeria time`;
-  }
-
-  if (photo) {
-    const guidance = await geminiVisionGuide(
-      photo.bytes,
-      photo.mimeType,
-      `Student has completed Day ${student.current_day} of the EEM26 program and is waiting for Day ${nextDay} to unlock at ${unlockInfo}. They may be reviewing something they set up or exploring. Guide them based on what you can see.`,
-      text ?? undefined
-    );
-    await sendMessage(chatId, guidance);
-    return;
-  }
-
-  if (text) {
-    const history = await getRecentConversation(student.id, 6);
-    const reply = await geminiChat(history, text,
-      `The student has completed Day ${student.current_day} and is waiting for Day ${nextDay} to unlock at ${unlockInfo}.
-They may have questions or just be chatting.
-Answer warmly. If they have questions about the business or what's coming next, answer enthusiastically about what Day ${nextDay} involves.
-Remind them their next day unlocks at ${unlockInfo} and tell them what exciting things are coming.`,
-      student.id
-    );
-    await sendMessage(chatId, reply);
-  } else {
-    await typeMessage(chatId, `Hey! Your Day ${nextDay} unlocks ${unlockInfo}! ⏰\n\nI'll message you as soon as it's ready. Get some rest — Day ${nextDay} is going to be amazing! 🚀`);
   }
 }
 

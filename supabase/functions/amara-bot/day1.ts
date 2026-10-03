@@ -1,7 +1,7 @@
 import { sendMessage, sendChatAction, typeMessage, downloadFile, copyMessage, sendWithKeyboard, escapeHtml } from "./telegram.ts";
 import { advanceStep, advanceIfAt, recordStepCompletion, getRecentConversation, computeNextUnlockAt, saveConversation, countStudentMessagesToday } from "./db.ts";
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
-import { notifyAdmin, studentLabel } from "./admin.ts";
+import { notifyAdmin, studentLabel, describePosition } from "./admin.ts";
 import { sendGitHubIntro } from "./day2.ts";
 import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, sreIntroMessages, suggestedBotNames, legacyUpgradeMessage } from "./day1-content.ts";
 import type { Student, TelegramMessage } from "./types.ts";
@@ -216,7 +216,7 @@ async function setupStudentBot(student: Student, chatId: number, token: string, 
 
   await typeMessage(
     chatId,
-    `Rest up — <b>Day 4 unlocks at 8AM tomorrow!</b> 🌅\n\nTomorrow is your FINAL day. We test everything, confirm your bot is working, and issue your official <b>Certificate of Completion 🎓</b> — you're almost there!`
+    `Rest up — <b>Day 4 unlocks at 8AM tomorrow!</b> 🌅\n\nTomorrow is your FINAL day. We test everything, confirm your bot is working, and issue your official <b>Certificate of Completion 🎓</b> — you're almost there!\n\nUntil then I'll stay quiet so you can rest 🤫 — no need to message me. I'll message you the moment it opens 🔔`
   );
   await notifyAdmin(
     `✅ <b>DAY 3 COMPLETE (SRE)</b>\n\n${studentLabel(student.full_name, chatId)}\nCountry: ${student.country ?? "?"}\nBot: @${botUsername}\nSales page: ${student.sales_page_link ?? "N/A"}`
@@ -238,6 +238,7 @@ export async function handleGate(msg: TelegramMessage, student: Student, chatId:
     await forwardToAdmin(student, msg, `💬 <b>Message from a locked student</b> — Amara stayed silent`, false);
     return;
   }
+
 
   if ((await countStudentMessagesToday(student.id, "photo")) > GATE_PHOTO_CHECKS_PER_DAY) {
     await forwardToAdmin(student, msg, `🧾 <b>Screenshot from a locked student</b> — AI check skipped (more than ${GATE_PHOTO_CHECKS_PER_DAY} today)\n\nTap <b>Approve payment</b> if it's valid.`, true);
@@ -302,7 +303,7 @@ async function forwardToAdmin(student: Student, msg: TelegramMessage, headline: 
   const id = student.telegram_chat_id;
   const buttons = [[{ text: "💬 Jump in", callback_data: `jump:${id}` }]];
   if (withApprove) buttons[0].push({ text: "✅ Approve payment", callback_data: `approve:${id}` });
-  const card = `${headline}\n\n${studentLabel(student.full_name, id)}\n📍 Day 1 done — Day 2 locked (no Tech Stack yet)`;
+  const card = `${headline}\n\n${studentLabel(student.full_name, id)}\n📍 ${describePosition(student)}`;
 
   if (msg.text) {
     await sendWithKeyboard(ADMIN_CHAT_ID, `${card}\n\n💬 "${escapeHtml(msg.text.slice(0, 3000))}"`, buttons);
@@ -310,6 +311,17 @@ async function forwardToAdmin(student: Student, msg: TelegramMessage, headline: 
   }
   await copyMessage(ADMIN_CHAT_ID, id, msg.message_id);
   await sendWithKeyboard(ADMIN_CHAT_ID, card, buttons);
+}
+
+// ── Between days: Amara stays silent to save credit ─────────────────────────
+
+export function isWaitingForNextDay(student: Student): boolean {
+  return student.status === "ACTIVE" && student.current_step === 0 && student.current_day >= 2 && student.current_day <= 3;
+}
+
+export async function handleWaitingMessage(msg: TelegramMessage, student: Student): Promise<void> {
+  await saveConversation(student.id, "user", describeIncoming(msg), msg.photo ? "photo" : msg.voice ? "voice" : "text");
+  await forwardToAdmin(student, msg, `💤 <b>Message between days</b> — Amara stayed silent`, false);
 }
 
 // ── Students who started on the old day order ────────────────────────────────

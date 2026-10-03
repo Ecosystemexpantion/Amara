@@ -609,7 +609,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         `Your two sales pages are live (it may take a minute for GitHub to fully publish them):\n\n` +
         `📌 <b>Normal page:</b>\n${normalPageUrl}\n\n` +
         `⭐ <b>Premium page:</b>\n${premiumPageUrl}\n\n` +
-        `Come back to Telegram to continue to Day 3!`
+        `✅ <b>Day 2 is COMPLETE!</b> Day 3 unlocks tomorrow at 8AM Nigeria time.\n\nUntil then I'll stay quiet so you can rest 🤫 — no need to message me. I'll message you the moment it opens 🔔`
     );
 
     // -----------------------------------------------------------------------

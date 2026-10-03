@@ -256,7 +256,7 @@ async function sendDay3Complete(student: Student, chatId: number): Promise<void>
   });
 
   await typeMessage(chatId, `<b>YOU DID IT!! 🎉🎉🎉</b>\n\nDay 3 is COMPLETE! You don do am!! 💪\n\n✅ Selar account — DONE\n✅ Payhip account — DONE`);
-  await typeMessage(chatId, `Tomorrow is your <b>FINAL DAY</b> 🏆 — we test your bot, confirm everything is working, and you receive your official <b>Certificate of Completion 🎓</b>\n\n<b>Day 4 unlocks tomorrow at 8AM Nigeria time.</b> I'll message you then! Get some rest — you earned it 🌟`);
+  await typeMessage(chatId, `Tomorrow is your <b>FINAL DAY</b> 🏆 — we test your bot, confirm everything is working, and you receive your official <b>Certificate of Completion 🎓</b>\n\n<b>Day 4 unlocks tomorrow at 8AM Nigeria time.</b>\n\nUntil then I'll stay quiet so you can rest 🤫 — no need to message me. I'll message you the moment it opens 🔔`);
 
   await notifyAdmin(
     `✅ <b>DAY 3 COMPLETE</b>\n\nStudent: ${student.full_name}\n🆔 <code>${chatId}</code>\nCountry: ${student.country}\nSelar: ✅\nPayhip: ✅\nPayhip link: ${student.payhip_link ?? "not yet provided"}`

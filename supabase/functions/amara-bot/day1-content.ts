@@ -38,7 +38,7 @@ export function legacyUpgradeMessage(fullName: string | null): string {
 
 export const GATE_PITCH: string[] = [
   `🔒 <b>Day 2 is LOCKED</b> until you get your <b>Tech Stack 📦</b>\n\nYour bot is live — but it needs what's inside the Tech Stack to start making you money:\n\n1️⃣ <b>Two live sales pages</b> — I build them for you on Day 2\n2️⃣ <b>The hot-selling product</b> — currently making students <b>₦51M+</b> 🔥\n3️⃣ <b>Premium page template</b> — your high-ticket version\n4️⃣ <b>Product images & sales copy</b> — proven words that convert\n5️⃣ <b>4 personal coaches</b> — with you until you're earning`,
-  `${DOWNLOAD_LINE}\n\n${UNLOCK_LINE}\n\nDay 2, 3 and 4 — that's where the money starts 💰`,
+  `${DOWNLOAD_LINE}\n\n${UNLOCK_LINE}\n\nDay 2, 3 and 4 — that's where the money starts 💰\n\n<i>Until then I'll stay quiet 🤫 — the only thing I'm waiting for is your payment screenshot.</i>`,
 ];
 
 // Sent by the cron to students locked at the gate, timed from day1_completed_at.
