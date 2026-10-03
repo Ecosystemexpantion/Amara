@@ -255,7 +255,7 @@ export async function handleGate(msg: TelegramMessage, student: Student, chatId:
       "- A Selar order confirmation or purchase receipt\n" +
       "- Any document clearly showing a completed payment\n" +
       "verified=true if this clearly shows a successful payment/purchase. verified=false if it shows something unrelated."
-    ));
+    ), true);
     verified = result.verified;
     reason = result.reason;
   } catch (e) {

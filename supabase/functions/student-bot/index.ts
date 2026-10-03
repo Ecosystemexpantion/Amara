@@ -361,6 +361,7 @@ async function extractPaymentAmount(imageBytes: Uint8Array, mimeType: string): P
     maxTokens: 20,
     temperature: 0.1,
     caller: "student bot payment check",
+    strong: true,
   });
   if (!text) return null;
   const num = parseInt(text.replace(/[^0-9]/g, ""), 10);
