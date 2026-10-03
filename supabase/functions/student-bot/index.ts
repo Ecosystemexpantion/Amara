@@ -14,6 +14,7 @@ interface Student {
   sales_page_link: string | null;
   bot_token: string | null;
   status: string;
+  current_day: number;
 }
 
 interface Lead {
@@ -479,6 +480,36 @@ async function upsertLead(supabase: SupabaseClient, studentId: string, chatId: s
   } catch (e) { console.error("upsertLead catch:", e); }
 }
 
+// ─── Credit limits (reset at midnight Nigeria time) ───────────────────────────
+
+const OWNER_AI_PER_DAY = 3;
+const UNPAID_BOT_REPLIES_PER_DAY = 20;
+const UNPAID_HOLD_MSG = "Thanks for your message! 🙏 I'll get back to you tomorrow with everything you need.";
+
+function nigeriaDayStartIso(): string {
+  const nowNigeria = new Date(Date.now() + 3600_000);
+  nowNigeria.setUTCHours(0, 0, 0, 0);
+  return new Date(nowNigeria.getTime() - 3600_000).toISOString();
+}
+
+// Students still on Day 1 haven't bought the Tech Stack yet.
+function isUnpaid(student: Student): boolean {
+  return student.status === "ACTIVE" && student.current_day <= 1;
+}
+
+async function repliesToday(supabase: SupabaseClient, studentId: string, chatId?: string, excludeChatId?: string): Promise<number> {
+  let q = supabase
+    .from("student_bot_conversations")
+    .select("id", { count: "exact", head: true })
+    .eq("student_id", studentId)
+    .eq("role", "assistant")
+    .gte("created_at", nigeriaDayStartIso());
+  if (chatId) q = q.eq("chat_id", chatId);
+  if (excludeChatId) q = q.neq("chat_id", excludeChatId);
+  const { count } = await q;
+  return count ?? 0;
+}
+
 // ─── Admin handler ────────────────────────────────────────────────────────────
 
 async function handleAdmin(student: Student, chatId: number, msg: TelegramMessage, supabase: SupabaseClient): Promise<void> {
@@ -501,6 +532,7 @@ async function handleAdmin(student: Student, chatId: number, msg: TelegramMessag
       `• "What objections are people raising?"\n` +
       `• "Who are my hot leads?"\n` +
       `• "How many attended?"\n\n` +
+      `<i>You get ${OWNER_AI_PER_DAY} questions a day.</i>\n\n` +
       `📹 Send a <b>video</b> → I'll return its file_id\n\n` +
       `<i>To test the lead funnel, message this bot from a different account.</i>`
     );
@@ -518,11 +550,25 @@ async function handleAdmin(student: Student, chatId: number, msg: TelegramMessag
   const newToday = (leads ?? []).filter((l: Record<string, string>) => l.created_at?.startsWith(today)).length;
   const hotLeads = (leads ?? []).filter((l: Record<string, string>) => l.interest_level === "hot");
 
+  const ownerChat = String(chatId);
+  const used = await repliesToday(supabase, student.id, ownerChat);
+  if (used >= OWNER_AI_PER_DAY) {
+    const stageLines = Object.entries(counts).map(([stage, n]) => `• ${stage}: ${n}`).join("\n") || "• none yet";
+    await sendMessage(token, chatId,
+      `📊 <b>Your leads right now</b>\n\n` +
+      `Total: <b>${leads?.length ?? 0}</b> · New today: <b>${newToday}</b>\n${stageLines}\n\n` +
+      `🔥 Hot leads: ${hotLeads.map((l: Record<string, string>) => `${l.name ?? "unnamed"} (${l.country ?? "?"})`).join(", ") || "none yet"}\n\n` +
+      `<i>You've used your ${OWNER_AI_PER_DAY} questions for today — ask me again tomorrow. Your bot keeps working for your customers in the meantime 💪</i>`
+    );
+    return;
+  }
+
   const { data: msgs } = await supabase
     .from("student_bot_conversations")
     .select("message")
     .eq("student_id", student.id)
     .eq("role", "user")
+    .neq("chat_id", ownerChat)
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -538,7 +584,9 @@ async function handleAdmin(student: Student, chatId: number, msg: TelegramMessag
     `You are a sales analytics assistant. Answer the owner's question concisely using this data. Use numbers. Be direct.\n\n${context}`,
     [], query
   );
-  await sendMessage(token, chatId, answer);
+  const left = OWNER_AI_PER_DAY - used - 1;
+  await sendMessage(token, chatId, `${answer}\n\n<i>${left > 0 ? `${left} question${left === 1 ? "" : "s"} left today` : "That was your last question for today"}</i>`);
+  await saveConv(supabase, student.id, ownerChat, query, answer);
 }
 
 // ─── Lead handler ─────────────────────────────────────────────────────────────
@@ -595,6 +643,26 @@ async function handleLead(
     await upsertLead(supabase, student.id, chatIdStr, { stage: "ATTENDED" });
     await saveConv(supabase, student.id, chatIdStr, userText, screenshotMsg);
     return;
+  }
+
+  // Unpaid students' bots get a small daily allowance of replies on the admin's credit.
+  if (isUnpaid(student) && (msg.photo?.length || userText) && lead) {
+    const usedToday = await repliesToday(supabase, student.id, undefined, String(student.telegram_chat_id));
+    if (usedToday >= UNPAID_BOT_REPLIES_PER_DAY) {
+      const { data: last } = await supabase
+        .from("student_bot_conversations")
+        .select("message")
+        .eq("student_id", student.id)
+        .eq("chat_id", chatIdStr)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if ((last as { message: string }[] | null)?.[0]?.message !== UNPAID_HOLD_MSG) {
+        await sendMessage(token, chatId, UNPAID_HOLD_MSG);
+        await saveConv(supabase, student.id, chatIdStr, userText || "[photo]", UNPAID_HOLD_MSG);
+      }
+      return;
+    }
   }
 
   // Payment screenshot verification (ATTENDED or buy intent + photo)
@@ -778,7 +846,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try {
       const { data: sd, error } = await supabase
         .from("amara_students")
-        .select("id, telegram_chat_id, full_name, payhip_link, sales_page_link, bot_token, status")
+        .select("id, telegram_chat_id, full_name, payhip_link, sales_page_link, bot_token, status, current_day")
         .eq("id", studentId)
         .single();
 

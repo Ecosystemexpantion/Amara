@@ -119,6 +119,21 @@ export async function saveConversation(
   });
 }
 
+// Counts a student's own messages since midnight Nigeria time.
+export async function countStudentMessagesToday(studentId: string, messageType?: string): Promise<number> {
+  const nowNigeria = new Date(Date.now() + 3600_000);
+  nowNigeria.setUTCHours(0, 0, 0, 0);
+  let q = supabase
+    .from("amara_conversations")
+    .select("id", { count: "exact", head: true })
+    .eq("student_id", studentId)
+    .eq("role", "user")
+    .gte("created_at", new Date(nowNigeria.getTime() - 3600_000).toISOString());
+  if (messageType) q = q.eq("message_type", messageType);
+  const { count } = await q;
+  return count ?? 0;
+}
+
 export async function recordStepCompletion(
   studentId: string,
   day: number,

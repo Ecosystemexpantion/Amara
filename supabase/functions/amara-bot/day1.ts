@@ -1,5 +1,5 @@
 import { sendMessage, sendChatAction, typeMessage, downloadFile, copyMessage, sendWithKeyboard, escapeHtml } from "./telegram.ts";
-import { advanceStep, advanceIfAt, recordStepCompletion, getRecentConversation, computeNextUnlockAt, saveConversation } from "./db.ts";
+import { advanceStep, advanceIfAt, recordStepCompletion, getRecentConversation, computeNextUnlockAt, saveConversation, countStudentMessagesToday } from "./db.ts";
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin, studentLabel } from "./admin.ts";
 import { sendGitHubIntro } from "./day2.ts";
@@ -7,6 +7,10 @@ import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, sreIntroMessages, sugg
 import type { Student, TelegramMessage } from "./types.ts";
 
 const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
+// Daily AI allowances for students who haven't bought the Tech Stack yet.
+const SRE_AI_REPLIES_PER_DAY = 20;
+const GATE_PHOTO_CHECKS_PER_DAY = 3;
+
 const BOT_TOKEN_RE = /\d{6,12}:[A-Za-z0-9_-]{30,}/;
 
 // Day 1 — SRE: create a bot with BotFather → paste token → Amara wires it up.
@@ -46,11 +50,20 @@ export async function handleSreStep(
 5. BotFather replies "Done! Congratulations on your new bot" with a token like 1234567890:AAH...
 6. Back in Amara's chat: press and hold that "Done!" message → Forward → Amara. Or copy the token and paste it here.`;
 
+  // Messages are saved before routing, so this already includes the current one.
+  const overAiLimit = day === 1 && (await countStudentMessagesToday(student.id)) > SRE_AI_REPLIES_PER_DAY;
+  const limitReply =
+    `Here's exactly what to do 👇\n\n1️⃣ Tap 👉 <a href="${BOTFATHER_LINK}">@BotFather</a> → <b>START</b>\n2️⃣ Send <code>/newbot</code>\n3️⃣ Name: <code>${displayName}</code>\n4️⃣ Username: <code>${username}</code>\n5️⃣ Press and hold BotFather's <b>"Done!"</b> message → <b>Forward</b> → <b>Amara</b>\n\nI'll set up everything the moment your token arrives 💪`;
+
   if (photo) {
     const prompt = buildVerificationPrompt(
       "Does this screenshot show a Telegram chat with BotFather showing the bot token? Extract the full token if it is completely visible.",
       ["bot_token"]
     );
+    if (overAiLimit) {
+      await typeMessage(chatId, limitReply);
+      return;
+    }
     const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
     const token = result.extracted?.bot_token?.match(BOT_TOKEN_RE)?.[0];
     if (result.verified && token) {
@@ -85,6 +98,11 @@ Look at their screen and tell them the ONE next thing to do:
   const hint = misplacedBotFatherInput(text, username, displayName);
   if (hint) {
     await typeMessage(chatId, hint);
+    return;
+  }
+
+  if (overAiLimit) {
+    await typeMessage(chatId, limitReply);
     return;
   }
 
@@ -218,6 +236,11 @@ export async function handleGate(msg: TelegramMessage, student: Student, chatId:
 
   if (!photo) {
     await forwardToAdmin(student, msg, `💬 <b>Message from a locked student</b> — Amara stayed silent`, false);
+    return;
+  }
+
+  if ((await countStudentMessagesToday(student.id, "photo")) > GATE_PHOTO_CHECKS_PER_DAY) {
+    await forwardToAdmin(student, msg, `🧾 <b>Screenshot from a locked student</b> — AI check skipped (more than ${GATE_PHOTO_CHECKS_PER_DAY} today)\n\nTap <b>Approve payment</b> if it's valid.`, true);
     return;
   }
 
