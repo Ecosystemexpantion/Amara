@@ -2,7 +2,7 @@ import { sendMessage, sendChatAction, downloadFile, typeMessage } from "./telegr
 import { saveConversation, getRecentConversation } from "./db.ts";
 import { geminiAudio, geminiChat, geminiVideoTranscribe, geminiVisionGuide } from "./gemini.ts";
 import { handleOnboarding } from "./onboarding.ts";
-import { handleDay1 } from "./day1.ts";
+import { handleDay1, handleGate, isGated, isLegacyUnpaid, migrateLegacyToSre } from "./day1.ts";
 import { handleDay2 } from "./day2.ts";
 import { handleDay3 } from "./day3.ts";
 import { handleDay4 } from "./day4.ts";
@@ -13,10 +13,25 @@ export async function routeMessage(
   student: Student,
   chatId: number
 ): Promise<void> {
+  // Day 2 is locked until Tech Stack payment proof — no typing indicator, no reply, no error fallback.
+  if (isGated(student)) {
+    try {
+      await handleGate(msg, student, chatId);
+    } catch (e) {
+      console.error("handleGate error:", e);
+    }
+    return;
+  }
+
   let textPayload: string | null = null;
   let photoPayload: { bytes: Uint8Array; mimeType: string } | null = null;
 
   try {
+    if (isLegacyUnpaid(student)) {
+      await migrateLegacyToSre(student, chatId);
+      return;
+    }
+
     // Resolve message content
     if (msg.voice) {
       // Download and transcribe voice message

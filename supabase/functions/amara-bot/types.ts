@@ -62,6 +62,7 @@ export interface TelegramMessage {
   video_note?: TelegramVideoNote;
   document?: TelegramDocument;
   sticker?: unknown;
+  reply_to_message?: TelegramMessage;
 }
 
 export interface TelegramUser {

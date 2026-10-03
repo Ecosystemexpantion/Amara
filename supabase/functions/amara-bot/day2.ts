@@ -1,12 +1,8 @@
 import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
-import { advanceStep, getRecentConversation, recordStepCompletion, incrementScreenshotAttempts, resetScreenshotAttempts } from "./db.ts";
-import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
+import { advanceStep, getRecentConversation } from "./db.ts";
+import { geminiChat, geminiVisionGuide } from "./gemini.ts";
 import { buildGitHubAuthUrl } from "./github.ts";
-import { notifyAdmin } from "./admin.ts";
-import { createEscalation } from "./knowledge.ts";
 import type { Student, TelegramMessage } from "./types.ts";
-
-const TECH_STACK_URL = "https://ecosystemexpantion.github.io/Tech_stack/";
 
 export async function handleDay2(
   _msg: TelegramMessage,
@@ -17,107 +13,11 @@ export async function handleDay2(
 ): Promise<void> {
   await sendChatAction(chatId, "typing");
 
+  // Step 1 (Tech Stack payment) now happens at the Day 1 lock — see day1.ts.
   switch (student.current_step) {
-    case 1: await handleTechStackVerification(student, chatId, text, photo); break;
     case 2: await handleGitHubAccount(student, chatId, text, photo); break;
     case 3: await handleGitHubOAuth(student, chatId, text, photo); break;
     default: await resendOAuthLink(student, chatId);
-  }
-}
-
-// Step 1: Verify Tech Stack download before continuing
-async function handleTechStackVerification(
-  student: Student,
-  chatId: number,
-  text: string | null,
-  photo: { bytes: Uint8Array; mimeType: string } | null
-): Promise<void> {
-  const history = await getRecentConversation(student.id, 6);
-  const alreadyAsked = history.some(m => m.message.includes("Tech Stack") && m.role === "assistant");
-
-  if (!photo) {
-    if (!alreadyAsked || !text) {
-      await typeMessage(
-        chatId,
-        `<b>🚀 Day 2: Your Live Sales Pages!</b>\n\nToday I'm building your <b>TWO live sales pages</b> — but I need your <b>Tech Stack 📦</b> to do it. Here's what's inside that we need for today:\n\n1️⃣ <b>Landing page code</b> — your ready-made sales page template\n2️⃣ <b>The hot-selling product</b> — currently making students <b>₦51M+</b> 🔥\n3️⃣ <b>Premium page template</b> — your high-ticket version\n4️⃣ <b>Product images & graphics</b> — professional visuals for your pages\n5️⃣ <b>Sales copy & descriptions</b> — proven words that convert visitors to buyers\n\nAll of these are inside the Tech Stack — I can't build without them!`
-      );
-      await typeMessage(
-        chatId,
-        `Have you downloaded the Tech Stack yet?\n\n👉 <a href="${TECH_STACK_URL}">Download your Tech Stack here</a>\n\nOnce you've downloaded it, send me a <b>screenshot of your proof of payment</b> (receipt or confirmation email) so we can continue immediately! 💰\n\nOur target is <b>₦500k in a week</b> — let's go! 🔥`
-      );
-      return;
-    }
-
-    const reply = await geminiChat(history, text,
-      `Student is on Day 2 Step 1. They need to download the EEM26 Tech Stack from ${TECH_STACK_URL} and send proof of payment/download.
-
-The proof can be:
-- A bank/payment app receipt (OPay, Paystack, bank transfer) showing a successful transaction
-- The confirmation email from EEM26 saying "Payment Confirmed! Your Access is Ready"
-- Any screenshot showing they purchased/downloaded the Tech Stack
-
-If they say they've already downloaded or paid, ask them to send a screenshot of the receipt or confirmation email.
-If they ask what the Tech Stack is, explain it contains all the tools needed for their setup (sales pages, bot, templates).
-If they seem reluctant or refuse, encourage them warmly — the Tech Stack is what makes the whole business work.
-Keep it short and motivating. Mention the ₦500k target.`,
-      student.id);
-    await sendMessage(chatId, reply);
-    return;
-  }
-
-  // Student sent a photo — verify it's proof of payment
-  const prompt = buildVerificationPrompt(
-    "Does this screenshot show proof of payment or a purchase confirmation? Accept ANY of these:\n" +
-    "- A bank or payment app receipt (OPay, Paystack, Flutterwave, bank transfer) showing a successful transaction\n" +
-    "- An email or page saying 'Payment Confirmed', 'Your Access is Ready', 'Order Successful', 'Transaction Successful' or similar\n" +
-    "- A Selar order confirmation or purchase receipt\n" +
-    "- Any document clearly showing a completed payment\n" +
-    "verified=true if this clearly shows a successful payment/purchase. verified=false if it shows something unrelated."
-  );
-  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
-
-  if (result.reason === "verification_unavailable") {
-    // Can't verify — send student's email to admin for manual confirmation
-    await notifyAdmin(
-      `🔍 <b>TECH STACK VERIFICATION NEEDED</b>\n\n` +
-      `Student: <b>${student.full_name}</b>\n` +
-      `Email: <code>${student.email ?? "not provided"}</code>\n\n` +
-      `Vision couldn't verify their payment proof. Please check if this email purchased the Tech Stack.\n\n` +
-      `Reply <code>confirm ${student.full_name}</code> to unlock Day 2 for them.`
-    );
-    await typeMessage(chatId, `Thanks for sending that! 😊 I'm having a little trouble reading the screenshot — I've sent your details to Coach Victor to confirm. He'll verify it quickly and I'll continue your setup right away! 🙏`);
-    return;
-  }
-
-  if (result.verified) {
-    await recordStepCompletion(student.id, 2, 1, true, "Tech Stack payment verified");
-    await advanceStep(student.id, 2, 2);
-    await typeMessage(chatId, `Payment confirmed! ✅ Tech Stack verified — let's build your sales pages! 🔥`);
-    await new Promise((r) => setTimeout(r, 300));
-    await sendGitHubIntro(student, chatId);
-  } else {
-    const attempts = student.screenshot_attempts + 1;
-    await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
-
-    if (attempts >= 3) {
-      // Escalate to admin — don't waste more API calls
-      await resetScreenshotAttempts(student.id);
-      await notifyAdmin(
-        `⚠️ <b>TECH STACK NOT VERIFIED</b>\n\n` +
-        `Student: <b>${student.full_name}</b>\n` +
-        `Email: <code>${student.email ?? "not provided"}</code>\n\n` +
-        `${attempts} attempts — screenshots don't show valid payment proof.\n` +
-        `Last screenshot showed: "${result.reason}"\n\n` +
-        `Reply <code>confirm ${student.full_name}</code> to unlock, or ignore.`
-      );
-      await typeMessage(chatId, `I've sent your details to Coach Victor for verification 🙏 He'll check and I'll message you as soon as you're confirmed! 😊`);
-      return;
-    }
-
-    const guidance = await geminiVisionGuide(photo.bytes, photo.mimeType,
-      `Student needs to send proof of payment for the EEM26 Tech Stack (${TECH_STACK_URL}). What they sent doesn't look like a payment receipt or confirmation. Tell them exactly what you see, then ask them to send their bank receipt (OPay, Paystack, etc.) or the "Payment Confirmed" email from EEM26. Be warm and specific.`,
-      text ?? undefined);
-    await sendMessage(chatId, guidance);
   }
 }
 
@@ -165,7 +65,7 @@ Be warm, short (2-3 sentences), and specific about what you see on their screen.
   const alreadyAsked = history.some(m => m.message.toLowerCase().includes("github account"));
 
   if (isFirstTrigger && !alreadyAsked) {
-    await sendGitHubIntro(student, chatId);
+    await sendGitHubIntro(chatId);
     return;
   }
 
@@ -207,7 +107,7 @@ IMPORTANT: Do NOT tell the student to create repositories, tap plus icons, or na
   await sendMessage(chatId, reply);
 }
 
-async function sendGitHubIntro(student: Student, chatId: number): Promise<void> {
+export async function sendGitHubIntro(chatId: number | string): Promise<void> {
   await typeMessage(
     chatId,
     `Now let's build your <b>TWO sales pages</b> — a normal version and a premium version — fully automated from your Tech Stack 📦\n\nOnce they're live, you'll have real shop links to share and start making sales 💰`

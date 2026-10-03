@@ -1,9 +1,19 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  SRE_STEP,
+  GATE_STEP,
+  GATE_PITCH,
+  GATE_FOLLOWUPS,
+  sreIntroMessages,
+  legacyUpgradeMessage,
+} from "../amara-bot/day1-content.ts";
 
 // Amara Day Unlock — Cron Job Function
 // Runs every 5 minutes via Supabase cron schedule.
-// Handles three proactive messaging flows:
+// Handles the proactive messaging flows:
+// 0. Move students on the old day order onto the new Day 1 (SRE first)
 // 1. Morning day-unlock at 8AM Nigeria time (07:00 UTC)
+// 1b. Tech Stack sales messages + 48h expiry for students locked at Day 2
 // 2. Evening check-in at 6PM Nigeria time (17:00 UTC)
 // 3. Silence nudge when a student hasn't messaged in 20+ hours
 
@@ -15,44 +25,16 @@ const supabase = createClient(
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TG_BASE   = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-const TECH_STACK_URL = "https://ecosystemexpantion.github.io/Tech_stack/";
-
-// Day 2 Step 1 intro — kept identical to amara-bot/day2.ts handleTechStackVerification
-// so a proactively-rescued student sees the same flow as one who messages in.
-const DAY2_TECH_STACK_INTRO = `<b>🚀 Day 2: Your Live Sales Pages!</b>
-
-Today I'm building your <b>TWO live sales pages</b> — but I need your <b>Tech Stack 📦</b> to do it. Here's what's inside that we need for today:
-
-1️⃣ <b>Landing page code</b> — your ready-made sales page template
-2️⃣ <b>The hot-selling product</b> — currently making students <b>₦51M+</b> 🔥
-3️⃣ <b>Premium page template</b> — your high-ticket version
-4️⃣ <b>Product images & graphics</b> — professional visuals for your pages
-5️⃣ <b>Sales copy & descriptions</b> — proven words that convert visitors to buyers
-
-All of these are inside the Tech Stack — I can't build without them!`;
-
-const DAY2_TECH_STACK_ASK = `Have you downloaded the Tech Stack yet?
-
-👉 <a href="${TECH_STACK_URL}">Download your Tech Stack here</a>
-
-Once you've downloaded it, send me a <b>screenshot of your proof of payment</b> (receipt or confirmation email) so we can continue immediately! 💰
-
-Our target is <b>₦500k in a week</b> — let's go! 🔥`;
-
 // ── Day-unlock messages (sent at 8AM Nigeria) ──────────────────────────────────
 
 const DAY_UNLOCK_MESSAGES: Record<number, string> = {
-  2: `☀️ <b>Good morning! Day 2 is UNLOCKED!</b>
-
-Today I'm building your <b>two live sales pages</b> automatically — you just need to connect your GitHub account once (I'll handle the rest!). After today you'll have two live links to share anywhere and make sales 💪
-
-Say <b>"ready"</b> and let's go! 🚀`,
-
   3: `🔥 <b>Good morning! Day 3 is LIVE!</b>
 
-Today you get your own AI sales bot! 🤖 Just create a bot with @BotFather on Telegram and give me the token — I'll set everything else up automatically for you (no terminal, no coding needed!).
+Today we set up your two money platforms 💰
+🛒 <b>Selar</b> — your own storefront where customers buy from you directly
+🔁 <b>Payhip</b> — you earn commissions every time someone buys through your link
 
-Say <b>"ready"</b> and let's go! 💪`,
+Got questions about how the business works? Ask me anything — when you're ready, say <b>"ready"</b> and let's go! 💪`,
 
   4: `🏆 <b>Good morning! Day 4 — YOUR FINAL DAY!</b>
 
@@ -66,12 +48,27 @@ Coach Victor holds a <b>live session every Saturday at 8:30 PM Nigeria time</b> 
 This is your finish line. Say <b>"ready"</b> and let's complete this! 💪`,
 };
 
+// Students who started on the old day order reach Day 3 without a bot and build it there.
+const LEGACY_DAY3_SRE = {
+  unlock: `🔥 <b>Good morning! Day 3 is LIVE!</b>
+
+Today you get your own AI sales bot! 🤖 Just create a bot with @BotFather on Telegram and give me the token — I'll set everything else up automatically for you (no terminal, no coding needed!).
+
+Say <b>"ready"</b> and let's go! 💪`,
+  evening: `🌙 <b>Evening check-in!</b>
+
+Day 3 going well? Just a reminder — all you need is your BotFather token and I'll handle the rest 🤖 Your bot will be live in seconds once you paste it!`,
+  nudge: `💬 Amara here — checking on you! 👋
+
+Day 3 is waiting and your bot is SO close to being live 🤖 Just paste your BotFather token and I'll set everything up automatically in seconds.`,
+};
+
 // ── Evening check-in messages (sent at 6PM Nigeria = 17:00 UTC) ───────────────
 
 const EVENING_MESSAGES: Record<number, string> = {
   1: `👋 <b>Evening check-in!</b>
 
-How's your Day 1 going? Just checking in — if you haven't finished yet, now is a great time to continue. I'm right here ready to guide you through your Selar and Payhip setup! 💪
+How's your Day 1 going? All you need is your BotFather token and I'll switch on your AI sales bot automatically 🤖 It goes live in seconds once you paste it!
 
 Send a message anytime and we'll pick up exactly where you left off 😊`,
 
@@ -83,9 +80,9 @@ If you haven't done it yet, send me a message and I'll send you the link again �
 
   3: `🌙 <b>Evening check-in!</b>
 
-Day 3 going well? Just a reminder — all you need is your BotFather token and I'll handle the rest 🤖 Your bot will be live in seconds once you paste it!
+How's your Day 3 going? If you haven't finished yet, now is a great time — I'm right here ready to guide you through your Selar and Payhip setup! 💪
 
-Tap here to continue whenever you're ready 😊`,
+Send a message anytime and we'll pick up exactly where you left off 😊`,
 
   4: `✨ <b>You're SO close!</b>
 
@@ -101,11 +98,11 @@ Just checking in — I'm here whenever you're ready to continue! Send me a messa
 // ── Silence nudge messages ─────────────────────────────────────────────────────
 
 const NUDGE_MESSAGES: Record<number, string> = {
-  1: `💬 Hey! It's Amara here — just checking in 😊
+  1: `💬 Amara here — checking on you! 👋
 
-I noticed you haven't been on in a while. Your Day 1 is waiting for you — Selar and Payhip setup usually takes less than 30 minutes with my help!
+Day 1 is waiting and your AI sales bot is SO close to being live 🤖 Just paste your BotFather token and I'll set everything up automatically in seconds.
 
-Come back whenever you're ready — I'll be right here 💪`,
+Come back when you're ready — I dey here for you! 💪`,
 
   2: `💬 Hey! Amara here 👋
 
@@ -113,11 +110,11 @@ Your sales pages are one GitHub connection away from being live! I do all the wo
 
 Ready to continue? Just reply here and I'll send you the link 🔗`,
 
-  3: `💬 Amara here — checking on you! 👋
+  3: `💬 Hey! It's Amara here — just checking in 😊
 
-Day 3 is waiting and your bot is SO close to being live 🤖 Just paste your BotFather token and I'll set everything up automatically in seconds.
+I noticed you haven't been on in a while. Your Day 3 is waiting for you — Selar and Payhip setup usually takes less than 30 minutes with my help!
 
-Come back when you're ready — I dey here for you! 💪`,
+Come back whenever you're ready — I'll be right here 💪`,
 
   4: `💬 Hey! You're on your FINAL day! 🏆
 
@@ -164,59 +161,51 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     const nowIso = now.toISOString();
     const results: Record<string, unknown> = {};
 
-    // ── 0. Rescue legacy students stranded on the removed Payhip-approval step ──
-    // Day 1 step 5 (and 6) were the old "wait for Coach Victor's approval" flow,
-    // which no longer exists. Students there finished Selar + Payhip and are
-    // frozen forever waiting for an approval that will never come. Move them
-    // straight into Day 2 (Tech Stack verification) and message them proactively
-    // so the silent/frustrated ones don't have to send a message to get unstuck.
-    const { data: strandedStudents } = await supabase
-      .from("amara_students")
-      .select("id, telegram_chat_id, full_name, day1_completed_at")
-      .eq("status", "ACTIVE")
-      .eq("current_day", 1)
-      .gte("current_step", 5);
+    const utcHour = now.getUTCHours();
+    const utcMin  = now.getUTCMinutes();
 
-    let rescuedCount = 0;
-    for (const s of strandedStudents ?? []) {
+    // ── 0. Students on the old day order → new Day 1 (SRE first) ──────────────
+    // Old Day 1 (Selar/Payhip, steps 0–6) and old Day 2 step 1 (Tech Stack payment).
+    // None of them have paid, so they start on the SRE bot (or the Day 2 lock if they already have one).
+    const { data: legacyStudents } = await supabase
+      .from("amara_students")
+      .select("id, telegram_chat_id, full_name, current_day, current_step, bot_token")
+      .eq("status", "ACTIVE")
+      .or(`and(current_day.eq.1,current_step.lt.${SRE_STEP}),and(current_day.eq.2,current_step.eq.1)`);
+
+    let migratedCount = 0;
+    for (const s of legacyStudents ?? []) {
       try {
-        // Optimistic lock: only advance if still stranded (avoids double-sends if
-        // the student messaged and the bot rescued them in the same window).
-        // .select() returns the rows actually updated — empty means already moved.
+        const toGate = !!s.bot_token;
         const { data: updated } = await supabase
           .from("amara_students")
           .update({
-            current_day: 2,
-            current_step: 1,
-            payhip_account_created: true,
-            day1_completed_at: s.day1_completed_at ?? nowIso,
+            current_day: 1,
+            current_step: toGate ? GATE_STEP : SRE_STEP,
             next_day_unlocks_at: null,
+            screenshot_attempts: 0,
+            last_proactive_at: nowIso,
+            ...(toGate ? { day1_completed_at: nowIso } : {}),
             updated_at: nowIso,
           })
           .eq("id", s.id)
-          .eq("current_day", 1)
-          .gte("current_step", 5)
+          .eq("current_day", s.current_day)
+          .eq("current_step", s.current_step)
           .select("id");
 
         if (!updated || updated.length === 0) continue;
 
-        // Warm bridge first — these students have been waiting (some for days),
-        // so reassure them their setup is approved before asking for anything.
-        await sendTelegram(
-          s.telegram_chat_id,
-          `🎉 <b>Great news${s.full_name ? `, ${s.full_name.split(" ")[0]}` : ""}!</b>\n\nYour Day 1 setup is fully approved ✅ — no more waiting! We're moving straight to <b>Day 2</b> right now 🚀`
-        );
-        await new Promise((r) => setTimeout(r, 400));
-        await sendTelegram(s.telegram_chat_id, DAY2_TECH_STACK_INTRO);
-        await new Promise((r) => setTimeout(r, 400));
-        await sendTelegram(s.telegram_chat_id, DAY2_TECH_STACK_ASK);
-        await markProactiveSent(s.id);
-        rescuedCount++;
+        await sendTelegram(s.telegram_chat_id, legacyUpgradeMessage(s.full_name));
+        for (const m of toGate ? GATE_PITCH : sreIntroMessages(s.full_name)) {
+          await new Promise((r) => setTimeout(r, 400));
+          await sendTelegram(s.telegram_chat_id, m);
+        }
+        migratedCount++;
       } catch (err) {
-        console.error(`Rescue error for ${s.id}:`, err);
+        console.error(`Migration error for ${s.id}:`, err);
       }
     }
-    results.legacyRescued = rescuedCount;
+    results.movedToNewDay1 = migratedCount;
 
     // ── 1. Morning day-unlock ──────────────────────────────────────────────────
     const { data: unlockStudents, error: unlockError } = await supabase
@@ -225,7 +214,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       .eq("status", "ACTIVE")
       .eq("current_step", 0)
       .lte("next_day_unlocks_at", nowIso)
-      .gte("current_day", 1)
+      .gte("current_day", 2)
       .lte("current_day", 3)
       .not("next_day_unlocks_at", "is", null);
 
@@ -251,7 +240,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
 
         if (updateError || count === 0) continue;
 
-        const message = DAY_UNLOCK_MESSAGES[nextDay];
+        const message = nextDay === 3 && !student.bot_token ? LEGACY_DAY3_SRE.unlock : DAY_UNLOCK_MESSAGES[nextDay];
         if (message) await sendTelegram(student.telegram_chat_id, message);
         unlockCount++;
       } catch (err) {
@@ -260,9 +249,37 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     }
     results.unlocked = unlockCount;
 
+    // ── 1b. Tech Stack sales messages for students locked at Day 2 ────────────
+    // Amara never replies to these students; this sequence is all they hear from her.
+    // Each message is due `afterHours` after Day 1 finished; only the latest due one is sent.
+    const nigeriaHour = (utcHour + 1) % 24;
+    if (nigeriaHour >= 8 && nigeriaHour < 21) {
+      const { data: lockedStudents } = await supabase
+        .from("amara_students")
+        .select("id, telegram_chat_id, full_name, day1_completed_at, last_proactive_at")
+        .eq("status", "ACTIVE")
+        .eq("current_day", 1)
+        .eq("current_step", GATE_STEP)
+        .not("day1_completed_at", "is", null);
+
+      let salesCount = 0;
+      for (const s of lockedStudents ?? []) {
+        const lockedAt = new Date(s.day1_completed_at).getTime();
+        const hoursLocked = (now.getTime() - lockedAt) / 3_600_000;
+        const due = GATE_FOLLOWUPS.filter((f) => hoursLocked >= f.afterHours).pop();
+        if (!due) continue;
+
+        const dueAt = lockedAt + due.afterHours * 3_600_000;
+        if (s.last_proactive_at && new Date(s.last_proactive_at).getTime() >= dueAt) continue;
+
+        await sendTelegram(s.telegram_chat_id, due.text(s.full_name?.split(" ")[0] ?? ""));
+        await markProactiveSent(s.id);
+        salesCount++;
+      }
+      results.techStackSales = salesCount;
+    }
+
     // ── 2. Evening check-in (6PM Nigeria = 17:00 UTC) ─────────────────────────
-    const utcHour = now.getUTCHours();
-    const utcMin  = now.getUTCMinutes();
 
     if (utcHour === 17 && utcMin < 5) {
       // Cut-off: must not have received a proactive message after 16:55 UTC today
@@ -271,7 +288,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
 
       const { data: checkinStudents } = await supabase
         .from("amara_students")
-        .select("id, telegram_chat_id, current_day, current_step")
+        .select("id, telegram_chat_id, current_day, current_step, bot_token")
         .eq("status", "ACTIVE")
         .gt("current_step", 0)
         .gte("current_day", 1)
@@ -280,7 +297,10 @@ Deno.serve(async (_req: Request): Promise<Response> => {
 
       let checkinCount = 0;
       for (const s of checkinStudents ?? []) {
-        const msg = EVENING_MESSAGES[s.current_day] ?? EVENING_DEFAULT;
+        if (s.current_day === 1 && s.current_step === GATE_STEP) continue;
+        const msg = s.current_day === 3 && !s.bot_token
+          ? LEGACY_DAY3_SRE.evening
+          : EVENING_MESSAGES[s.current_day] ?? EVENING_DEFAULT;
         await sendTelegram(s.telegram_chat_id, msg);
         await markProactiveSent(s.id);
         checkinCount++;
@@ -293,7 +313,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
 
     const { data: silentStudents } = await supabase
       .from("amara_students")
-      .select("id, telegram_chat_id, current_day, current_step, last_activity_at")
+      .select("id, telegram_chat_id, current_day, current_step, last_activity_at, bot_token")
       .eq("status", "ACTIVE")
       .gt("current_step", 0)
       .gte("current_day", 1)
@@ -304,7 +324,10 @@ Deno.serve(async (_req: Request): Promise<Response> => {
 
     let nudgeCount = 0;
     for (const s of silentStudents ?? []) {
-      const msg = NUDGE_MESSAGES[s.current_day] ?? NUDGE_DEFAULT;
+      if (s.current_day === 1 && s.current_step === GATE_STEP) continue;
+      const msg = s.current_day === 3 && !s.bot_token
+        ? LEGACY_DAY3_SRE.nudge
+        : NUDGE_MESSAGES[s.current_day] ?? NUDGE_DEFAULT;
       await sendTelegram(s.telegram_chat_id, msg);
       await markProactiveSent(s.id);
       nudgeCount++;

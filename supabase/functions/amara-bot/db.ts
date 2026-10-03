@@ -51,6 +51,32 @@ export async function advanceStep(
   });
 }
 
+// Only moves the student if they're still at (fromDay, fromStep) — returns false if someone else moved them first.
+export async function advanceIfAt(
+  studentId: string,
+  fromDay: number,
+  fromStep: number,
+  toDay: number,
+  toStep: number,
+  extra?: Partial<Student>
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("amara_students")
+    .update({
+      ...extra,
+      current_day: toDay,
+      current_step: toStep,
+      screenshot_attempts: 0,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", studentId)
+    .eq("current_day", fromDay)
+    .eq("current_step", fromStep)
+    .select("id");
+  if (error) console.error("advanceIfAt error:", error);
+  return (data?.length ?? 0) > 0;
+}
+
 export async function incrementScreenshotAttempts(studentId: string, current: number): Promise<void> {
   await supabase
     .from("amara_students")

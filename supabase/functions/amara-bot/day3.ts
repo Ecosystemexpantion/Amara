@@ -1,11 +1,14 @@
 import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
-import { advanceStep, updateStudent, recordStepCompletion, getRecentConversation, computeNextUnlockAt } from "./db.ts";
-import { geminiVision, geminiChat, buildVerificationPrompt } from "./gemini.ts";
+import { advanceStep, incrementScreenshotAttempts, resetScreenshotAttempts, recordStepCompletion, computeNextUnlockAt, getRecentConversation } from "./db.ts";
+import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin } from "./admin.ts";
+import { createEscalation } from "./knowledge.ts";
+import { handleSreStep } from "./day1.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
-const BOT_TOKEN_RE = /\d{8,10}:[A-Za-z0-9_-]{35,}/;
+const READY_WORDS = /\b(ready|let'?s go|start|begin|ok|okay|yes|go|proceed|continue|oya|sure|done)\b/i;
 
+// Day 3 — Selar + Payhip (this was Day 1 before the SRE bot moved to Day 1)
 export async function handleDay3(
   _msg: TelegramMessage,
   student: Student,
@@ -15,136 +18,294 @@ export async function handleDay3(
 ): Promise<void> {
   await sendChatAction(chatId, "typing");
 
-  // Day 3 is now a single step: get BotFather token → Amara does everything else
+  // Students who started on the old day order reach Day 3 without a bot — they build it here.
+  if (!student.bot_token) {
+    await handleSreStep(student, chatId, text, photo, 3);
+    return;
+  }
+
   switch (student.current_step) {
-    case 1: await handleStep1(student, chatId, text, photo); break;
-    default: await sendMessage(chatId, "Send me your BotFather token to continue! 🤖");
+    case 2:
+      await handleStep2(student, chatId, text, photo);
+      break;
+    case 3:
+      await handleStep3(student, chatId, text, photo);
+      break;
+    case 4:
+      await handleStep4(student, chatId, text, photo);
+      break;
+    default:
+      await handleStep1(student, chatId, text, photo);
   }
 }
 
-// Step 1: Create Telegram bot with BotFather → paste token → Amara registers webhook automatically
-async function handleStep1(
-  student: Student,
-  chatId: number,
-  text: string | null,
-  photo: { bytes: Uint8Array; mimeType: string } | null
-): Promise<void> {
-  // Check if a photo of the BotFather chat was sent
+// Step 1: Q&A phase — wait for "ready"
+async function handleStep1(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
   if (photo) {
-    const prompt = buildVerificationPrompt(
-      "Does this screenshot show a Telegram chat with BotFather showing the bot token? Extract the token if visible.",
-      ["bot_token"]
+    // Student sent a screenshot during the Q&A phase — read it and guide them
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      "Student is on Day 3 of the EEM26 program. They are in the questions phase — they should ask any questions about the business, then say 'ready' to start their first task (creating a Selar account). They haven't been asked to screenshot anything yet.",
+      text ?? undefined
     );
-    const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
-    if (result.verified && result.extracted?.bot_token && BOT_TOKEN_RE.test(result.extracted.bot_token)) {
-      await setupStudentBot(student, chatId, result.extracted.bot_token);
-      return;
-    }
-    // Show visual guidance
-    const history = await getRecentConversation(student.id, 4);
-    const reply = await geminiChat(
-      history,
-      "[screenshot]",
-      `Student is on Day 3 Step 1. They sent a screenshot. They need to copy their BotFather bot token (format: 1234567890:ABCdef...) and paste it as text in this chat. Tell them to copy the token directly from BotFather and paste it here.`,
-      student.id
-    );
-    await sendMessage(chatId, reply);
+    await sendMessage(chatId, guidance);
     return;
   }
 
   if (!text) return;
 
-  // Try to extract token from text
-  const tokenMatch = text.match(BOT_TOKEN_RE);
-  if (tokenMatch) {
-    await setupStudentBot(student, chatId, tokenMatch[0]);
+  if (READY_WORDS.test(text)) {
+    await advanceStep(student.id, 3, 2);
+    await sendStep2Prompt(chatId);
     return;
   }
 
-  // Not a token — answer questions and redirect
-  const history = await getRecentConversation(student.id, 6);
-  const firstName = student.full_name?.split(" ")[0] ?? "Student";
-  const reply = await geminiChat(
+  // Answer their question with Gemini
+  const history = await getRecentConversation(student.id, 8);
+  const answer = await geminiChat(
     history,
     text,
-    `Student is on Day 3 Step 1. They need to:
-1. Open Telegram and search for @BotFather
-2. Start a chat and send /newbot
-3. Choose a bot display name (suggest: "${firstName} EEM26 Assistant")
-4. Choose a username (suggest: "${firstName.toLowerCase()}eem26bot" — must end in "bot")
-5. Copy the token BotFather sends and paste it here
-
-If they're asking a question, answer it. Always ask them to paste the bot token when ready.`,
+    "The student is on Day 3, Step 1. They may have questions about the EEM26 business model (AAM and SRE systems). Answer their question warmly, then remind them to say 'ready' when they want to start their first task.",
     student.id
   );
-  await sendMessage(chatId, reply);
+  await sendMessage(chatId, answer);
 }
 
-async function setupStudentBot(student: Student, chatId: number, token: string): Promise<void> {
-  await typeMessage(chatId, `Got your token! Let me verify it and set up your bot... 🔧`);
+async function sendStep2Prompt(chatId: number): Promise<void> {
+  await typeMessage(chatId, `<b>Okay! Next task from your Tech Stack 📦</b>\n\nYour <b>Selar account</b> — this is one of your main selling platforms where customers buy from you directly 🛒`);
+  await typeMessage(chatId, `👉 Sign up as a <b>CREATOR</b> (not affiliate — this is important!):\n<a href="https://selar.com/register">selar.com/register</a>\n\n⚠️ CREATOR = your own storefront. Affiliate = someone else's. Make sure it says CREATOR!`);
+  await typeMessage(chatId, `Once you're on the registration page, send me a screenshot so I can confirm you're in the right place 📸`);
+}
 
-  // 1. Verify token is valid and get bot username
-  let botUsername = "";
-  try {
-    const getMeRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
-    const getMeData = await getMeRes.json();
-    if (!getMeData.ok) {
-      await typeMessage(
-        chatId,
-        `That token doesn't look right 🤔 Please copy it directly from BotFather — it should look like:\n<code>1234567890:ABCDefGHIjklMNOpqrstUVWxyz12345678901</code>`
-      );
-      return;
+// Step 2: Selar screenshot — accept registration page OR existing dashboard
+async function handleStep2(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
+  if (!photo) {
+    if (text) {
+      const history = await getRecentConversation(student.id, 6);
+      const reply = await geminiChat(history, text, "Student is on Day 3 Step 2 — they need a Selar creator account. If they say they already have one, tell them great and ask for a screenshot of their dashboard. Otherwise answer briefly and redirect to send a screenshot.", student.id);
+      await sendMessage(chatId, reply);
+    } else {
+      await sendMessage(chatId, "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and send me a screenshot 📸\n\n(If you already have a Selar account, just send me a screenshot of your dashboard)");
     }
-    botUsername = getMeData.result.username ?? "";
-  } catch {
-    await typeMessage(chatId, `Had trouble verifying the token — please paste it again 😊`);
     return;
   }
 
-  // 2. Register webhook pointing to student-bot Edge Function
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const webhookUrl = `${supabaseUrl}/functions/v1/student-bot/${student.id}`;
+  const prompt = buildVerificationPrompt(
+    "Does this screenshot show anything related to Selar.com — the Nigerian digital product marketplace?\n\n" +
+    "ACCEPT as valid (write verified=true) if you see ANY of these:\n" +
+    "- Selar logo or the word 'Selar' anywhere\n" +
+    "- A purple/dark sidebar or header labeled 'Creator Profile'\n" +
+    "- Menu items: Home, Sales, Products, Customers, Affiliates, Bookings, Coupons — Selar's unique menu\n" +
+    "- A Selar signup/registration/login page\n" +
+    "- A seller/creator dashboard showing stats, products, or earnings\n" +
+    "- selar.com in any URL bar\n" +
+    "- An account Profile Settings page with name/email fields (even without Selar logo — this means they are logged in as a creator)\n" +
+    "- A product creation page listing types like: Digital, Course, Subscription, Physical Product, Bundle\n" +
+    "- A store page showing 'Store Home', 'Dashboard', 'Purchases', 'Logout' (this is a logged-in Selar user viewing their store)\n\n" +
+    "REJECT only if the screenshot clearly shows a completely different website (not Selar at all).\n" +
+    "When in doubt, accept — it is better to accept a genuine student than to reject them.",
+    ["page_type: write 'dashboard' if logged in and on any account/management/store page, write 'registration' if showing a signup or login form, write 'store_buyer_view' if showing a store page with Store Home/Dashboard/Purchases links"]
+  );
+  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
 
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: webhookUrl }),
-    });
-  } catch {
-    // Non-fatal — bot still works, just webhook may need retry
-    console.error("Webhook registration failed for student", student.id);
+  if (result.reason === "verification_unavailable") {
+    notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 3 Step 2 for ${student.full_name}`).catch(() => {});
+    await recordStepCompletion(student.id, 3, 2, true);
+    await advanceStep(student.id, 3, 3);
+    await typeMessage(chatId, `You're on the right page! 🎉\n\nNow <b>complete the registration</b> — fill in your details and verify your email.\n\nOnce your Selar <b>dashboard</b> is active, snap a screenshot and send it over 📸`);
+    return;
   }
 
-  // 3. Mark Day 3 complete
+  if (result.verified) {
+    await recordStepCompletion(student.id, 3, 2, true);
+    const pageType = result.extracted?.page_type ?? "";
+    const isBuyerView = /store_buyer_view/i.test(pageType);
+    const isDashboard = !isBuyerView && (/dashboard/i.test(pageType) || /dashboard/i.test(result.reason ?? ""));
+
+    if (isBuyerView) {
+      // Student is on their store page as a logged-in user — guide them to creator dashboard
+      await typeMessage(chatId, `You're on your Selar store! Almost there 🎉\n\nNow tap <b>"Dashboard"</b> from that menu to get to your creator dashboard, then send me a screenshot of what you see 📸`);
+    } else if (isDashboard) {
+      await advanceStep(student.id, 3, 4, { selar_account_created: true });
+      await typeMessage(chatId, `Ayyyy you're already on Selar!! ✅ You don do am! 🙌`);
+      await new Promise((r) => setTimeout(r, 300));
+      await sendStep4Prompt(chatId);
+    } else {
+      await advanceStep(student.id, 3, 3);
+      await typeMessage(chatId, `You're on the right page! 🎉\n\nNow <b>complete the registration</b> — fill in your details and verify your email.\n\nOnce your Selar <b>dashboard</b> is active, snap a screenshot and send it over 📸`);
+    }
+  } else {
+    await handleFailedScreenshot(student, chatId, result.reason, result.guidance || "Go to <a href=\"https://selar.com/register\">selar.com/register</a> and screenshot the Selar page 📸",
+      photo, "Student needs to be on the Selar website (selar.com). Guide them based on exactly what you can see on their screen. If they are on a Profile Settings page or any account management page, tell them to go back to selar.com and click on Dashboard.");
+  }
+}
+
+// Step 3: Selar dashboard screenshot
+async function handleStep3(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
+  if (!photo) {
+    if (text) {
+      const history = await getRecentConversation(student.id, 6);
+      const reply = await geminiChat(history, text, "Student is on Day 3 Step 3 — they need to complete Selar registration and send a screenshot of their Selar creator dashboard.", student.id);
+      await sendMessage(chatId, reply);
+    } else {
+      await sendMessage(chatId, "Complete the Selar registration, then send me a screenshot of your Selar dashboard 📸");
+    }
+    return;
+  }
+
+  const prompt = buildVerificationPrompt(
+    "Does this screenshot show a logged-in Selar creator or seller account?\n\n" +
+    "ACCEPT as valid if you see ANY of these:\n" +
+    "- Creator Profile sidebar (purple/dark) with menu items: Home, Sales, Products, Customers, Affiliates, Bookings\n" +
+    "- A Selar seller dashboard showing stats, product listings, or earnings\n" +
+    "- An account management page (Profile Settings, Payout settings) with name/email fields — this means logged in as creator\n" +
+    "- A product creation/management page with product types (Digital, Course, Bundle, Subscription, Physical Product)\n" +
+    "- selar.com visible in a URL bar\n\n" +
+    "REJECT only if it is clearly a completely different website, not Selar.\n" +
+    "When in doubt, accept — a student showing any Selar account page has completed this step."
+  );
+  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
+
+  if (result.reason === "verification_unavailable") {
+    notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 3 Step 3 for ${student.full_name}`).catch(() => {});
+    await recordStepCompletion(student.id, 3, 3, true);
+    await advanceStep(student.id, 3, 4, { selar_account_created: true });
+    await typeMessage(chatId, `Selar account — DONE! ✅ You don do am! 🙌`);
+    await new Promise((r) => setTimeout(r, 300));
+    await sendStep4Prompt(chatId);
+    return;
+  }
+
+  if (result.verified) {
+    await recordStepCompletion(student.id, 3, 3, true);
+    await advanceStep(student.id, 3, 4, { selar_account_created: true });
+    await typeMessage(chatId, `Selar account — DONE! ✅ You don do am! 🙌`);
+    await new Promise((r) => setTimeout(r, 300));
+    await sendStep4Prompt(chatId);
+  } else {
+    await handleFailedScreenshot(student, chatId, result.reason,
+      "Make sure your Selar account is fully active and you can see your seller dashboard, then screenshot it and send to me 📸",
+      photo, "Student needs to show their Selar seller/creator dashboard (after completing registration). Guide them based on what you can see on their screen.");
+  }
+}
+
+async function sendStep4Prompt(chatId: number): Promise<void> {
+  await typeMessage(chatId, `<b>Payhip — your second money platform! 💰</b>\n\nWith Payhip you earn commissions every time someone buys through your link. Set it up once, it pays you forever 🔁 Already in your Tech Stack 📦`);
+  await typeMessage(chatId, `👉 Use THIS exact link to create your account:\n<a href="https://payhip.com/auth/register/af650fe07ce1c3c">payhip.com/auth/register/af650fe07ce1c3c</a>`);
+  await typeMessage(chatId, `You'll see a <b>"Join as an Affiliate"</b> form — fill in your name, email and create a password, then click <b>"Create account"</b>.\n\nOnce your dashboard is ready, drop a screenshot here 📸`);
+}
+
+// Step 4: Verify Payhip dashboard — then notify admin and wait for approval
+async function handleStep4(student: Student, chatId: number, text: string | null, photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
+  if (!photo) {
+    if (text) {
+      const history = await getRecentConversation(student.id, 6);
+      const reply = await geminiChat(history, text,
+        `Student is on Day 3 Step 4 — they need to create a Payhip affiliate account using the link https://payhip.com/auth/register/af650fe07ce1c3c. They will see a "Join as an Affiliate" form. After signing up, ask them to send a screenshot of their Payhip dashboard.`,
+        student.id);
+      await sendMessage(chatId, reply);
+    } else {
+      await sendStep4Prompt(chatId);
+    }
+    return;
+  }
+
+  const prompt = buildVerificationPrompt(
+    "Does this screenshot show Payhip? Study it carefully:\n" +
+    "- 'Join as an Affiliate' signup form (fields for First Name, Last Name, Email, Password with a 'Create account' button) → verified=true, student is on the CORRECT signup page\n" +
+    "- Payhip affiliate dashboard (logged in, showing affiliate links, commissions, clicks or earnings) → verified=true, account is set up\n" +
+    "- Any other page (wrong website, unrelated page) → verified=false\n" +
+    "For guidance: tell the student exactly what page they are on and what to do next.",
+    ["page_type: write 'form' if showing the affiliate signup form, write 'dashboard' if showing a logged-in affiliate dashboard"]
+  );
+  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
+
+  if (result.reason === "verification_unavailable") {
+    notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 3 Step 4 for ${student.full_name}`).catch(() => {});
+    await recordStepCompletion(student.id, 3, 4, true);
+    await sendDay3Complete({ ...student, payhip_account_created: true }, chatId);
+    return;
+  }
+
+  if (result.verified) {
+    const pageType = result.extracted?.page_type ?? "";
+    const isForm = /form/i.test(pageType) || /sign.?up|register|join|create.{0,10}account/i.test(result.reason ?? "");
+
+    if (isForm) {
+      await typeMessage(chatId, `You're on the right page! 🎉\n\nFill in the form:\n📝 Enter your <b>First Name</b>, <b>Last Name</b>, <b>Email</b> and create a <b>Password</b>\n✅ Click <b>"Create account"</b>`);
+      await typeMessage(chatId, `Once your account is ready, send me a screenshot of your <b>Payhip dashboard</b> 📸`);
+      return;
+    }
+
+    await recordStepCompletion(student.id, 3, 4, true);
+    await sendDay3Complete({ ...student, payhip_account_created: true }, chatId);
+  } else {
+    await handleFailedScreenshot(student, chatId, result.reason,
+      result.guidance || "Use this link to sign up: <a href=\"https://payhip.com/auth/register/af650fe07ce1c3c\">https://payhip.com/auth/register/af650fe07ce1c3c</a> — you should see a 'Join as an Affiliate' form to fill in 📸",
+      photo, "Student is signing up for Payhip as an affiliate using the link payhip.com/auth/register/af650fe07ce1c3c. They should see either the 'Join as an Affiliate' form OR their affiliate dashboard after signup. Guide them based on exactly what you see on their screen.");
+  }
+}
+
+async function sendDay3Complete(student: Student, chatId: number): Promise<void> {
   const nextUnlock = computeNextUnlockAt();
   await advanceStep(student.id, 3, 0, {
-    bot_token: token,
+    payhip_account_created: true,
     day3_completed_at: new Date().toISOString(),
     next_day_unlocks_at: nextUnlock,
   });
-  await recordStepCompletion(student.id, 3, 1, false, `Bot: @${botUsername} | Webhook: ${webhookUrl}`);
 
-  // 4. Celebrate and tell them what just happened
-  await typeMessage(
-    chatId,
-    `<b>YOUR BOT IS LIVE!! 🤖🔥</b>\n\n@${botUsername} is now running 24/7 — I set it all up automatically for you! No terminal, no Supabase account, no code. Done! 💪`
-  );
-  await typeMessage(
-    chatId,
-    `Your SRE — Smart Reply Engine from your Tech Stack 📦 — is now ACTIVE. Anyone who messages @${botUsername} will get an intelligent reply and be guided toward buying your EEM26 package automatically 💰`
-  );
-  await typeMessage(
-    chatId,
-    `Rest up — <b>Day 4 unlocks at 8AM tomorrow!</b> 🌅\n\nTomorrow is your FINAL day. We test everything, confirm your bot is working, and issue your official <b>Certificate of Completion 🎓</b> — you're almost there!`
-  );
+  await typeMessage(chatId, `<b>YOU DID IT!! 🎉🎉🎉</b>\n\nDay 3 is COMPLETE! You don do am!! 💪\n\n✅ Selar account — DONE\n✅ Payhip account — DONE`);
+  await typeMessage(chatId, `Tomorrow is your <b>FINAL DAY</b> 🏆 — we test your bot, confirm everything is working, and you receive your official <b>Certificate of Completion 🎓</b>\n\n<b>Day 4 unlocks tomorrow at 8AM Nigeria time.</b> I'll message you then! Get some rest — you earned it 🌟`);
 
   await notifyAdmin(
-    `✅ <b>DAY 3 COMPLETE</b>\n\nStudent: ${student.full_name}\nCountry: ${student.country}\nBot: @${botUsername}\nWebhook: ${webhookUrl}\nSales page: ${student.sales_page_link ?? "N/A"}`
+    `✅ <b>DAY 3 COMPLETE</b>\n\nStudent: ${student.full_name}\n🆔 <code>${chatId}</code>\nCountry: ${student.country}\nSelar: ✅\nPayhip: ✅\nPayhip link: ${student.payhip_link ?? "not yet provided"}`
   );
+}
 
-  // Update student with bot username in case it wasn't stored
-  if (botUsername) {
-    await updateStudent(student.id, { bot_token: token });
+async function handleFailedScreenshot(
+  student: Student,
+  chatId: number,
+  reason: string,
+  retryMessage: string,
+  photo?: { bytes: Uint8Array; mimeType: string } | null,
+  stepContext?: string
+): Promise<void> {
+  const attempts = student.screenshot_attempts + 1;
+  await incrementScreenshotAttempts(student.id, student.screenshot_attempts);
+
+  // After 4 failed attempts, escalate to admin with full context so they can reply directly
+  if (attempts >= 4) {
+    await resetScreenshotAttempts(student.id);
+    const recentHistory = await getRecentConversation(student.id, 6);
+    const recentText = recentHistory
+      .slice(-6)
+      .map((m) => `${m.role === "user" ? "Student" : "Amara"}: ${m.message}`)
+      .join("\n\n");
+
+    await createEscalation(
+      student.id,
+      String(chatId),
+      student.full_name,
+      `Student stuck on Day ${student.current_day} Step ${student.current_step} after ${attempts} attempts.\n\nLast screenshot showed: "${reason}"\n\nRecent conversation:\n${recentText}`
+    );
+
+    await typeMessage(chatId, `I've passed this straight to Coach Victor 🙏 He'll check your situation and I'll bring his answer right back to you — just hold on! 😊`);
+    return;
+  }
+
+  if (photo && stepContext) {
+    const guidance = await geminiVisionGuide(photo.bytes, photo.mimeType, stepContext);
+    await sendMessage(chatId, guidance);
+  } else {
+    const history = await getRecentConversation(student.id, 3);
+    const reply = await geminiChat(
+      history,
+      `[screenshot analysis]`,
+      `Student sent a screenshot that wasn't correct. Here is what the screenshot actually shows: "${reason}". Here is what they need to do: "${retryMessage}".
+In Amara's warm, friendly style: tell the student EXACTLY what you can see in their screenshot (be specific about what page/screen it is), then give them PRECISE step-by-step instructions on what to click or do next to get to the right place. Don't be generic — be like a friend looking at their phone screen and guiding them.`,
+      student.id
+    );
+    await sendMessage(chatId, reply);
   }
 }

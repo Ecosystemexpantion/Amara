@@ -2,6 +2,8 @@ import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
 import { updateStudent, advanceStep, getRecentConversation } from "./db.ts";
 import { geminiChat } from "./gemini.ts";
 import { notifyAdmin } from "./admin.ts";
+import { sendSreIntro } from "./day1.ts";
+import { SRE_STEP } from "./day1-content.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -197,8 +199,7 @@ export async function handleOnboarding(
 
       if (techLevel) {
         await updateStudent(student.id, { tech_level: techLevel });
-        // Now advance to Day 1
-        await advanceStep(student.id, 1, 1, {});
+        await advanceStep(student.id, 1, SRE_STEP, {});
 
         if (techLevel === 'non_technical') {
           await typeMessage(chatId, `No problem at all! 🌱 That's exactly why I'm here — I'll explain every single click and you won't miss a step. You're in safe hands! 💪`);
@@ -207,7 +208,7 @@ export async function handleOnboarding(
         }
 
         await new Promise((r) => setTimeout(r, 300));
-        await sendDay1Welcome(chatId, student.device_type ?? 'unknown', techLevel);
+        await sendSreIntro(chatId, student.full_name);
       } else {
         const history = await getRecentConversation(student.id, 4);
         const reply = await geminiChat(history, t,
@@ -224,18 +225,4 @@ export async function handleOnboarding(
       await typeMessage(chatId, "Hey! What's your full name to get started? 😊");
     }
   }
-}
-
-async function sendDay1Welcome(chatId: number, deviceType: string, techLevel: string): Promise<void> {
-  await typeMessage(chatId, `<b>Welcome to Day 1! 🚀</b>\n\nToday is all about understanding your business — so you know EXACTLY what you're building and why it works.`);
-
-  await typeMessage(chatId, `The EEM26 model runs on 2 powerful systems:\n\n✅ <b>AAM (Automate and Attract Method)</b> — brings buyers to your DM automatically, no ads needed\n✅ <b>SRE (Smart Reply Engine)</b> — AI that closes sales even while you sleep`);
-
-  const deviceNote = deviceType === 'phone'
-    ? `\n\n📱 <b>Phone users:</b> I'll always tell you exactly where to tap and how to save files from Telegram when needed.`
-    : deviceType === 'laptop'
-    ? `\n\n💻 <b>Laptop users:</b> I'll give you drag-and-drop and click instructions throughout.`
-    : "";
-
-  await typeMessage(chatId, `You're setting ALL of this up over 4 days. By Day 4 you'll be earning 💪${deviceNote}\n\nAny questions about how the business works? Ask me anything! When you're ready to start your first task just say <b>"ready"</b> 👊`);
 }

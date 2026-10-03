@@ -1,12 +1,12 @@
 // Admin commands — only reachable when the message comes from ADMIN_CHAT_ID.
-//
-// Usage:
-//   approved → approve Payhip affiliate accounts for students awaiting approval
-//   Send any message containing a payhip link → Amara asks to confirm → tap Yes
-//   list → Show all active students
+// Send "help" (or any unknown text with no pending escalation) to see them all.
 
-import { sendMessage, sendWithKeyboard, answerCallbackQuery, typeMessage } from "./telegram.ts";
+import { sendMessage, sendWithKeyboard, answerCallbackQuery, escapeHtml } from "./telegram.ts";
 import { getPendingEscalation, answerEscalation, skipEscalation, pendingCount } from "./knowledge.ts";
+import { getStudentByChatId, saveConversation } from "./db.ts";
+import { studentLabel, describePosition } from "./admin.ts";
+import { unlockDay2 } from "./day1.ts";
+import { GATE_STEP } from "./day1-content.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const supabase = createClient(
@@ -16,24 +16,48 @@ const supabase = createClient(
 
 // ── Entry point (text messages) ───────────────────────────────────────────────
 
-export async function handleAdminCommand(chatId: number, text: string): Promise<void> {
+export async function handleAdminCommand(chatId: number, text: string, replyToText?: string): Promise<void> {
   const t = text.trim();
+
+  // reply [id] [message] — talk to one student; the ID makes it impossible to mix replies
+  const replyMatch = t.match(/^reply\s+(\d{5,})\s+([\s\S]+)$/i);
+  if (replyMatch) {
+    await replyToStudent(chatId, replyMatch[1], replyMatch[2].trim());
+    return;
+  }
+
+  // Swipe-reply to any student card (it carries 🆔) = message that student
+  const swipedId = replyToText?.match(/🆔\s*(\d{5,})/)?.[1];
+  if (swipedId && t) {
+    await replyToStudent(chatId, swipedId, t);
+    return;
+  }
+
+  const lastMatch = t.match(/^(?:last|jump)\s+(\d{5,})$/i);
+  if (lastMatch) {
+    await showLastMessages(chatId, lastMatch[1]);
+    return;
+  }
+
+  const approveMatch = t.match(/^approve\s+(\d{5,})$/i);
+  if (approveMatch) {
+    await approveById(chatId, approveMatch[1]);
+    return;
+  }
+
+  if (/^waiting$/i.test(t)) {
+    await listLocked(chatId);
+    return;
+  }
+
+  if (/^help$/i.test(t)) {
+    await sendHelp(chatId);
+    return;
+  }
 
   // list
   if (/^list\b/i.test(t)) {
     await listStudents(chatId);
-    return;
-  }
-
-  // approved — release students waiting for Payhip affiliate approval
-  if (/^approved$/i.test(t)) {
-    await approvePayhipStudents(chatId);
-    return;
-  }
-
-  // skip stage2 — skip Payhip for all stuck Day 1 students, unlock Day 2 immediately
-  if (/^skip\s+stage\s*2$/i.test(t)) {
-    await skipStage2ForStuckStudents(chatId);
     return;
   }
 
@@ -47,25 +71,10 @@ export async function handleAdminCommand(chatId: number, text: string): Promise<
     return;
   }
 
-  // skip [name] to day 3 — jump a specific student to SRE setup
-  const skipToDay3Match = t.match(/^skip\s+(.+?)\s+to\s+(?:day\s*3|sre)/i);
-  if (skipToDay3Match) {
-    await skipStudentToDay3(chatId, skipToDay3Match[1].trim());
-    return;
-  }
-
-  // confirm [name] — manually confirm Tech Stack purchase, unlock Day 2 GitHub step
+  // confirm [name] — manually confirm Tech Stack purchase and unlock Day 2
   const confirmMatch = t.match(/^confirm\s+(.+)/i);
   if (confirmMatch) {
     await confirmTechStack(chatId, confirmMatch[1].trim());
-    return;
-  }
-
-  // fix stuck [payhip-link] — apologize, send link to stuck students, complete Day 1
-  const fixStuckMatch = t.match(/^fix\s+stuck\s+(https?:\/\/payhip\.com\/\S+)/i);
-  if (fixStuckMatch) {
-    const link = fixStuckMatch[1].replace(/[.,;!?]+$/, "");
-    await fixStuckStudents(chatId, link);
     return;
   }
 
@@ -126,6 +135,16 @@ export async function handleAdminCallback(
     return;
   }
 
+  if (data.startsWith("jump:")) {
+    await showLastMessages(chatId, data.slice("jump:".length));
+    return;
+  }
+
+  if (data.startsWith("approve:")) {
+    await approveById(chatId, data.slice("approve:".length));
+    return;
+  }
+
   if (data.startsWith("setup:")) {
     const payhipLink = data.slice("setup:".length);
     await sendGitHubAuthLink(chatId, payhipLink);
@@ -163,160 +182,123 @@ async function sendGitHubAuthLink(adminChatId: number, payhipLink: string): Prom
   );
 }
 
-// ── Fix stuck students — send payhip link + apologize + advance to Day 2 ────
-
-async function fixStuckStudents(adminChatId: number, payhipLink: string): Promise<void> {
-  const { data: stuck } = await supabase
-    .from("amara_students")
-    .select("id, telegram_chat_id, full_name, current_step")
-    .eq("status", "ACTIVE")
-    .eq("current_day", 1)
-    .in("current_step", [4, 5]);
-
-  if (!stuck || stuck.length === 0) {
-    await sendMessage(adminChatId, "No students are currently stuck on stage 2 (Payhip steps).");
-    return;
-  }
-
-  const now = new Date().toISOString();
-  let count = 0;
-
-  for (const s of stuck as { id: string; telegram_chat_id: string; full_name: string | null; current_step: number }[]) {
-    await supabase
-      .from("amara_students")
-      .update({
-        payhip_link: payhipLink,
-        payhip_account_created: true,
-        current_day: 2,
-        current_step: 1,
-        day1_completed_at: now,
-        next_day_unlocks_at: null,
-        updated_at: now,
-      })
-      .eq("id", s.id)
-      .eq("current_day", 1);
-
-    const firstName = s.full_name?.split(" ")[0] ?? "";
-    await typeMessage(
-      s.telegram_chat_id,
-      `Hey ${firstName}! 😊 So sorry for keeping you waiting — Payhip was having some issues on their end.\n\nGood news — everything is sorted now! Here's your affiliate link:\n\n<code>${payhipLink}</code>\n\nYour <b>Day 2 is now UNLOCKED!</b> 🚀 Reply <b>"ready"</b> to continue! 💪`
-    );
-    count++;
-  }
-
-  const names = (stuck as { full_name: string | null }[]).map((s) => s.full_name ?? "unnamed").join(", ");
-  await sendMessage(
-    adminChatId,
-    `✅ Sent apology + Payhip link to ${count} student(s) and unlocked Day 2:\n\n${names}`
-  );
-}
-
-// ── Skip stage 2 for stuck students ──────────────────────────────────────────
-
-async function skipStage2ForStuckStudents(adminChatId: number): Promise<void> {
-  // Find all active students stuck anywhere in Day 1 step 4 or 5 (Payhip steps)
-  const { data: stuck } = await supabase
-    .from("amara_students")
-    .select("id, telegram_chat_id, full_name, current_step")
-    .eq("status", "ACTIVE")
-    .eq("current_day", 1)
-    .in("current_step", [4, 5]);
-
-  if (!stuck || stuck.length === 0) {
-    await sendMessage(adminChatId, "No students are currently stuck on stage 2 (Payhip steps).");
-    return;
-  }
-
-  const now = new Date().toISOString();
-  let count = 0;
-
-  for (const s of stuck as { id: string; telegram_chat_id: string; full_name: string | null; current_step: number }[]) {
-    // Mark Day 1 complete and unlock Day 2 immediately (step 1 = ready to start)
-    await supabase
-      .from("amara_students")
-      .update({
-        current_day: 2,
-        current_step: 1,
-        day1_completed_at: now,
-        next_day_unlocks_at: null,
-        updated_at: now,
-      })
-      .eq("id", s.id)
-      .eq("current_day", 1);
-
-    await typeMessage(
-      s.telegram_chat_id,
-      `Great news! 🎉 Coach Victor has personally promised to complete your <b>Payhip affiliate setup</b> for you during the <b>Final Stage Setup session on Saturday at 8:30 PM Nigeria time</b>! 🏆\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a> so you don't miss it — Coach Victor will handle your Payhip link there!\n\nIn the meantime, your <b>Day 2 is now UNLOCKED!</b> 🚀 Let's keep moving — reply <b>"ready"</b> to continue! 💪`
-    );
-    count++;
-  }
-
-  const names = (stuck as { full_name: string | null }[]).map((s) => s.full_name ?? "unnamed").join(", ");
-  await sendMessage(
-    adminChatId,
-    `✅ Skipped stage 2 and unlocked Day 2 for ${count} student(s):\n\n${names}\n\nThey've been told Coach Victor will handle their Payhip setup on Saturday.`
-  );
-}
-
-// ── Approve Payhip students ───────────────────────────────────────────────────
-
-async function approvePayhipStudents(adminChatId: number): Promise<void> {
-  const { data: waiting } = await supabase
-    .from("amara_students")
-    .select("id, telegram_chat_id, full_name")
-    .eq("status", "ACTIVE")
-    .eq("current_day", 1)
-    .eq("current_step", 5);
-
-  if (!waiting || waiting.length === 0) {
-    await sendMessage(adminChatId, "No students are currently waiting for Payhip approval.");
-    return;
-  }
-
-  for (const s of waiting as { id: string; telegram_chat_id: string; full_name: string | null }[]) {
-    const now = new Date().toISOString();
-    const { count } = await supabase
-      .from("amara_students")
-      .update({
-        current_day: 2,
-        current_step: 1,
-        day1_completed_at: now,
-        next_day_unlocks_at: null,
-        updated_at: now,
-      })
-      .eq("id", s.id)
-      .eq("current_step", 5);
-
-    if ((count ?? 0) === 0) continue;
-
-    await typeMessage(
-      s.telegram_chat_id,
-      `Great news! 🎉 Your Payhip affiliate account has been <b>approved!</b> ✅\n\nYour <b>Day 2 is now UNLOCKED!</b> 🚀 Let's keep moving — reply <b>"ready"</b> to continue! 💪`
-    );
-  }
-
-  const names = (waiting as { full_name: string | null }[]).map((s) => s.full_name ?? "unnamed").join(", ");
-  await sendMessage(adminChatId, `✅ Approved ${waiting.length} student(s) and unlocked Day 2: ${names}`);
-}
-
 // ── Help ──────────────────────────────────────────────────────────────────────
 
 async function sendHelp(chatId: number): Promise<void> {
   await sendMessage(
     chatId,
-    `<b>Admin commands:</b>\n\n` +
-    `<code>approved</code> → Release students waiting for Payhip affiliate approval.\n\n` +
-    `<code>skip stage2</code> → Skip Payhip for ALL students stuck on Day 1 Steps 4–5, tell them Coach Victor will handle it on Saturday, and unlock Day 2 immediately.\n\n` +
-    `<code>fix stuck [payhip-link]</code> → Apologize to stuck students, send them the Payhip link, save it, and unlock Day 2.\nExample: <code>fix stuck https://payhip.com/b/xeqSM/af69dc0c939dc7a</code>\n\n` +
-    `<code>confirm [name]</code> → Manually confirm a student's Tech Stack purchase and unlock their Day 2 setup.\nExample: <code>confirm Funke Adams</code>\n\n` +
-    `<code>skip [name] to day 3</code> → Skip a specific student to Day 3 (SRE bot setup).\nExample: <code>skip Funke Adams to day 3</code>\n\n` +
+    `<b>Talking to students</b>\n` +
+    `Every message from a student whose Day 2 is locked comes to you with their name and 🆔. Tap <b>💬 Jump in</b> to see their last 3 messages.\n\n` +
+    `<code>reply [ID] [message]</code> → Send a message to that one student.\nExample: <code>reply 123456789 Hi John, did you get the link?</code>\n` +
+    `Or just <b>swipe-reply</b> to any message that shows a 🆔 — it goes to that student only.\n\n` +
+    `<code>last [ID]</code> → Show that student's last 3 messages.\n\n` +
+    `<b>Day 2 lock (Tech Stack payment)</b>\n` +
+    `<code>waiting</code> → Everyone locked at Day 2, with their 🆔.\n` +
+    `<code>approve [ID]</code> → Confirm their payment and unlock Day 2 (same as the ✅ Approve payment button).\n` +
+    `<code>confirm [name]</code> → Same, by name.\n\n` +
+    `<b>Other</b>\n` +
     `<code>announce saturday</code> → Blast "training is TONIGHT at 8:30 PM" to all graduates + Day 4 students.\nCustom time: <code>announce saturday 9:30</code> (PM Nigeria time)\n\n` +
-    `<b>Create pages:</b> Just send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
-    `<code>list</code> → Show all active students and their current day/step.`
+    `<b>Create pages:</b> Send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
+    `<code>list</code> → Active students with their 🆔 and current day.`
   );
 }
 
-// ── Confirm Tech Stack purchase — unlock Day 2 GitHub step ──────────────────
+// ── Talk to a student by Telegram ID ─────────────────────────────────────────
+
+async function replyToStudent(adminChatId: number, studentChatId: string, text: string): Promise<void> {
+  const student = await getStudentByChatId(studentChatId);
+  if (!student) {
+    await sendMessage(adminChatId, `❌ No student with 🆔 <code>${studentChatId}</code>. Nothing was sent.`);
+    return;
+  }
+  const delivered = await sendMessage(studentChatId, escapeHtml(text));
+  if (!delivered) {
+    await sendMessage(adminChatId, `❌ Couldn't deliver to\n${studentLabel(student.full_name, studentChatId)}\n\nThey may have blocked Amara.`);
+    return;
+  }
+  await saveConversation(student.id, "assistant", text, "text");
+  await sendMessage(adminChatId, `✅ Sent to\n${studentLabel(student.full_name, studentChatId)}`);
+}
+
+async function showLastMessages(adminChatId: number, studentChatId: string): Promise<void> {
+  const student = await getStudentByChatId(studentChatId);
+  if (!student) {
+    await sendMessage(adminChatId, `❌ No student with 🆔 <code>${studentChatId}</code>.`);
+    return;
+  }
+
+  const { data } = await supabase
+    .from("amara_conversations")
+    .select("message, created_at")
+    .eq("student_id", student.id)
+    .eq("role", "user")
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  const lines = ((data ?? []) as { message: string; created_at: string }[])
+    .reverse()
+    .map((m, i) => `${i + 1}. ${escapeHtml(m.message.slice(0, 500))} <i>(${timeAgo(m.created_at)})</i>`);
+
+  await sendMessage(
+    adminChatId,
+    `💬 <b>Jumped in</b>\n\n${studentLabel(student.full_name, studentChatId)}\n📍 ${describePosition(student)}\n\n` +
+    `<b>Last 3 messages:</b>\n${lines.join("\n") || "<i>No messages yet</i>"}\n\n` +
+    `To reply, swipe-reply to this message or send:\n<code>reply ${studentChatId} your message</code>`
+  );
+}
+
+async function approveById(adminChatId: number, studentChatId: string): Promise<void> {
+  const student = await getStudentByChatId(studentChatId);
+  if (!student) {
+    await sendMessage(adminChatId, `❌ No student with 🆔 <code>${studentChatId}</code>.`);
+    return;
+  }
+  if (student.current_day !== 1 || student.current_step !== GATE_STEP) {
+    await sendMessage(adminChatId, `${studentLabel(student.full_name, studentChatId)}\n\nNot locked at Day 2 — they're at: ${describePosition(student)}.`);
+    return;
+  }
+  const unlocked = await unlockDay2(student, studentChatId, "Payment approved by admin");
+  await sendMessage(
+    adminChatId,
+    unlocked
+      ? `✅ Day 2 unlocked for\n${studentLabel(student.full_name, studentChatId)}`
+      : `ℹ️ Day 2 was already unlocked for\n${studentLabel(student.full_name, studentChatId)}`
+  );
+}
+
+async function listLocked(adminChatId: number): Promise<void> {
+  const { data } = await supabase
+    .from("amara_students")
+    .select("telegram_chat_id, full_name, day1_completed_at")
+    .eq("status", "ACTIVE")
+    .eq("current_day", 1)
+    .eq("current_step", GATE_STEP)
+    .order("day1_completed_at", { ascending: true })
+    .limit(50);
+
+  const rows = (data ?? []) as { telegram_chat_id: string; full_name: string | null; day1_completed_at: string | null }[];
+  if (rows.length === 0) {
+    await sendMessage(adminChatId, "Nobody is locked at Day 2 right now.");
+    return;
+  }
+
+  const lines = rows.map((s) => {
+    const since = s.day1_completed_at ? timeAgo(s.day1_completed_at) : "?";
+    const expired = s.day1_completed_at && Date.now() - new Date(s.day1_completed_at).getTime() >= 48 * 3600_000;
+    return `• <b>${escapeHtml(s.full_name ?? "unnamed")}</b> — 🆔 <code>${s.telegram_chat_id}</code> — locked ${since}${expired ? " ⚠️ expiry sent" : ""}`;
+  });
+  await sendMessage(adminChatId, `<b>🔒 Locked at Day 2 (${rows.length}):</b>\n\n${lines.join("\n")}`);
+}
+
+function timeAgo(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+// ── Confirm Tech Stack purchase by name — unlock Day 2 ──────────────────────
 
 async function confirmTechStack(adminChatId: number, name: string): Promise<void> {
   const { data: matches } = await supabase
@@ -326,93 +308,33 @@ async function confirmTechStack(adminChatId: number, name: string): Promise<void
     .ilike("full_name", `%${name}%`);
 
   if (!matches || matches.length === 0) {
-    await sendMessage(adminChatId, `❌ No active student found matching "<b>${name}</b>".`);
+    await sendMessage(adminChatId, `❌ No active student found matching "<b>${escapeHtml(name)}</b>".`);
     return;
   }
 
-  if (matches.length > 1) {
-    const list = (matches as { full_name: string | null; current_day: number; current_step: number }[])
-      .map(s => `• ${s.full_name ?? "unnamed"} (Day ${s.current_day}, Step ${s.current_step})`)
+  type Row = { id: string; telegram_chat_id: string; full_name: string | null; current_day: number; current_step: number; status: string };
+  const rows = matches as Row[];
+
+  if (rows.length > 1) {
+    const list = rows
+      .map(s => `• ${escapeHtml(s.full_name ?? "unnamed")} — 🆔 <code>${s.telegram_chat_id}</code> (${describePosition(s)})`)
       .join("\n");
-    await sendMessage(adminChatId, `Multiple students match "<b>${name}</b>":\n\n${list}\n\nPlease use a more specific name.`);
+    await sendMessage(adminChatId, `Multiple students match "<b>${escapeHtml(name)}</b>":\n\n${list}\n\nUse <code>approve [ID]</code> instead.`);
     return;
   }
 
-  const student = matches[0] as { id: string; telegram_chat_id: string; full_name: string | null; current_day: number; current_step: number };
-
-  if (student.current_day !== 2 || student.current_step !== 1) {
-    await sendMessage(adminChatId, `<b>${student.full_name}</b> is on Day ${student.current_day} Step ${student.current_step} — not waiting for Tech Stack confirmation.`);
+  const student = rows[0];
+  if (student.current_day !== 1 || student.current_step !== GATE_STEP) {
+    await sendMessage(adminChatId, `${studentLabel(student.full_name, student.telegram_chat_id)}\n\nNot locked at Day 2 — they're at: ${describePosition(student)}.`);
     return;
   }
 
-  await supabase
-    .from("amara_students")
-    .update({
-      current_step: 2,
-      screenshot_attempts: 0,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", student.id);
-
-  await typeMessage(
-    student.telegram_chat_id,
-    `Your Tech Stack purchase has been confirmed! ✅ Let's build your sales pages now! 🔥\n\nTo create your pages I need to connect to a <b>GitHub account</b>.\n\nDo you already have a GitHub account, or do I need to help you create one first? 🙋`
-  );
-
-  await sendMessage(adminChatId, `✅ Confirmed <b>${student.full_name}</b> — they've been moved to GitHub setup.`);
-}
-
-// ── Skip a specific student to Day 3 (SRE setup) ───────────────────────────
-
-async function skipStudentToDay3(adminChatId: number, name: string): Promise<void> {
-  const { data: matches } = await supabase
-    .from("amara_students")
-    .select("id, telegram_chat_id, full_name, current_day, current_step, status")
-    .eq("status", "ACTIVE")
-    .ilike("full_name", `%${name}%`);
-
-  if (!matches || matches.length === 0) {
-    await sendMessage(adminChatId, `❌ No active student found matching "<b>${name}</b>".`);
-    return;
-  }
-
-  if (matches.length > 1) {
-    const list = (matches as { full_name: string | null; current_day: number; current_step: number }[])
-      .map(s => `• ${s.full_name ?? "unnamed"} (Day ${s.current_day}, Step ${s.current_step})`)
-      .join("\n");
-    await sendMessage(adminChatId, `Multiple students match "<b>${name}</b>":\n\n${list}\n\nPlease use a more specific name.`);
-    return;
-  }
-
-  const student = matches[0] as { id: string; telegram_chat_id: string; full_name: string | null; current_day: number; current_step: number };
-
-  if (student.current_day >= 3) {
-    await sendMessage(adminChatId, `<b>${student.full_name}</b> is already on Day ${student.current_day} Step ${student.current_step} — no skip needed.`);
-    return;
-  }
-
-  const now = new Date().toISOString();
-  await supabase
-    .from("amara_students")
-    .update({
-      current_day: 3,
-      current_step: 1,
-      day1_completed_at: student.current_day < 1 ? now : undefined,
-      day2_completed_at: student.current_day < 2 ? now : undefined,
-      next_day_unlocks_at: null,
-      updated_at: now,
-    })
-    .eq("id", student.id);
-
-  const firstName = student.full_name?.split(" ")[0] ?? "";
-  await typeMessage(
-    student.telegram_chat_id,
-    `Hey ${firstName}! 🔥 Great news — let's jump straight to <b>Day 3: Your AI Sales Bot (SRE)!</b> 🤖\n\nToday you get your own AI bot that sells for you 24/7. Here's what to do:\n\n1️⃣ Open Telegram and search for <b>@BotFather</b>\n2️⃣ Send <b>/newbot</b>\n3️⃣ Choose a display name (like "${firstName} EEM26 Assistant")\n4️⃣ Choose a username (must end in "bot", like "${firstName.toLowerCase()}eem26bot")\n5️⃣ Copy the <b>token</b> BotFather gives you and paste it right here\n\nI'll handle everything else automatically — no coding needed! 💪`
-  );
-
+  const unlocked = await unlockDay2(student, student.telegram_chat_id, "Payment confirmed by admin");
   await sendMessage(
     adminChatId,
-    `✅ Skipped <b>${student.full_name}</b> to Day 3 Step 1 (SRE setup). They've been messaged with BotFather instructions.`
+    unlocked
+      ? `✅ Confirmed — Day 2 unlocked for\n${studentLabel(student.full_name, student.telegram_chat_id)}`
+      : `ℹ️ Day 2 was already unlocked for\n${studentLabel(student.full_name, student.telegram_chat_id)}`
   );
 }
 
@@ -470,7 +392,7 @@ async function announceSaturday(adminChatId: number, pmHour = 8, minute = 30): P
 async function listStudents(chatId: number): Promise<void> {
   const { data } = await supabase
     .from("amara_students")
-    .select("full_name, current_day, current_step, status, sales_page_link")
+    .select("telegram_chat_id, full_name, current_day, current_step, status")
     .eq("status", "ACTIVE")
     .order("created_at", { ascending: false })
     .limit(30);
@@ -480,9 +402,9 @@ async function listStudents(chatId: number): Promise<void> {
     return;
   }
 
-  const lines = (data as Record<string, string | number>[]).map((s) =>
-    `• <b>${s.full_name ?? "unnamed"}</b> — Day ${s.current_day}, Step ${s.current_step}` +
-    (s.sales_page_link ? ` ✅` : ` ❌`)
+  type Row = { telegram_chat_id: string; full_name: string | null; current_day: number; current_step: number; status: string };
+  const lines = (data as Row[]).map((s) =>
+    `• <b>${escapeHtml(s.full_name ?? "unnamed")}</b> — 🆔 <code>${s.telegram_chat_id}</code> — ${describePosition(s)}`
   );
 
   await sendMessage(chatId, `<b>Active students (${data.length}):</b>\n\n${lines.join("\n")}`);

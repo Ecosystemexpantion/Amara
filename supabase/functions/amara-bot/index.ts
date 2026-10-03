@@ -51,7 +51,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Admin commands — handled before any student lookup
       if (String(chatId) === ADMIN_CHAT_ID_STR) {
         const text = msg.text?.trim() ?? "";
-        await handleAdminCommand(chatId, text);
+        const replyToText = msg.reply_to_message?.text ?? msg.reply_to_message?.caption;
+        await handleAdminCommand(chatId, text, replyToText);
         return;
       }
 

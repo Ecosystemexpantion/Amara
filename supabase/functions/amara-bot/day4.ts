@@ -15,7 +15,7 @@ export async function handleDay4(
 ): Promise<void> {
   await sendChatAction(chatId, "typing");
 
-  // New 4-step Day 4 (bot deploy is now automated in Day 3):
+  // New 4-step Day 4 (bot deploy is automated on Day 1):
   // Step 1: Test bot is responding → screenshot
   // Step 2: Celebration bridge → auto-advance + prompt signature
   // Step 3: Collect handwritten signature photo
@@ -43,9 +43,9 @@ async function handleStep1(student: Student, chatId: number, text: string | null
 IMPORTANT guidance for confused students:
 - They must search from the MAIN Telegram screen (the chat list), NOT inside any group chat
 - They should tap the search/magnifying glass icon at the TOP of Telegram
-- They should search for the bot username they chose during Day 3 (it ends in "bot")
+- They should search for the bot username they chose when creating it with BotFather (it ends in "bot")
 - They should NOT search for "BotFather" — BotFather is only for creating bots, not for testing
-- If they don't remember their bot username, tell them to scroll up in their chat with you (Amara) — the bot username was shown when setup completed on Day 3
+- If they don't remember their bot username, tell them to scroll up in their chat with you (Amara) — the bot username was shown in the "YOUR BOT IS LIVE" message
 - Common mistake: searching inside the EEM26 group chat — they need to EXIT the group and search from the main screen`,
         student.id
       );
@@ -53,7 +53,7 @@ IMPORTANT guidance for confused students:
     } else {
       await typeMessage(
         chatId,
-        `<b>🚀 Day 4 — Final Day!</b>\n\nYour bot is already live and running 24/7 from your Tech Stack 📦 — I set it all up yesterday!\n\nNow let's confirm it's working. Open Telegram, find your bot (search for its username), send it any message, and send me a screenshot of it replying 📸`
+        `<b>🚀 Day 4 — Final Day!</b>\n\nYour bot is already live and running 24/7 from your Tech Stack 📦 — I set it up for you on Day 1!\n\nNow let's confirm it's working. Open Telegram, find your bot (search for its username), send it any message, and send me a screenshot of it replying 📸`
       );
       await typeMessage(
         chatId,
@@ -92,12 +92,12 @@ IMPORTANT guidance for confused students:
       student, chatId, result.reason,
       result.guidance || "Open Telegram, find your bot by username, send it a message, screenshot the reply 📸",
       photo,
-      `Student is on Day 4 Step 1. Their Telegram bot was set up automatically on Day 3 and should be running. They need to find their bot on Telegram and test it.
+      `Student is on Day 4 Step 1. Their Telegram bot (SRE) was set up automatically earlier in the program and should be running. They need to find their bot on Telegram and test it.
 
 LOOK AT THE SCREENSHOT and tell them EXACTLY what's wrong and what to do:
-- If you see a GROUP CHAT (like "EEM26" group): Tell them "I can see you're inside a group chat — that's not where your bot is! Go BACK to your main Telegram chat list, tap the search icon at the TOP, and search for the bot username you chose on Day 3 (it ends in 'bot')."
+- If you see a GROUP CHAT (like "EEM26" group): Tell them "I can see you're inside a group chat — that's not where your bot is! Go BACK to your main Telegram chat list, tap the search icon at the TOP, and search for the bot username you chose (it ends in 'bot')."
 - If you see BOTFATHER: Tell them "BotFather is only for creating bots — you already did that! Go back to your main chat list, tap search, and look for YOUR bot (the username you created)."
-- If you see the MAIN CHAT LIST with no bot: Tell them "I can see your chat list but no bot chat yet. Tap the search/magnifying glass at the top and type the bot username you chose on Day 3. If you don't remember, scroll up in our chat — I told you when it was set up!"
+- If you see the MAIN CHAT LIST with no bot: Tell them "I can see your chat list but no bot chat yet. Tap the search/magnifying glass at the top and type the bot username you chose. If you don't remember, scroll up in our chat — I told you when it was set up!"
 - If you see SOMETHING ELSE: Describe exactly what you see and give precise steps to navigate to the right place.
 
 Be warm, patient, and specific. Never say "I can't see your screenshot" — you CAN see it. Describe what you see first, then guide them.`

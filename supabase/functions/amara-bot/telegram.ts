@@ -8,9 +8,9 @@ export async function sendMessage(
   chatId: number | string,
   text: string,
   parseMode: "HTML" | "Markdown" = "HTML"
-): Promise<void> {
+): Promise<boolean> {
   try {
-    await fetch(`${TG_BASE}/sendMessage`, {
+    const res = await fetch(`${TG_BASE}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -20,9 +20,31 @@ export async function sendMessage(
         disable_web_page_preview: true,
       }),
     });
+    return res.ok;
   } catch (e) {
     console.error("sendMessage error:", e);
+    return false;
   }
+}
+
+export async function copyMessage(
+  toChatId: number | string,
+  fromChatId: number | string,
+  messageId: number
+): Promise<void> {
+  try {
+    await fetch(`${TG_BASE}/copyMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: toChatId, from_chat_id: fromChatId, message_id: messageId }),
+    });
+  } catch (e) {
+    console.error("copyMessage error:", e);
+  }
+}
+
+export function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 export async function sendChatAction(

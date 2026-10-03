@@ -114,46 +114,51 @@ Send a message to your bot on Telegram. You should see Amara's greeting and onbo
 ## The 4-Day Program
 
 ### Day 0 — Onboarding
-Amara collects: full name → email → phone → country, then immediately starts Day 1.
+Amara collects: full name → email → phone → country → device → tech level, then immediately starts Day 1.
 
-### Day 1 — Understanding the Business
-1. Q&A about AAM (Automate & Attract Method) and SRE (Smart Reply Engine)
-2. Create Selar creator account (screenshot verified)
-3. Confirm Selar dashboard (screenshot verified)
-4. Create Payhip account via special affiliate link (screenshot + store link collected)
-5. Day 1 complete → schedules Day 2 unlock for 8AM Nigeria time
+### Day 1 — SRE (AI Sales Bot)
+1. Create a Telegram bot with BotFather → paste the token (`current_step = 10`)
+2. Amara registers the bot's webhook to the multi-tenant `student-bot` function — the bot is live
+3. Day 1 complete → **Day 2 is locked** (`current_step = 11`)
+
+### Day 2 lock — Tech Stack payment
+- Amara does **not** reply to anything while locked. Every message is forwarded to the admin with the student's name, 🆔 Telegram ID, and **💬 Jump in** / **✅ Approve payment** buttons.
+- A payment screenshot that passes Gemini vision unlocks Day 2 immediately; otherwise the admin approves it (`approve [ID]`).
+- The cron sends Tech Stack sales messages (3h, 20h, 30h after Day 1) and an expiry warning at 48h, only between 8AM and 9PM Nigeria time.
 
 ### Day 2 — Sales Page Setup
-1. GitHub account creation + username selection
-2. Create `EEM26page` repository
-3. Amara sends customized `index.html` (normal sales page with student's Payhip link)
-4. Upload to GitHub + enable GitHub Pages
-5. Repeat for `EEM26premium` (premium sales page)
-6. Day 2 complete → two live sales pages
+1. GitHub account → OAuth link → Amara creates `EEM26page` and `EEM26premium` and enables GitHub Pages
+2. Day 2 complete → Day 3 unlocks at 8AM Nigeria time
 
-### Day 3 — Bot Creation & Supabase Setup
-1. Create Telegram bot with BotFather → collect token
-2. Supabase account via GitHub
-3. Create Supabase project
-4. Get API keys (Gemini vision extracts URL and anon key from screenshot)
-5. Run SQL for bot tables
-6. Deploy customized bot code (generated `index.ts` sent as file)
-7. Day 3 complete
+### Day 3 — Selar + Payhip
+1. Q&A about AAM and SRE → "ready"
+2. Selar creator account + dashboard (screenshot verified)
+3. Payhip affiliate account (screenshot verified)
+4. Day 3 complete → Day 4 unlocks at 8AM Nigeria time
+
+Students who started before the day order changed and have no bot yet build their SRE bot on Day 3 instead.
 
 ### Day 4 — Go Live & Certificate
-1. Set environment variables in Supabase
-2. Set Telegram webhook
-3. Test bot is responding
-4. Collect student signature photo
-5. Generate and send PDF certificate (with SD Digital Academy logo + student signature)
-6. Grand finale + admin notification
+1. Test the bot is responding (screenshot)
+2. Collect student signature photo
+3. Generate and send PDF certificate (with SD Digital Academy logo + student signature)
+4. Grand finale + admin notification
+
+## Admin: talking to students
+- `reply [ID] [message]` — message one student; the ID means replies can't go to the wrong person
+- Swipe-reply to any admin message that shows a 🆔 — goes to that student only
+- `last [ID]` (or the **💬 Jump in** button) — the student's last 3 messages
+- `waiting` — everyone locked at Day 2, with their IDs
+- `approve [ID]` / `confirm [name]` — confirm Tech Stack payment and unlock Day 2
 
 ## State Machine
 
 ```
-current_day=0, current_step=1..4   → Onboarding
-current_day=1..4, current_step=1+  → Day in progress
-current_day=1..3, current_step=0   → Day complete, waiting for next-day unlock (cron job handles this)
+current_day=0, current_step=1..6   → Onboarding
+current_day=1, current_step=10     → Day 1: SRE bot setup
+current_day=1, current_step=11     → Day 2 locked until Tech Stack payment proof
+current_day=2..4, current_step=1+  → Day in progress
+current_day=2..3, current_step=0   → Day complete, waiting for next-day unlock (cron job handles this)
 current_day=5 or status=COMPLETED  → Program complete
 ```
 
