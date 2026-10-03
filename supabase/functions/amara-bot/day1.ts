@@ -1,13 +1,13 @@
 import { sendMessage, sendChatAction, typeMessage, downloadFile, copyMessage, sendWithKeyboard, escapeHtml } from "./telegram.ts";
 import { advanceStep, advanceIfAt, recordStepCompletion, getRecentConversation, computeNextUnlockAt, saveConversation } from "./db.ts";
-import { geminiVision, geminiChat, buildVerificationPrompt } from "./gemini.ts";
+import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin, studentLabel } from "./admin.ts";
 import { sendGitHubIntro } from "./day2.ts";
-import { SRE_STEP, GATE_STEP, GATE_PITCH, sreIntroMessages, legacyUpgradeMessage } from "./day1-content.ts";
+import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, sreIntroMessages, suggestedBotNames, legacyUpgradeMessage } from "./day1-content.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
-const BOT_TOKEN_RE = /\d{8,10}:[A-Za-z0-9_-]{35,}/;
+const BOT_TOKEN_RE = /\d{6,12}:[A-Za-z0-9_-]{30,}/;
 
 // Day 1 — SRE: create a bot with BotFather → paste token → Amara wires it up.
 export async function handleDay1(
@@ -22,7 +22,7 @@ export async function handleDay1(
 }
 
 export async function sendSreIntro(chatId: number | string, fullName: string | null): Promise<void> {
-  for (const m of sreIntroMessages(fullName)) await typeMessage(chatId, m);
+  for (const m of sreIntroMessages(fullName, chatId)) await typeMessage(chatId, m);
 }
 
 async function sendGatePitch(chatId: number | string): Promise<void> {
@@ -37,24 +37,40 @@ export async function handleSreStep(
   photo: { bytes: Uint8Array; mimeType: string } | null,
   day: 1 | 3
 ): Promise<void> {
+  const { displayName, username } = suggestedBotNames(student.full_name, chatId);
+  const botFatherSteps = `The student is creating their Telegram bot with BotFather (${BOTFATHER_LINK}). The steps, all sent to BotFather (NOT to Amara):
+1. Open ${BOTFATHER_LINK} (the real BotFather has a blue tick) and press START
+2. Send /newbot
+3. When asked for a name, send: ${displayName}
+4. When asked for a username, send: ${username} (must end in "bot"; if it's taken, add more numbers before "_bot")
+5. BotFather replies "Done! Congratulations on your new bot" with a token like 1234567890:AAH...
+6. Back in Amara's chat: press and hold that "Done!" message → Forward → Amara. Or copy the token and paste it here.`;
+
   if (photo) {
     const prompt = buildVerificationPrompt(
-      "Does this screenshot show a Telegram chat with BotFather showing the bot token? Extract the token if visible.",
+      "Does this screenshot show a Telegram chat with BotFather showing the bot token? Extract the full token if it is completely visible.",
       ["bot_token"]
     );
     const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
-    if (result.verified && result.extracted?.bot_token && BOT_TOKEN_RE.test(result.extracted.bot_token)) {
-      await setupStudentBot(student, chatId, result.extracted.bot_token, day);
+    const token = result.extracted?.bot_token?.match(BOT_TOKEN_RE)?.[0];
+    if (result.verified && token) {
+      await setupStudentBot(student, chatId, token, day);
       return;
     }
-    const history = await getRecentConversation(student.id, 4);
-    const reply = await geminiChat(
-      history,
-      "[screenshot]",
-      `Student is on Day ${day} (SRE bot setup). They sent a screenshot. They need to copy their BotFather bot token (format: 1234567890:ABCdef...) and paste it as text in this chat. Tell them to copy the token directly from BotFather and paste it here.`,
-      student.id
+    const guidance = await geminiVisionGuide(
+      photo.bytes,
+      photo.mimeType,
+      `${botFatherSteps}
+
+Look at their screen and tell them the ONE next thing to do:
+- Not in BotFather yet, or in a fake BotFather without the blue tick → tell them to tap ${BOTFATHER_LINK}
+- BotFather asking for a name → send: ${displayName}
+- BotFather asking for a username → send: ${username}
+- "Sorry, this username is already taken" or invalid username → send a new one with extra numbers, e.g. ${username.replace(/_bot$/, "1_bot")}
+- The "Done! Congratulations" message is visible → press and hold it, tap Forward, choose Amara (screenshots can cut the token off, so forwarding is safest)`,
+      text ?? undefined
     );
-    await sendMessage(chatId, reply);
+    await sendMessage(chatId, guidance);
     return;
   }
 
@@ -66,22 +82,49 @@ export async function handleSreStep(
     return;
   }
 
+  const hint = misplacedBotFatherInput(text, username, displayName);
+  if (hint) {
+    await typeMessage(chatId, hint);
+    return;
+  }
+
   const history = await getRecentConversation(student.id, 6);
-  const firstName = student.full_name?.split(" ")[0] ?? "Student";
   const reply = await geminiChat(
     history,
     text,
-    `Student is on Day ${day} — setting up their SRE (Smart Reply Engine) AI sales bot. They need to:
-1. Open Telegram and search for @BotFather
-2. Start a chat and send /newbot
-3. Choose a bot display name (suggest: "${firstName} EEM26 Assistant")
-4. Choose a username (suggest: "${firstName.toLowerCase()}eem26bot" — must end in "bot")
-5. Copy the token BotFather sends and paste it here
+    `Student is on Day ${day} — setting up their SRE (Smart Reply Engine) AI sales bot.
+${botFatherSteps}
 
-If they're asking a question, answer it. Always ask them to paste the bot token when ready.`,
+If they're asking a question, answer it in 2-3 short sentences and tell them the ONE next step. Remind them that the name and username go to BotFather, not to you.`,
     student.id
   );
   await sendMessage(chatId, reply);
+}
+
+// Students often type BotFather's answers into Amara's chat — catch the common cases without AI.
+function misplacedBotFatherInput(text: string, username: string, displayName: string): string | null {
+  const t = text.trim();
+  const openBotFather = `👉 <a href="${BOTFATHER_LINK}">Tap here to open BotFather</a>`;
+
+  if (/username is already taken|sorry, this username/i.test(t)) {
+    return `That username is taken — no problem! 😊 Send BotFather this one instead (tap to copy):\n<code>${username.replace(/_bot$/, "1_bot")}</code>\n\n${openBotFather}`;
+  }
+  if (/^\/(newbot|start|mybots)\b/i.test(t)) {
+    return `Almost! 😊 <code>${t.split(/\s/)[0]}</code> goes to <b>BotFather</b>, not to me.\n\n${openBotFather}, send it there, then follow BotFather's questions.`;
+  }
+  if (/^@?[a-z][a-z0-9_]{2,30}bot$/i.test(t)) {
+    return `That looks like your bot's username 👍 — send it to <b>BotFather</b>, not to me.\n\n${openBotFather} and send it there. When BotFather says <i>"Done! Congratulations"</i>, press and hold that message → <b>Forward</b> → <b>Amara</b> 📲`;
+  }
+  if (t.toLowerCase() === displayName.toLowerCase()) {
+    return `That's your bot's name 👍 — send it to <b>BotFather</b>, not to me.\n\n👉 <a href="${BOTFATHER_LINK}">Tap here to open BotFather</a> and send it there.`;
+  }
+  if (/how are we going to call it|choose a (name|username) for your bot/i.test(t)) {
+    return `That's BotFather asking you a question 😊 Reply to it <b>inside BotFather's chat</b>, not here.\n\n${openBotFather}`;
+  }
+  if (/done! congratulations/i.test(t)) {
+    return `I can see the "Done!" message but the token got cut off 🤔 Go back to BotFather, press and hold the <b>whole</b> "Done!" message → <b>Forward</b> → <b>Amara</b>.\n\n${openBotFather}`;
+  }
+  return null;
 }
 
 async function setupStudentBot(student: Student, chatId: number, token: string, day: 1 | 3): Promise<void> {

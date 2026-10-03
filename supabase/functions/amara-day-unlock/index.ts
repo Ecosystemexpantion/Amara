@@ -198,7 +198,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
         if (!updated || updated.length === 0) continue;
 
         await sendTelegram(s.telegram_chat_id, legacyUpgradeMessage(s.full_name));
-        for (const m of toGate ? GATE_PITCH : sreIntroMessages(s.full_name)) {
+        for (const m of toGate ? GATE_PITCH : sreIntroMessages(s.full_name, s.telegram_chat_id)) {
           await new Promise((r) => setTimeout(r, 400));
           await sendTelegram(s.telegram_chat_id, m);
         }

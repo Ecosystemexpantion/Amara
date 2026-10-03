@@ -9,12 +9,25 @@ export const TECH_STACK_URL = "https://ecosystemexpantion.github.io/Tech_stack/"
 const DOWNLOAD_LINE = `👉 <a href="${TECH_STACK_URL}">Download your Tech Stack here</a>`;
 const UNLOCK_LINE = `Once you've paid, send me a <b>screenshot of your proof of payment</b> right here and <b>Day 2 unlocks instantly</b> 🔓`;
 
-export function sreIntroMessages(fullName: string | null): string[] {
+export const BOTFATHER_LINK = "https://t.me/BotFather";
+
+// Digits from the chat ID make the suggested username unlikely to be taken already.
+export function suggestedBotNames(fullName: string | null, chatId: string | number): { displayName: string; username: string } {
   const firstName = fullName?.split(" ")[0] ?? "";
-  const handle = firstName.toLowerCase().replace(/[^a-z0-9]/g, "") || "my";
+  const handle = firstName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "my";
+  const digits = String(chatId).replace(/\D/g, "").slice(-4) || "2026";
+  return {
+    displayName: `${firstName || "My"} EEM26 Assistant`,
+    username: `${handle}_eem26_${digits}_bot`,
+  };
+}
+
+export function sreIntroMessages(fullName: string | null, chatId: string | number): string[] {
+  const { displayName, username } = suggestedBotNames(fullName, chatId);
   return [
     `<b>Welcome to Day 1: Your AI Sales Bot (SRE) 🤖</b>\n\nThe EEM26 model runs on 2 systems:\n\n✅ <b>SRE (Smart Reply Engine)</b> — AI that replies to buyers and closes sales even while you sleep\n✅ <b>AAM (Automate and Attract Method)</b> — brings buyers to your DM automatically, no ads needed\n\nToday we switch on your SRE — your own bot, live in minutes 🔥`,
-    `Here's all you need to do:\n\n1️⃣ Open Telegram and search for <b>@BotFather</b>\n2️⃣ Send <b>/newbot</b>\n3️⃣ Choose a display name (like "${firstName || "My"} EEM26 Assistant")\n4️⃣ Choose a username — it must end in "bot" (like "${handle}eem26bot")\n5️⃣ Copy the <b>token</b> BotFather gives you and paste it right here\n\nI'll handle everything else automatically — no coding needed! 💪`,
+    `<b>Let's create your bot — it takes 2 minutes ⏱️</b>\n\n1️⃣ Tap here 👉 <a href="${BOTFATHER_LINK}">@BotFather</a> and press <b>START</b>\n<i>(the real BotFather has a blue ✔️ tick)</i>\n\n2️⃣ Send this to BotFather: <code>/newbot</code>\n\n3️⃣ BotFather asks for a <b>name</b> — send this (tap to copy):\n<code>${displayName}</code>\n\n4️⃣ BotFather asks for a <b>username</b> — send this (tap to copy):\n<code>${username}</code>\n\n5️⃣ BotFather replies <i>"Done! Congratulations on your new bot…"</i> 🎉`,
+    `<b>Last step — bring that "Done!" message to me 👇</b>\n\n📲 <b>Easiest:</b> press and hold BotFather's "Done!" message → tap <b>Forward</b> → choose <b>Amara</b>\n\n✍️ Or copy the long token (it looks like <code>1234567890:AAH…</code>) and paste it here\n\n⚠️ Steps 2–4 go to <b>BotFather</b>, not to me. I'll handle everything else automatically 💪`,
   ];
 }
 
