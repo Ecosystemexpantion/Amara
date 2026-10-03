@@ -2,6 +2,7 @@
 // Order: Claude (paid, primary) → Groq → Gemini. A failure at one provider never stops the chain,
 // and retired free-tier models are replaced automatically from each provider's live model list.
 import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 export type ImageInput = { base64: string; mimeType: string };
@@ -54,10 +55,25 @@ function esc(s: string): string {
 // ── Claude ────────────────────────────────────────────────────────────────────
 
 let claudeClient: Anthropic | null = null;
-function claude(): Anthropic | null {
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+let vaultCheckedAt = 0;
+
+// ANTHROPIC_API_KEY from the function secrets wins; otherwise read the key stored in Supabase Vault.
+async function claude(): Promise<Anthropic | null> {
+  if (claudeClient) return claudeClient;
+  let apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!apiKey && Date.now() - vaultCheckedAt > 5 * 60_000) {
+    vaultCheckedAt = Date.now();
+    try {
+      const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data, error } = await db.rpc("get_app_secret", { secret_name: "anthropic_api_key" });
+      if (error) console.error("Vault read failed:", error.message);
+      if (typeof data === "string" && data) apiKey = data;
+    } catch (e) {
+      console.error("Vault read failed:", e);
+    }
+  }
   if (!apiKey) return null;
-  claudeClient ??= new Anthropic({ apiKey, timeout: 45_000, maxRetries: 1 });
+  claudeClient = new Anthropic({ apiKey, timeout: 45_000, maxRetries: 1 });
   return claudeClient;
 }
 
@@ -75,9 +91,9 @@ async function callClaude(
   temperature: number | undefined,
   errors: string[]
 ): Promise<string | null> {
-  const client = claude();
+  const client = await claude();
   if (!client) {
-    errors.push("Claude: ANTHROPIC_API_KEY is not set");
+    errors.push("Claude: no API key (ANTHROPIC_API_KEY secret or Vault 'anthropic_api_key')");
     warnClaudeDown(errors);
     return null;
   }
