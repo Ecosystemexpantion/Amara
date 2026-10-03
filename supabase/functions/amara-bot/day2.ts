@@ -1,6 +1,6 @@
 import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
 import { advanceStep, getRecentConversation } from "./db.ts";
-import { geminiChat, geminiVisionGuide } from "./gemini.ts";
+import { geminiChat, geminiVisionGuide, AI_FALLBACK_REPLY } from "./gemini.ts";
 import { buildGitHubAuthUrl } from "./github.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
@@ -170,8 +170,7 @@ IMPORTANT: On mobile phones, the green Authorize button is often at the BOTTOM o
 Answer their question warmly and briefly, then guide them to scroll down and tap Authorize. OAuth link if they lost it: ${oauthUrl}`,
       student.id
     );
-    const geminiFailedFallback = reply.includes("Try again in a moment") || reply.includes("small hiccup") || reply.includes("Had a small hiccup");
-    if (geminiFailedFallback) {
+    if (reply === AI_FALLBACK_REPLY) {
       await typeMessage(
         chatId,
         `The green <b>Authorize</b> button is at the <b>bottom</b> of the GitHub page — scroll down to find it! 👇\n\nIf you've lost the page, tap here again:\n<a href="${oauthUrl}">👉 Connect GitHub</a>`

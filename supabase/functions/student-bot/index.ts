@@ -1,7 +1,8 @@
 // student-bot/index.ts — Alex-quality multi-tenant EEM26 sales bot
-// Free stack: Groq llama-3.3-70b (text) + Gemini 2.0 flash (vision)
+// AI: Claude first, Groq/Gemini as backups (_shared/ai.ts)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { aiChat, aiVision } from "../_shared/ai.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -332,104 +333,37 @@ function uint8ToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-// ─── Groq — free text chat (multi-key, multi-model rotation) ─────────────────
-
-function getGroqKeys(): string[] {
-  const keys: string[] = [];
-  for (const name of ["GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_API_KEY_4", "GROQ_API_KEY_5"]) {
-    const k = Deno.env.get(name);
-    if (k) keys.push(k);
-  }
-  return keys;
-}
-
-// llama-3.1-8b-instant: ~20k RPD free (vs ~235 RPD for 70b)
-const GROQ_MODELS = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "llama3-70b-8192"];
+// ─── AI (Claude first, then Groq/Gemini — see _shared/ai.ts) ──────────────────
 
 async function callGroq(
   systemPrompt: string,
   history: { role: string; content: string }[],
   userMessage: string
 ): Promise<string> {
-  const groqKeys = getGroqKeys();
-  if (groqKeys.length === 0) {
-    await alertAdmin("⚠️ <b>student-bot</b>: no GROQ_API_KEY set");
-    return "I'll get back to you shortly!";
-  }
-
-  const recent = history.slice(-10);
-  const messages: { role: string; content: string }[] = [];
-  let want: "user" | "assistant" = "assistant";
-  for (let i = recent.length - 1; i >= 0; i--) {
-    if (recent[i].role === want) {
-      messages.unshift({ role: want, content: recent[i].content });
-      want = want === "user" ? "assistant" : "user";
-    }
-  }
-  if (userMessage) messages.push({ role: "user", content: userMessage });
-
-  for (const apiKey of groqKeys) {
-    for (const model of GROQ_MODELS) {
-      try {
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: "system", content: systemPrompt }, ...messages],
-            max_tokens: 500,
-            temperature: 0.85,
-          }),
-        });
-
-        if (res.status === 429) { console.warn(`student-bot Groq quota: ${model}`); continue; }
-
-        if (!res.ok) {
-          const err = await res.text();
-          console.error(`Groq ${res.status} (${model}): ${err}`);
-          continue;
-        }
-
-        const data = await res.json();
-        const text = data?.choices?.[0]?.message?.content?.trim();
-        if (text) return text;
-      } catch (e) {
-        console.error(`Groq error (${model}):`, e);
-      }
-    }
-  }
-
-  await alertAdmin("⚠️ <b>student-bot</b>: all Groq keys/models exhausted");
-  return "I'll get back to you shortly!";
+  const reply = await aiChat({
+    system: systemPrompt,
+    history: history.slice(-10).map((h) => ({ role: h.role === "user" ? "user" : "assistant", content: h.content })),
+    user: userMessage,
+    maxTokens: 500,
+    temperature: 0.85,
+    caller: "student sales bots",
+  });
+  return reply ?? "I'll get back to you shortly!";
 }
 
-// ─── Gemini vision — extract payment amount ───────────────────────────────────
+// ─── Vision — extract payment amount ──────────────────────────────────────────
 
 async function extractPaymentAmount(imageBytes: Uint8Array, mimeType: string): Promise<number | null> {
-  const key = Deno.env.get("GEMINI_API_KEY") ?? "";
-  if (!key) return null;
-  const base64 = uint8ToBase64(imageBytes);
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [
-            { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: "Look at this payment screenshot. Extract the total amount paid in Nigerian Naira. Return ONLY the numeric value. Example: for ₦39,820 return: 39820. If you cannot determine the amount, return: 0" },
-          ]}],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 20 },
-        }),
-      }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "0";
-    const num = parseInt(text.replace(/[^0-9]/g, ""), 10);
-    return isNaN(num) ? null : num;
-  } catch { return null; }
+  const text = await aiVision({
+    prompt: "Look at this payment screenshot. Extract the total amount paid in Nigerian Naira. Return ONLY the numeric value. Example: for ₦39,820 return: 39820. If you cannot determine the amount, return: 0",
+    image: { base64: uint8ToBase64(imageBytes), mimeType },
+    maxTokens: 20,
+    temperature: 0.1,
+    caller: "student bot payment check",
+  });
+  if (!text) return null;
+  const num = parseInt(text.replace(/[^0-9]/g, ""), 10);
+  return isNaN(num) ? null : num;
 }
 
 // ─── Telegram helpers ─────────────────────────────────────────────────────────

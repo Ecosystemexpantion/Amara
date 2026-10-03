@@ -7,6 +7,7 @@ import {
   sreIntroMessages,
   legacyUpgradeMessage,
 } from "../amara-bot/day1-content.ts";
+import { aiHealthCheck } from "../_shared/ai.ts";
 
 // Amara Day Unlock — Cron Job Function
 // Runs every 5 minutes via Supabase cron schedule.
@@ -16,6 +17,7 @@ import {
 // 1b. Tech Stack sales messages + 48h expiry for students locked at Day 2
 // 2. Evening check-in at 6PM Nigeria time (17:00 UTC)
 // 3. Silence nudge when a student hasn't messaged in 20+ hours
+// 6. AI health check every 3 hours — alerts the admin before students notice
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -423,6 +425,11 @@ Deno.serve(async (_req: Request): Promise<Response> => {
         graduateReminderCount++;
       }
       results.graduateReminders = graduateReminderCount;
+    }
+
+    // ── 6. AI health check (every 3 hours) — a failing Claude alerts the admin from _shared/ai.ts
+    if (utcHour % 3 === 0 && utcMin < 5) {
+      results.aiProblems = await aiHealthCheck();
     }
 
     console.log("Cron result:", JSON.stringify(results));
