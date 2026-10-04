@@ -2,7 +2,7 @@
 // AI: Claude first, Groq/Gemini as backups (_shared/ai.ts)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { aiChat, aiVision } from "../_shared/ai.ts";
+import { aiChat } from "../_shared/ai.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,7 +54,6 @@ type SupabaseClient = ReturnType<typeof createClient>;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PRODUCT_PRICE = 39820;
 const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
 const BOT_TOKEN_AMARA = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const SUNDAY_TRAINING = "https://t.me/+jX6QLzq04uQ3OGE0";
@@ -324,16 +323,6 @@ async function alertAdmin(msg: string): Promise<void> {
   }).catch(() => {});
 }
 
-// ─── base64 ───────────────────────────────────────────────────────────────────
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 8192) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-  }
-  return btoa(binary);
-}
-
 // ─── AI (Claude first, then Groq/Gemini — see _shared/ai.ts) ──────────────────
 
 async function callGroq(
@@ -352,20 +341,32 @@ async function callGroq(
   return reply ?? "I'll get back to you shortly!";
 }
 
-// ─── Vision — extract payment amount ──────────────────────────────────────────
+// ─── Manual payment review (admin taps Accept / Reject in Amara) ──────────────
 
-async function extractPaymentAmount(imageBytes: Uint8Array, mimeType: string): Promise<number | null> {
-  const text = await aiVision({
-    prompt: "Look at this payment screenshot. Extract the total amount paid in Nigerian Naira. Return ONLY the numeric value. Example: for ₦39,820 return: 39820. If you cannot determine the amount, return: 0",
-    image: { base64: uint8ToBase64(imageBytes), mimeType },
-    maxTokens: 20,
-    temperature: 0.1,
-    caller: "student bot payment check",
-    strong: true,
-  });
-  if (!text) return null;
-  const num = parseInt(text.replace(/[^0-9]/g, ""), 10);
-  return isNaN(num) ? null : num;
+async function sendPaymentForReview(student: Student, lead: Lead, photo: { bytes: Uint8Array; mimeType: string }): Promise<void> {
+  const caption =
+    `🧾 <b>Payment screenshot from a lead</b>\n\n` +
+    `👤 Lead: <b>${lead.name ?? "Unknown"}</b> (${lead.country ?? "?"})\n` +
+    `📧 ${lead.email ?? "no email"}\n` +
+    `🤖 Via ${student.full_name ?? "a student"}'s bot (🆔 <code>${student.telegram_chat_id}</code>)\n\n` +
+    `Check it and tap Accept or Reject.`;
+  const form = new FormData();
+  form.append("chat_id", ADMIN_CHAT_ID);
+  form.append("photo", new Blob([photo.bytes as Uint8Array<ArrayBuffer>], { type: photo.mimeType }), "payment.jpg");
+  form.append("caption", caption);
+  form.append("parse_mode", "HTML");
+  form.append("reply_markup", JSON.stringify({
+    inline_keyboard: [[
+      { text: "✅ Accept", callback_data: `lpa:${lead.id}` },
+      { text: "❌ Reject", callback_data: `lpr:${lead.id}` },
+    ]],
+  }));
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN_AMARA}/sendPhoto`, { method: "POST", body: form });
+    if (!res.ok) console.error("sendPaymentForReview failed:", res.status, await res.text());
+  } catch (e) {
+    console.error("sendPaymentForReview error:", e);
+  }
 }
 
 // ─── Telegram helpers ─────────────────────────────────────────────────────────
@@ -646,6 +647,21 @@ async function handleLead(
     return;
   }
 
+  // Payment screenshots are checked by the admin by hand — no AI, so this runs before any limit.
+  if (msg.photo && msg.photo.length > 0 && lead && (effectiveStage === "ATTENDED" || isBuyingIntent)) {
+    const photo = msg.photo[msg.photo.length - 1];
+    const dl = await downloadPhoto(token, photo.file_id);
+    if (!dl) {
+      await sendMessage(token, chatId, "I got your screenshot but couldn't open it 😕 Can you send it again? 📸");
+      return;
+    }
+    await sendPaymentForReview(student, lead, dl);
+    const reply = "Got it! 📸 I'm confirming your payment with the coaches now — I'll message you as soon as it's confirmed 🙏";
+    await sendMessage(token, chatId, reply);
+    await saveConv(supabase, student.id, chatIdStr, "[payment screenshot]", reply);
+    return;
+  }
+
   // Unpaid students' bots get a small daily allowance of replies on the admin's credit.
   if (isUnpaid(student) && (msg.photo?.length || userText) && lead) {
     const usedToday = await repliesToday(supabase, student.id, undefined, String(student.telegram_chat_id));
@@ -664,37 +680,6 @@ async function handleLead(
       }
       return;
     }
-  }
-
-  // Payment screenshot verification (ATTENDED or buy intent + photo)
-  if (msg.photo && msg.photo.length > 0 && (effectiveStage === "ATTENDED" || isBuyingIntent)) {
-    const photo = msg.photo[msg.photo.length - 1];
-    const dl = await downloadPhoto(token, photo.file_id);
-    if (dl) {
-      const amount = await extractPaymentAmount(dl.bytes, dl.mimeType);
-      if (amount === PRODUCT_PRICE) {
-        await upsertLead(supabase, student.id, chatIdStr, { stage: "PURCHASED" });
-        const reply1 = `Congratulations 🎊\n\nClick the link to access the tech stack 👇\n\nhttps://ecosystemexpantion.github.io/Product_page/\n\nSet your password and read all the instructions there. You will know the next step`;
-        const reply2 = `Your personal setup coach is waiting for you here 👇\n\nhttps://t.me/Amara_EEM26bot`;
-        await sendMessage(token, chatId, reply1);
-        await sendMessage(token, chatId, reply2);
-        await sendMessage(BOT_TOKEN_AMARA, student.telegram_chat_id,
-          `💰 <b>NEW PURCHASE!</b>\n<b>Name:</b> ${lead?.name ?? "Unknown"}\n<b>Country:</b> ${lead?.country ?? "Unknown"}\n<b>Amount:</b> ₦${amount.toLocaleString()}`
-        );
-        await saveConv(supabase, student.id, chatIdStr, "[payment screenshot]", `${reply1}\n\n${reply2}`);
-      } else if (amount !== null && amount > 0) {
-        const reply = `I'm seeing ₦${amount.toLocaleString()} on this screenshot but the price is ₦39,820. Please send the correct payment screenshot 📸`;
-        await sendMessage(token, chatId, reply);
-        await saveConv(supabase, student.id, chatIdStr, "[screenshot - wrong amount]", reply);
-      } else {
-        const reply = "I couldn't read the payment amount clearly. Send me a screenshot showing the full ₦39,820 transaction 📸";
-        await sendMessage(token, chatId, reply);
-        await saveConv(supabase, student.id, chatIdStr, "[screenshot unreadable]", reply);
-      }
-    } else {
-      await sendMessage(token, chatId, "I got your screenshot but couldn't open it 😕 Can you send it again? 📸");
-    }
-    return;
   }
 
   // No text and not a new lead → ignore

@@ -1,11 +1,11 @@
 // Admin commands — only reachable when the message comes from ADMIN_CHAT_ID.
 // Send "help" (or any unknown text with no pending escalation) to see them all.
 
-import { sendMessage, sendWithKeyboard, answerCallbackQuery, escapeHtml } from "./telegram.ts";
+import { sendMessage, sendWithKeyboard, answerCallbackQuery, removeButtons, escapeHtml } from "./telegram.ts";
 import { getPendingEscalation, answerEscalation, skipEscalation, pendingCount } from "./knowledge.ts";
 import { getStudentByChatId, saveConversation } from "./db.ts";
 import { studentLabel, describePosition } from "./admin.ts";
-import { unlockDay2 } from "./day1.ts";
+import { unlockDay2, rejectPayment } from "./day1.ts";
 import { GATE_STEP } from "./day1-content.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -126,9 +126,23 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
 export async function handleAdminCallback(
   chatId: number,
   callbackQueryId: string,
-  data: string
+  data: string,
+  messageId?: number
 ): Promise<void> {
   await answerCallbackQuery(callbackQueryId);
+
+  // Payment decisions are one-shot — drop the buttons so they can't be tapped twice.
+  if (messageId && /^(approve|reject|lpa|lpr):/.test(data)) await removeButtons(chatId, messageId);
+
+  if (data.startsWith("reject:")) {
+    await rejectById(chatId, data.slice("reject:".length));
+    return;
+  }
+
+  if (data.startsWith("lpa:") || data.startsWith("lpr:")) {
+    await decideLeadPayment(chatId, data.slice(4), data.startsWith("lpa:"));
+    return;
+  }
 
   if (data === "setup_cancel") {
     await sendMessage(chatId, "Cancelled.");
@@ -194,7 +208,8 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>last [ID]</code> → Show that student's last 3 messages.\n\n` +
     `<b>Day 2 lock (Tech Stack payment)</b>\n` +
     `<code>waiting</code> → Everyone locked at Day 2, with their 🆔.\n` +
-    `<code>approve [ID]</code> → Confirm their payment and unlock Day 2 (same as the ✅ Approve payment button).\n` +
+    `Every payment screenshot comes to you with <b>✅ Accept</b> / <b>❌ Reject</b> buttons — nothing is verified automatically.\n` +
+    `<code>approve [ID]</code> → Confirm their payment and unlock Day 2 (same as the ✅ Accept button).\n` +
     `<code>confirm [name]</code> → Same, by name.\n\n` +
     `<b>Other</b>\n` +
     `<code>announce saturday</code> → Blast "training is TONIGHT at 8:30 PM" to all graduates + Day 4 students.\nCustom time: <code>announce saturday 9:30</code> (PM Nigeria time)\n\n` +
@@ -264,6 +279,68 @@ async function approveById(adminChatId: number, studentChatId: string): Promise<
       ? `✅ Day 2 unlocked for\n${studentLabel(student.full_name, studentChatId)}`
       : `ℹ️ Day 2 was already unlocked for\n${studentLabel(student.full_name, studentChatId)}`
   );
+}
+
+async function rejectById(adminChatId: number, studentChatId: string): Promise<void> {
+  const student = await getStudentByChatId(studentChatId);
+  if (!student || student.current_day !== 1 || student.current_step !== GATE_STEP) {
+    await sendMessage(adminChatId, `ℹ️ Nothing to reject — ${student ? `they're at: ${describePosition(student)}` : "student not found"}.`);
+    return;
+  }
+  await rejectPayment(studentChatId);
+  await sendMessage(adminChatId, `❌ Payment rejected — they've been asked for a clearer receipt.\n${studentLabel(student.full_name, studentChatId)}`);
+}
+
+// Payment screenshots that leads send to a student's sales bot.
+async function decideLeadPayment(adminChatId: number, leadId: string, accept: boolean): Promise<void> {
+  const { data: lead } = await supabase
+    .from("student_bot_leads")
+    .select("id, student_id, chat_id, name, country, stage")
+    .eq("id", leadId)
+    .single();
+  if (!lead) {
+    await sendMessage(adminChatId, "❌ Lead not found.");
+    return;
+  }
+  const { data: owner } = await supabase
+    .from("amara_students")
+    .select("telegram_chat_id, full_name, bot_token")
+    .eq("id", lead.student_id)
+    .single();
+  if (!owner?.bot_token) {
+    await sendMessage(adminChatId, "❌ That student's bot is no longer connected — reply to the lead isn't possible.");
+    return;
+  }
+
+  const sendViaBot = (text: string) =>
+    fetch(`https://api.telegram.org/bot${owner.bot_token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: lead.chat_id, text, parse_mode: "HTML", disable_web_page_preview: true }),
+    }).catch(() => {});
+  const leadLabel = `<b>${escapeHtml(lead.name ?? "Unknown")}</b> (${escapeHtml(lead.country ?? "?")}) via ${escapeHtml(owner.full_name ?? "a student")}'s bot`;
+
+  if (!accept) {
+    const reply = "We couldn't confirm your payment from that screenshot 😕 Please send a clear screenshot of your successful payment receipt — it should show the amount, the date and that the payment was successful 📸";
+    await sendViaBot(reply);
+    await supabase.from("student_bot_conversations").insert({ student_id: lead.student_id, chat_id: lead.chat_id, role: "assistant", message: reply });
+    await sendMessage(adminChatId, `❌ Payment rejected for ${leadLabel}. They've been asked for a clearer receipt.`);
+    return;
+  }
+
+  if (lead.stage === "PURCHASED") {
+    await sendMessage(adminChatId, `ℹ️ ${leadLabel} was already marked as purchased.`);
+    return;
+  }
+
+  await supabase.from("student_bot_leads").update({ stage: "PURCHASED", updated_at: new Date().toISOString() }).eq("id", lead.id);
+  const reply1 = `Congratulations 🎊\n\nClick the link to access the tech stack 👇\n\nhttps://ecosystemexpantion.github.io/Product_page/\n\nSet your password and read all the instructions there. You will know the next step`;
+  const reply2 = `Your personal setup coach is waiting for you here 👇\n\nhttps://t.me/Amara_EEM26bot`;
+  await sendViaBot(reply1);
+  await sendViaBot(reply2);
+  await supabase.from("student_bot_conversations").insert({ student_id: lead.student_id, chat_id: lead.chat_id, role: "assistant", message: `${reply1}\n\n${reply2}` });
+  await sendMessage(owner.telegram_chat_id, `💰 <b>NEW PURCHASE!</b>\n<b>Name:</b> ${escapeHtml(lead.name ?? "Unknown")}\n<b>Country:</b> ${escapeHtml(lead.country ?? "Unknown")}`);
+  await sendMessage(adminChatId, `✅ Payment accepted for ${leadLabel}. They've been sent the Tech Stack access link.`);
 }
 
 async function listLocked(adminChatId: number): Promise<void> {

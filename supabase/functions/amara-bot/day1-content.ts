@@ -7,7 +7,7 @@ export const GATE_STEP = 11;
 export const TECH_STACK_URL = "https://ecosystemexpantion.github.io/Tech_stack/";
 
 const DOWNLOAD_LINE = `👉 <a href="${TECH_STACK_URL}">Download your Tech Stack here</a>`;
-const UNLOCK_LINE = `Once you've paid, send me a <b>screenshot of your proof of payment</b> right here and <b>Day 2 unlocks instantly</b> 🔓`;
+const UNLOCK_LINE = `Once you've paid, send me a <b>screenshot of your proof of payment</b> right here — <b>Day 2 unlocks as soon as the coach confirms it</b> 🔓`;
 
 export const BOTFATHER_LINK = "https://t.me/BotFather";
 

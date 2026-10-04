@@ -129,6 +129,16 @@ export async function sendWithKeyboard(
   }
 }
 
+export async function removeButtons(chatId: number | string, messageId: number): Promise<void> {
+  try {
+    await fetch(`${TG_BASE}/editMessageReplyMarkup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } }),
+    });
+  } catch (_) { /* ignore */ }
+}
+
 export async function answerCallbackQuery(callbackQueryId: string): Promise<void> {
   try {
     await fetch(`${TG_BASE}/answerCallbackQuery`, {

@@ -137,8 +137,7 @@ function parseVisionText(rawText: string): ScreenshotResult {
 export async function geminiVision(
   imageBytes: Uint8Array,
   mimeType: string,
-  verificationPrompt: string,
-  strong = false
+  verificationPrompt: string
 ): Promise<ScreenshotResult> {
   const rawText = await aiVision({
     prompt: verificationPrompt,
@@ -146,7 +145,6 @@ export async function geminiVision(
     maxTokens: 700,
     temperature: 0.1,
     caller: "Amara screenshot check",
-    strong,
   });
   if (rawText) return parseVisionText(rawText);
 

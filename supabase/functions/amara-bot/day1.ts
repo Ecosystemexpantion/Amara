@@ -1,4 +1,4 @@
-import { sendMessage, sendChatAction, typeMessage, downloadFile, copyMessage, sendWithKeyboard, escapeHtml } from "./telegram.ts";
+import { sendMessage, sendChatAction, typeMessage, copyMessage, sendWithKeyboard, escapeHtml } from "./telegram.ts";
 import { advanceStep, advanceIfAt, recordStepCompletion, getRecentConversation, computeNextUnlockAt, saveConversation, countStudentMessagesToday } from "./db.ts";
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin, studentLabel, describePosition } from "./admin.ts";
@@ -7,9 +7,8 @@ import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, sreIntroMessages, sugg
 import type { Student, TelegramMessage } from "./types.ts";
 
 const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
-// Daily AI allowances for students who haven't bought the Tech Stack yet.
+// Daily AI allowance for students who haven't bought the Tech Stack yet.
 const SRE_AI_REPLIES_PER_DAY = 20;
-const GATE_PHOTO_CHECKS_PER_DAY = 3;
 
 const BOT_TOKEN_RE = /\d{6,12}:[A-Za-z0-9_-]{30,}/;
 
@@ -230,6 +229,7 @@ export function isGated(student: Student): boolean {
 }
 
 // Amara never replies here. Payment proof that passes vision unlocks Day 2; everything else goes to the admin.
+// Amara never replies here, except to confirm a screenshot reached the coach. Payments are checked by the admin only.
 export async function handleGate(msg: TelegramMessage, student: Student, chatId: number): Promise<void> {
   const photo = msg.photo?.[msg.photo.length - 1];
   await saveConversation(student.id, "user", describeIncoming(msg), photo ? "photo" : msg.voice ? "voice" : "text");
@@ -239,44 +239,14 @@ export async function handleGate(msg: TelegramMessage, student: Student, chatId:
     return;
   }
 
+  await forwardToAdmin(student, msg, `🧾 <b>Payment screenshot</b> — check it and tap Accept or Reject`, true);
+  await sendMessage(chatId, `Got it! 📸 Coach is checking your payment now — I'll message you as soon as it's confirmed 🙏`);
+}
 
-  if ((await countStudentMessagesToday(student.id, "photo")) > GATE_PHOTO_CHECKS_PER_DAY) {
-    await forwardToAdmin(student, msg, `🧾 <b>Screenshot from a locked student</b> — AI check skipped (more than ${GATE_PHOTO_CHECKS_PER_DAY} today)\n\nTap <b>Approve payment</b> if it's valid.`, true);
-    return;
-  }
-
-  let verified = false;
-  let reason = "";
-  try {
-    const file = await downloadFile(photo.file_id);
-    const result = await geminiVision(file.bytes, file.mimeType, buildVerificationPrompt(
-      "Does this screenshot show proof of payment or a purchase confirmation? Accept ANY of these:\n" +
-      "- A bank or payment app receipt (OPay, Paystack, Flutterwave, bank transfer) showing a successful transaction\n" +
-      "- An email or page saying 'Payment Confirmed', 'Your Access is Ready', 'Order Successful', 'Transaction Successful' or similar\n" +
-      "- A Selar order confirmation or purchase receipt\n" +
-      "- Any document clearly showing a completed payment\n" +
-      "verified=true if this clearly shows a successful payment/purchase. verified=false if it shows something unrelated."
-    ), true);
-    verified = result.verified;
-    reason = result.reason;
-  } catch (e) {
-    console.error("Gate photo verification error:", e);
-    reason = "couldn't download the photo";
-  }
-
-  if (verified) {
-    const unlocked = await unlockDay2(student, chatId, "Payment proof auto-verified");
-    await forwardToAdmin(student, msg, unlocked
-      ? `✅ <b>Payment proof auto-verified — Day 2 unlocked</b>`
-      : `🧾 <b>Payment screenshot</b> (Day 2 was already unlocked)`, false);
-    return;
-  }
-
-  await forwardToAdmin(
-    student,
-    msg,
-    `🧾 <b>Screenshot from a locked student</b> — not auto-verified as payment${reason ? `\n<i>${escapeHtml(reason.slice(0, 300))}</i>` : ""}\n\nTap <b>Approve payment</b> if it's valid.`,
-    true
+export async function rejectPayment(chatId: number | string): Promise<void> {
+  await sendMessage(
+    chatId,
+    `We couldn't confirm your Tech Stack payment from that screenshot 😕\n\nPlease send a clear screenshot of your <b>successful payment receipt</b> — it should show the amount, the date and that the payment was successful 📸`
   );
 }
 
@@ -302,7 +272,12 @@ function describeIncoming(msg: TelegramMessage): string {
 async function forwardToAdmin(student: Student, msg: TelegramMessage, headline: string, withApprove: boolean): Promise<void> {
   const id = student.telegram_chat_id;
   const buttons = [[{ text: "💬 Jump in", callback_data: `jump:${id}` }]];
-  if (withApprove) buttons[0].push({ text: "✅ Approve payment", callback_data: `approve:${id}` });
+  if (withApprove) {
+    buttons.unshift([
+      { text: "✅ Accept", callback_data: `approve:${id}` },
+      { text: "❌ Reject", callback_data: `reject:${id}` },
+    ]);
+  }
   const card = `${headline}\n\n${studentLabel(student.full_name, id)}\n📍 ${describePosition(student)}`;
 
   if (msg.text) {

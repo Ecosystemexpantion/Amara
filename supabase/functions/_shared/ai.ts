@@ -7,9 +7,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 export type ImageInput = { base64: string; mimeType: string };
 
-// Everyday replies and screenshot reading use Haiku (cheapest); payment proofs use the stronger model.
+// Haiku is the cheapest; Sonnet 5.5 only steps in if Haiku is unavailable.
 const CLAUDE_MODELS = listEnv("AMARA_CLAUDE_MODELS", ["claude-haiku-4-5", "claude-sonnet-5-5"]);
-const CLAUDE_STRONG_MODELS = listEnv("AMARA_CLAUDE_STRONG_MODELS", ["claude-sonnet-5-5", "claude-haiku-4-5"]);
 const GEMINI_MODELS = listEnv("AMARA_GEMINI_MODELS", ["gemini-flash-latest", "gemini-flash-lite-latest"]);
 const CLAUDE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
@@ -91,8 +90,7 @@ async function callClaude(
   messages: { role: "user" | "assistant"; content: ClaudeContent }[],
   maxTokens: number,
   temperature: number | undefined,
-  errors: string[],
-  strong = false
+  errors: string[]
 ): Promise<string | null> {
   const client = await claude();
   if (!client) {
@@ -101,7 +99,7 @@ async function callClaude(
     return null;
   }
 
-  for (const model of strong ? CLAUDE_STRONG_MODELS : CLAUDE_MODELS) {
+  for (const model of CLAUDE_MODELS) {
     const modern = isClaude5(model);
     try {
       const params: Anthropic.Beta.Messages.MessageCreateParamsNonStreaming = {
@@ -364,7 +362,6 @@ export async function aiVision(opts: {
   maxTokens: number;
   temperature?: number;
   caller: string;
-  strong?: boolean;
 }): Promise<string | null> {
   const errors: string[] = [];
   const mediaType = CLAUDE_IMAGE_TYPES.has(opts.image.mimeType) ? opts.image.mimeType : "image/jpeg";
@@ -380,8 +377,7 @@ export async function aiVision(opts: {
     }],
     opts.maxTokens,
     opts.temperature,
-    errors,
-    opts.strong
+    errors
   );
   if (viaClaude) return viaClaude;
 

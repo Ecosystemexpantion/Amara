@@ -123,7 +123,7 @@ Amara collects: full name → email → phone → country → device → tech le
 
 ### Day 2 lock — Tech Stack payment
 - Amara does **not** reply to anything while locked. Every message is forwarded to the admin with the student's name, 🆔 Telegram ID, and **💬 Jump in** / **✅ Approve payment** buttons.
-- A payment screenshot that passes Gemini vision unlocks Day 2 immediately; otherwise the admin approves it (`approve [ID]`).
+- Payment screenshots are never checked automatically: each one comes to the admin with **✅ Accept** / **❌ Reject** buttons (or `approve [ID]`). Accept unlocks Day 2; Reject asks the student for a clearer receipt.
 - The cron sends Tech Stack sales messages (3h, 20h, 30h after Day 1) and an expiry warning at 48h, only between 8AM and 9PM Nigeria time.
 
 ### Day 2 — Sales Page Setup
@@ -186,8 +186,6 @@ Admin (chat ID: 5870771695) receives Telegram messages for:
 - Removing the Paystack payment modal
 - Replacing all buy buttons with the student's Payhip store link
 - Adding a client-side redirect script as backup
-
-**Student bot code** (`alex-template.ts`): A complete Gemini-based sales bot is generated with the student's `ADMIN_CHAT_ID`, `sales_page_link`, and `payhip_link` pre-configured.
 
 **Certificate** (`certificate.ts`): A PDF using pdf-lib with A4 landscape layout, SD Digital Academy logo, student name, completion date, certificate number, Coach Victor signature, and the student's handwritten signature photo.
 

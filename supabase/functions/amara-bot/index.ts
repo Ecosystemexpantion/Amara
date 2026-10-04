@@ -27,7 +27,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const cq = update.callback_query;
     const cqChatId = cq.message?.chat?.id;
     if (cqChatId && String(cqChatId) === ADMIN_CHAT_ID_STR) {
-      const promise = handleAdminCallback(cqChatId, cq.id, cq.data ?? "");
+      const promise = handleAdminCallback(cqChatId, cq.id, cq.data ?? "", cq.message?.message_id);
       if (typeof EdgeRuntime !== "undefined") {
         (EdgeRuntime as unknown as { waitUntil: (p: Promise<unknown>) => void }).waitUntil(promise);
       } else {
