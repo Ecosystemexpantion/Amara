@@ -5,7 +5,7 @@ import { PREMIUM_TEMPLATE } from "../github-oauth/premium_template.ts";
 import { LIQUID_GLASS_CSS } from "./liquid-glass.ts";
 
 // Bump when the page design changes — the cron re-publishes every student's pages.
-export const PAGES_VERSION = 2;
+export const PAGES_VERSION = 3;
 
 export const PAGE_REPOS = { normal: "EEM26page", premium: "EEM26premium" } as const;
 
@@ -104,15 +104,15 @@ async function ensureRepo(token: string, owner: string, repo: string, descriptio
   return data.default_branch || "main";
 }
 
-async function putIndex(token: string, owner: string, repo: string, branch: string, html: string): Promise<void> {
-  const path = `/repos/${owner}/${repo}/contents/index.html`;
+async function putFile(token: string, owner: string, repo: string, branch: string, file: string, content: string): Promise<void> {
+  const path = `/repos/${owner}/${repo}/contents/${file}`;
   const existing = await gh(token, `${path}?ref=${encodeURIComponent(branch)}`);
   const sha = existing.ok ? (await existing.json()).sha : (await existing.body?.cancel(), undefined);
   const res = await gh(token, path, {
     method: "PUT",
-    body: JSON.stringify({ message: "Update sales page", content: toBase64(html), branch, ...(sha ? { sha } : {}) }),
+    body: JSON.stringify({ message: "Update sales page", content: toBase64(content), branch, ...(sha ? { sha } : {}) }),
   });
-  if (!res.ok) await fail(res, `upload ${repo}/index.html`);
+  if (!res.ok) await fail(res, `upload ${repo}/${file}`);
   await res.body?.cancel();
 }
 
@@ -138,19 +138,23 @@ async function ensurePages(token: string, owner: string, repo: string, branch: s
   await build.body?.cancel();
 }
 
-async function lastBuildError(token: string, owner: string, repo: string): Promise<string | null> {
+// Only a failure of a build started by this sync counts; an older failed build is just history.
+async function lastBuildError(token: string, owner: string, repo: string, since: number): Promise<string | null> {
   const res = await gh(token, `/repos/${owner}/${repo}/pages/builds/latest`);
   if (!res.ok) {
     await res.body?.cancel();
     return null;
   }
   const build = await res.json();
-  return build.status === "errored" ? (build.error?.message ?? "Pages build failed") : null;
+  if (build.status !== "errored" || new Date(build.created_at).getTime() < since) return null;
+  return build.error?.message ?? "Pages build failed";
 }
 
 export async function publishPage(token: string, owner: string, repo: string, description: string, html: string): Promise<void> {
   const branch = await ensureRepo(token, owner, repo, description);
-  await putIndex(token, owner, repo, branch, html);
+  // .nojekyll makes GitHub publish the HTML as-is instead of running Jekyll, which fails on some repos.
+  await putFile(token, owner, repo, branch, ".nojekyll", "");
+  await putFile(token, owner, repo, branch, "index.html", html);
   await ensurePages(token, owner, repo, branch);
 }
 
@@ -177,13 +181,14 @@ export async function syncStudentPages(token: string, payhipLink: string | null)
   if (!me.ok) return { status: "error", detail: `GitHub /user → ${me.status}` };
   const username: string = (await me.json()).login;
 
+  const startedAt = Date.now() - 5_000;
   try {
     const html = buildPages(payhipLink);
     await publishPage(token, username, PAGE_REPOS.normal, "EEM26 Sales Page", html.normal);
     await publishPage(token, username, PAGE_REPOS.premium, "EEM26 Premium Sales Page", html.premium);
 
     for (const repo of Object.values(PAGE_REPOS)) {
-      const err = await lastBuildError(token, username, repo);
+      const err = await lastBuildError(token, username, repo, startedAt);
       if (err) {
         const unverified = /verif/i.test(err) && /email/i.test(err);
         return { status: unverified ? "email_unverified" : "error", detail: `${repo}: ${err}`, username };
