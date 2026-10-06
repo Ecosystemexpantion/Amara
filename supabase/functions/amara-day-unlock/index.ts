@@ -8,6 +8,7 @@ import {
   legacyUpgradeMessage,
 } from "../amara-bot/day1-content.ts";
 import { aiHealthCheck } from "../_shared/ai.ts";
+import { PAGES_VERSION, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
 
 // Amara Day Unlock — Cron Job Function
 // Runs every 5 minutes via Supabase cron schedule.
@@ -18,6 +19,7 @@ import { aiHealthCheck } from "../_shared/ai.ts";
 // 2. Evening check-in at 6PM Nigeria time (17:00 UTC)
 // 3. Silence nudge when a student hasn't messaged in 20+ hours
 // 6. AI health check every 3 hours — alerts the admin before students notice
+// 7. Sales page sync — repairs 404s and rolls out new page designs, a few students per run
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -430,6 +432,52 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     // ── 6. AI health check (every 3 hours) — a failing Claude alerts the admin from _shared/ai.ts
     if (utcHour % 3 === 0 && utcMin < 5) {
       results.aiProblems = await aiHealthCheck();
+    }
+
+    // ── 7. Sales page sync (10 students per run) ─────────────────────────────
+    {
+      const PAGES_PER_RUN = 10;
+      const RETRY_AFTER_MS = 6 * 3600_000;
+      const { data: withGithub } = await supabase
+        .from("amara_students")
+        .select("id, payhip_link, github_access_token")
+        .not("github_access_token", "is", null);
+      const { data: synced } = await supabase.from("student_pages").select("student_id, version, status, synced_at");
+      const byId = new Map((synced ?? []).map((r) => [r.student_id, r]));
+
+      const due = (withGithub ?? [])
+        .filter((s) => {
+          const r = byId.get(s.id);
+          if (!r) return true;
+          if (r.status === "ok") return r.version < PAGES_VERSION;
+          return !r.synced_at || now.getTime() - new Date(r.synced_at).getTime() > RETRY_AFTER_MS;
+        })
+        .sort((a, b) => Number(byId.has(a.id)) - Number(byId.has(b.id)))
+        .slice(0, PAGES_PER_RUN);
+
+      let pagesOk = 0;
+      for (const s of due) {
+        try {
+          const result = await syncStudentPages(s.github_access_token, s.payhip_link);
+          await recordPageSync(supabase, s.id, result);
+          if (result.status === "ok") {
+            pagesOk++;
+            await supabase
+              .from("amara_students")
+              .update({
+                github_username: result.username,
+                github_repo_normal: result.normalUrl,
+                github_repo_premium: result.premiumUrl,
+                sales_page_link: result.normalUrl,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", s.id);
+          }
+        } catch (err) {
+          console.error(`Page sync error for ${s.id}:`, err);
+        }
+      }
+      results.pagesSynced = `${pagesOk}/${due.length}`;
     }
 
     console.log("Cron result:", JSON.stringify(results));

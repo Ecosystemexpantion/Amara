@@ -7,6 +7,8 @@ import { getStudentByChatId, saveConversation } from "./db.ts";
 import { studentLabel, describePosition } from "./admin.ts";
 import { unlockDay2, rejectPayment } from "./day1.ts";
 import { GATE_STEP } from "./day1-content.ts";
+import { buildGitHubAuthUrl } from "./github.ts";
+import { PAGES_VERSION } from "../_shared/pages.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const supabase = createClient(
@@ -47,6 +49,16 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
 
   if (/^waiting$/i.test(t)) {
     await listLocked(chatId);
+    return;
+  }
+
+  if (/^pages$/i.test(t)) {
+    await pagesReport(chatId);
+    return;
+  }
+
+  if (/^pages\s+notify$/i.test(t)) {
+    await pagesNotify(chatId);
     return;
   }
 
@@ -211,6 +223,9 @@ async function sendHelp(chatId: number): Promise<void> {
     `Every payment screenshot comes to you with <b>✅ Accept</b> / <b>❌ Reject</b> buttons — nothing is verified automatically.\n` +
     `<code>approve [ID]</code> → Confirm their payment and unlock Day 2 (same as the ✅ Accept button).\n` +
     `<code>confirm [name]</code> → Same, by name.\n\n` +
+    `<b>Sales pages</b>\n` +
+    `<code>pages</code> → Status of every student's sales pages (live / being updated / broken and why).\n` +
+    `<code>pages notify</code> → Message students whose pages can't be fixed automatically, with the exact step they need to take.\n\n` +
     `<b>Other</b>\n` +
     `<code>announce saturday</code> → Blast "training is TONIGHT at 8:30 PM" to all graduates + Day 4 students.\nCustom time: <code>announce saturday 9:30</code> (PM Nigeria time)\n\n` +
     `<b>Create pages:</b> Send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
@@ -373,6 +388,64 @@ function timeAgo(iso: string): string {
   const hours = Math.round(mins / 60);
   if (hours < 48) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
+}
+
+// ── Sales pages status ───────────────────────────────────────────────────────
+
+type PageRow = { student_id: string; version: number; status: string; detail: string | null };
+type PageStudent = { id: string; telegram_chat_id: string; full_name: string | null };
+
+async function pageProblems(): Promise<{ students: PageStudent[]; rows: Map<string, PageRow> }> {
+  const { data: students } = await supabase
+    .from("amara_students")
+    .select("id, telegram_chat_id, full_name")
+    .not("github_access_token", "is", null);
+  const { data: rows } = await supabase.from("student_pages").select("student_id, version, status, detail");
+  return {
+    students: (students ?? []) as PageStudent[],
+    rows: new Map(((rows ?? []) as PageRow[]).map((r) => [r.student_id, r])),
+  };
+}
+
+const PAGE_REASON: Record<string, string> = {
+  token_revoked: "GitHub access removed — must reconnect",
+  email_unverified: "GitHub email not verified",
+  error: "GitHub error",
+};
+
+async function pagesReport(adminChatId: number): Promise<void> {
+  const { students, rows } = await pageProblems();
+  let live = 0, pending = 0;
+  const broken: string[] = [];
+  for (const s of students) {
+    const r = rows.get(s.id);
+    if (!r || (r.status === "ok" && r.version < PAGES_VERSION)) pending++;
+    else if (r.status === "ok") live++;
+    else broken.push(`• <b>${escapeHtml(s.full_name ?? "unnamed")}</b> 🆔 <code>${s.telegram_chat_id}</code> — ${PAGE_REASON[r.status] ?? r.status}${r.status === "error" ? `: <i>${escapeHtml((r.detail ?? "").slice(0, 90))}</i>` : ""}`);
+  }
+  await sendMessage(
+    adminChatId,
+    `<b>🌐 Sales pages (${students.length} students)</b>\n\n` +
+    `✅ Live with the new design: <b>${live}</b>\n` +
+    `⏳ Waiting to be updated: <b>${pending}</b> (about 10 every 5 minutes)\n` +
+    `⚠️ Need the student's help: <b>${broken.length}</b>\n\n` +
+    (broken.length ? `${broken.slice(0, 40).join("\n")}${broken.length > 40 ? `\n…and ${broken.length - 40} more` : ""}\n\nSend <code>pages notify</code> to message them the fix.` : "")
+  );
+}
+
+async function pagesNotify(adminChatId: number): Promise<void> {
+  const { students, rows } = await pageProblems();
+  let sent = 0;
+  for (const s of students) {
+    const r = rows.get(s.id);
+    if (!r || (r.status !== "token_revoked" && r.status !== "email_unverified")) continue;
+    const link = `<a href="${buildGitHubAuthUrl(s.telegram_chat_id)}">👉 Reconnect GitHub here</a>`;
+    const text = r.status === "email_unverified"
+      ? `Hi${s.full_name ? ` ${escapeHtml(s.full_name.split(" ")[0])}` : ""}! 👋 Your sales pages aren't showing yet because <b>GitHub needs you to verify your email</b>.\n\n1️⃣ Open the email from GitHub and tap <b>Verify email address</b>\n2️⃣ Then tap this link so I can publish your pages:\n${link}`
+      : `Hi${s.full_name ? ` ${escapeHtml(s.full_name.split(" ")[0])}` : ""}! 👋 Your sales pages need a quick fix — GitHub disconnected from me.\n\nTap the link, log in, and tap the green <b>Authorize</b> button. I'll repair and update your pages automatically:\n${link}`;
+    if (await sendMessage(s.telegram_chat_id, text)) sent++;
+  }
+  await sendMessage(adminChatId, `✅ Sent the fix to <b>${sent}</b> student(s). Their pages are repaired automatically as soon as they do it.`);
 }
 
 // ── Confirm Tech Stack purchase by name — unlock Day 2 ──────────────────────
