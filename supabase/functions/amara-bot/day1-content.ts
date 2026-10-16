@@ -22,12 +22,12 @@ export function suggestedBotNames(fullName: string | null, chatId: string | numb
   };
 }
 
-export function sreIntroMessages(fullName: string | null, chatId: string | number): string[] {
+export function sreIntroMessages(fullName: string | null, chatId: string | number, webUrl?: string | null): string[] {
   const { displayName, username } = suggestedBotNames(fullName, chatId);
   return [
     `<b>Welcome to Day 1: Your AI Sales Bot (SRE) 🤖</b>\n\nThe EEM26 model runs on 2 systems:\n\n✅ <b>SRE (Smart Reply Engine)</b> — AI that replies to buyers and closes sales even while you sleep\n✅ <b>AAM (Automate and Attract Method)</b> — brings buyers to your DM automatically, no ads needed\n\nToday we switch on your SRE — your own bot, live in minutes 🔥`,
     `<b>Let's create your bot — it takes 2 minutes ⏱️</b>\n\n1️⃣ Tap here 👉 <a href="${BOTFATHER_LINK}">@BotFather</a> and press <b>START</b>\n<i>(the real BotFather has a blue ✔️ tick)</i>\n\n2️⃣ Send this to BotFather: <code>/newbot</code>\n\n3️⃣ BotFather asks for a <b>name</b> — send this (tap to copy):\n<code>${displayName}</code>\n\n4️⃣ BotFather asks for a <b>username</b> — send this (tap to copy):\n<code>${username}</code>\n\n5️⃣ BotFather replies <i>"Done! Congratulations on your new bot…"</i> 🎉`,
-    `<b>Last step — bring that "Done!" message to me 👇</b>\n\n📲 <b>Easiest:</b> press and hold BotFather's "Done!" message → tap <b>Forward</b> → choose <b>Amara</b>\n\n✍️ Or copy the long token (it looks like <code>1234567890:AAH…</code>) and paste it here\n\n⚠️ Steps 2–4 go to <b>BotFather</b>, not to me. I'll handle everything else automatically 💪`,
+    `<b>Last step — bring that "Done!" message to me 👇</b>\n\n📲 <b>Easiest:</b> press and hold BotFather's "Done!" message → tap <b>Forward</b> → choose <b>Amara</b>\n\n✍️ Or copy the long token (it looks like <code>1234567890:AAH…</code>) and paste it here\n\n⚠️ Steps 2–4 go to <b>BotFather</b>, not to me. I'll handle everything else automatically 💪${webUrl ? `\n\n💻 <b>Want to watch your AI team build it live?</b> Paste your token on the web instead:\n<a href="${webUrl}">Open Amara on the web</a>` : ""}`,
   ];
 }
 

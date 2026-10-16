@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Amara Live</title>
+<meta name="description" content="Watch Amara's AI team build your EEM26 sales bot live.">
+<meta name="theme-color" content="#060914">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#060914;--panel:rgba(18,24,48,.72);--panel2:rgba(26,34,66,.6);--line:rgba(140,160,255,.16);
+  --text:#e9ecff;--muted:#8d95c2;--dim:#5b628d;
+  --cyan:#22d3ee;--amber:#fbbf24;--violet:#a78bfa;--pink:#f472b6;--green:#34d399;--red:#f87171;
+  --radius:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text)}
+body{font-family:"Space Grotesk",system-ui,-apple-system,sans-serif;min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:-2;
+  background:radial-gradient(60% 40% at 15% 0%,rgba(99,102,241,.25),transparent 70%),
+             radial-gradient(50% 35% at 100% 30%,rgba(34,211,238,.14),transparent 70%),
+             radial-gradient(60% 40% at 50% 110%,rgba(52,211,153,.14),transparent 70%)}
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:linear-gradient(rgba(140,160,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(140,160,255,.05) 1px,transparent 1px);
+  background-size:36px 36px;mask-image:linear-gradient(180deg,#000 0%,transparent 75%)}
+.wrap{max-width:760px;margin:0 auto;padding:16px 16px 48px}
+
+/* Top bar */
+.top{display:flex;align-items:center;justify-content:space-between;padding:6px 0 18px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.18em;font-size:.95rem}
+.orb{width:30px;height:30px;border-radius:50%;background:conic-gradient(from 0deg,var(--cyan),var(--violet),var(--pink),var(--green),var(--cyan));animation:spin 6s linear infinite;box-shadow:0 0 22px rgba(167,139,250,.55);position:relative}
+.orb::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--bg)}
+.live{display:inline-flex;align-items:center;gap:7px;font-size:.72rem;font-weight:600;letter-spacing:.14em;color:var(--green);padding:6px 11px;border:1px solid rgba(52,211,153,.35);border-radius:999px;background:rgba(52,211,153,.08)}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.3s infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes blink{50%{opacity:.25}}
+
+/* Hero */
+.hero h1{font-size:clamp(1.7rem,6.5vw,2.4rem);line-height:1.1;font-weight:700;letter-spacing:-.02em;overflow-wrap:anywhere}
+.hero h1 span{background:linear-gradient(90deg,var(--cyan),var(--violet),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--muted);margin-top:10px;line-height:1.55;font-size:.98rem}
+
+/* Journey */
+.journey{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:22px 0}
+.dayp{padding:10px 8px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);text-align:center}
+.dayp b{display:block;font-size:.68rem;letter-spacing:.14em;color:var(--dim)}
+.dayp span{display:block;font-size:.8rem;margin-top:3px;color:var(--muted)}
+.dayp.done{border-color:rgba(52,211,153,.4)}
+.dayp.done b{color:var(--green)}
+.dayp.now{border-color:rgba(167,139,250,.7);box-shadow:0 0 0 1px rgba(167,139,250,.35),0 0 24px rgba(167,139,250,.25)}
+.dayp.now b{color:var(--violet)}
+
+/* Panels */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);margin-bottom:16px}
+.panel h2{font-size:1.05rem;font-weight:600;margin-bottom:12px}
+.steps{list-style:none;counter-reset:s;display:grid;gap:10px}
+.steps li{counter-increment:s;display:flex;gap:12px;align-items:flex-start;color:var(--muted);line-height:1.5;font-size:.93rem}
+.steps li::before{content:counter(s);flex:0 0 26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:.8rem;font-weight:700;color:var(--text);background:rgba(167,139,250,.2);border:1px solid rgba(167,139,250,.45)}
+.steps b{color:var(--text)}
+.copy{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-family:"JetBrains Mono",monospace;font-size:.82rem;color:var(--text);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:10px;padding:7px 10px;cursor:pointer;max-width:100%;overflow-wrap:anywhere;text-align:left}
+.copy:active{transform:scale(.98)}
+.copy em{font-style:normal;color:var(--cyan);font-family:"Space Grotesk",sans-serif;font-size:.72rem;letter-spacing:.06em}
+a.link{color:var(--cyan);text-decoration:none;font-weight:600}
+
+.field{margin-top:16px}
+.field label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:8px}
+.field textarea{width:100%;min-height:74px;resize:vertical;font-family:"JetBrains Mono",monospace;font-size:.85rem;color:var(--text);background:rgba(4,7,18,.65);border:1px solid var(--line);border-radius:14px;padding:12px;outline:none}
+.field textarea:focus{border-color:rgba(167,139,250,.7);box-shadow:0 0 0 3px rgba(167,139,250,.18)}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:12px;padding:15px 18px;border:0;border-radius:14px;cursor:pointer;font:600 1rem "Space Grotesk",sans-serif;color:#0a0f1f;
+  background:linear-gradient(90deg,var(--cyan),var(--violet) 55%,var(--pink));box-shadow:0 10px 30px rgba(167,139,250,.35);text-decoration:none}
+.btn:disabled{opacity:.5;cursor:wait}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);box-shadow:none}
+.err{margin-top:10px;color:var(--red);font-size:.88rem;line-height:1.45}
+.hint{margin-top:10px;color:var(--dim);font-size:.82rem;line-height:1.5}
+
+/* Agents */
+.stage-head{display:flex;align-items:center;justify-content:space-between;margin:26px 0 12px}
+.stage-head h2{font-size:1.05rem;font-weight:600}
+.stage-head small{color:var(--dim);font-size:.78rem}
+.agents{display:grid;gap:10px;position:relative}
+.agent{display:grid;grid-template-columns:52px 1fr;gap:14px;align-items:center;padding:14px;border-radius:18px;background:var(--panel);border:1px solid var(--line);transition:border-color .3s,box-shadow .3s,opacity .3s;opacity:.55}
+.agent .av{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:1.5rem;position:relative;background:color-mix(in srgb,var(--c) 18%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
+.agent .nm{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.agent .nm b{font-size:1rem}
+.agent .nm span{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chip{font-style:normal;margin-left:auto;font-size:.68rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+.agent .tx{color:var(--muted);font-size:.88rem;line-height:1.45;margin-top:5px;min-height:1.3em;overflow-wrap:anywhere}
+.agent.working{opacity:1;border-color:color-mix(in srgb,var(--c) 60%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 30%,transparent),0 10px 40px color-mix(in srgb,var(--c) 22%,transparent)}
+.agent.working .av::after{content:"";position:absolute;inset:-5px;border-radius:20px;border:2px solid transparent;border-top-color:var(--c);border-right-color:var(--c);animation:spin 1s linear infinite}
+.agent.working .chip{color:var(--c);border-color:color-mix(in srgb,var(--c) 50%,transparent)}
+.agent.working .tx{color:var(--text)}
+.agent.working .tx::after{content:"▍";color:var(--c);animation:blink .9s infinite;margin-left:2px}
+.agent.done{opacity:1}
+.agent.done .chip{color:var(--green);border-color:rgba(52,211,153,.45)}
+.agent.failed{opacity:1;border-color:rgba(248,113,113,.55)}
+.agent.failed .chip{color:var(--red);border-color:rgba(248,113,113,.55)}
+
+/* Console */
+.console{margin-top:16px;border-radius:16px;border:1px solid var(--line);background:rgba(3,5,14,.8);overflow:hidden}
+.console header{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:.72rem;color:var(--dim);letter-spacing:.12em}
+.console header i{width:9px;height:9px;border-radius:50%;background:#2a3050}
+.console pre{font-family:"JetBrains Mono",monospace;font-size:.76rem;line-height:1.65;padding:12px;max-height:230px;overflow:auto;white-space:pre-wrap;color:#b9c0ea}
+.console pre .t{color:var(--dim)}
+
+/* Launch */
+.launch{position:relative;overflow:hidden;text-align:center;padding:26px 18px;border-color:rgba(52,211,153,.45)}
+.launch .big{font-size:2.6rem}
+.launch h2{font-size:1.4rem;margin:6px 0 6px;overflow-wrap:anywhere}
+.launch .btn{position:relative;z-index:1}
+.launch p{color:var(--muted);line-height:1.55}
+.confetti{position:absolute;inset:0;pointer-events:none}
+.confetti i{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;animation:fall 2.8s ease-in forwards}
+@keyframes fall{to{transform:translateY(420px) rotate(540deg);opacity:0}}
+
+.hidden{display:none!important}
+.foot{margin-top:28px;text-align:center;color:var(--dim);font-size:.78rem;line-height:1.6}
+@media (min-width:640px){.agents{grid-template-columns:1fr 1fr}.agent:last-child{grid-column:1/-1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><div class="orb"></div>AMARA</div>
+    <div class="live"><i></i>LIVE</div>
+  </div>
+
+  <section class="hero">
+    <h1 id="hello">Your <span>AI setup team</span></h1>
+    <p id="status">Connecting…</p>
+  </section>
+
+  <div class="journey" id="journey"></div>
+
+  <section class="panel hidden" id="buildPanel">
+    <h2>Create your bot with BotFather</h2>
+    <ol class="steps">
+      <li><div>Tap <a class="link" id="bfLink" href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> and press <b>START</b> (look for the blue ✔️ tick)</div></li>
+      <li><div>Send <b>/newbot</b></div></li>
+      <li><div>Send this as the <b>name</b>:<br><button class="copy" data-copy id="bfName"></button></div></li>
+      <li><div>Send this as the <b>username</b>:<br><button class="copy" data-copy id="bfUser"></button></div></li>
+      <li><div>Copy the token from BotFather's <b>"Done! Congratulations"</b> message and paste it below</div></li>
+    </ol>
+    <div class="field">
+      <label for="token">Your BotFather token</label>
+      <textarea id="token" placeholder="1234567890:AAH…" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+    </div>
+    <button class="btn" id="startBtn">🚀 Start my build</button>
+    <div class="err hidden" id="formErr"></div>
+    <p class="hint">Prefer Telegram? Paste the token to Amara there — this page updates live either way.</p>
+  </section>
+
+  <section class="panel launch hidden" id="launchPanel">
+    <div class="confetti" id="confetti"></div>
+    <div class="big">🤖</div>
+    <h2 id="launchTitle">Your bot is LIVE</h2>
+    <p id="launchText">Anyone who messages it gets an intelligent reply and is guided to buy — 24/7.</p>
+    <a class="btn" id="openBot" target="_blank" rel="noopener">Open my bot</a>
+    <a class="btn ghost hidden" id="techStack" target="_blank" rel="noopener">🔓 Unlock Day 2 — get the Tech Stack</a>
+  </section>
+
+  <section class="panel hidden" id="infoPanel">
+    <h2 id="infoTitle"></h2>
+    <p class="hint" id="infoText" style="margin-top:0"></p>
+    <a class="btn ghost" href="https://t.me/Amara_EEM26bot" target="_blank" rel="noopener">Continue with Amara on Telegram</a>
+  </section>
+
+  <div class="stage-head"><h2>Your AI agents</h2><small id="stageNote">Waiting for your token</small></div>
+  <div class="agents" id="agents"></div>
+
+  <div class="console">
+    <header><i></i><i></i><i></i><span style="margin-left:6px">LIVE ACTIVITY</span></header>
+    <pre id="log"><span class="t">Agents are standing by…</span></pre>
+  </div>
+
+  <p class="foot">Every step on this page is real work on your actual bot,<br>happening right now on Amara's servers.</p>
+</div>
+
+<script>
+(function () {
+  var API = "https://leqizarzgfpiriknpnxw.supabase.co/functions/v1/amara-web";
+  var KEY = new URLSearchParams(location.search).get("k");
+  var AGENTS = [
+    { id: "verifier",  name: "Nova",  role: "Token Verifier", icon: "🔐", color: "var(--cyan)" },
+    { id: "connector", name: "Bolt",  role: "Connector",      icon: "🔌", color: "var(--amber)" },
+    { id: "brain",     name: "Sage",  role: "Sales Brain",    icon: "🧠", color: "var(--violet)" },
+    { id: "tester",    name: "Echo",  role: "Test Customer",  icon: "💬", color: "var(--pink)" },
+    { id: "launcher",  name: "Amara", role: "Launcher",       icon: "🚀", color: "var(--green)" }
+  ];
+  var DAYS = [["DAY 1", "AI Bot"], ["DAY 2", "Sales Pages"], ["DAY 3", "Stores"], ["DAY 4", "Go Live"]];
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { runId: null, timer: null, celebrated: false, lastLen: 0 };
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function show(id, on) { $(id).classList.toggle("hidden", !on); }
+
+  function renderAgents(events) {
+    var latest = {};
+    (events || []).forEach(function (e) { latest[e.agent] = e; });
+    $("agents").innerHTML = AGENTS.map(function (a) {
+      var e = latest[a.id];
+      var st = e ? e.state : "idle";
+      var chip = { idle: "Waiting", working: "Working", done: "Done", failed: "Failed" }[st];
+      return '<div class="agent ' + st + '" style="--c:' + a.color + '">' +
+        '<div class="av">' + a.icon + '</div>' +
+        '<div><div class="nm"><b>' + a.name + '</b><span>' + a.role + '</span><em class="chip">' + chip + '</em></div>' +
+        '<div class="tx">' + esc(e ? e.text : "Standing by") + '</div></div></div>';
+    }).join("");
+  }
+
+  function renderLog(events) {
+    if (!events || !events.length) return;
+    if (events.length === state.lastLen) return;
+    state.lastLen = events.length;
+    var names = {}; AGENTS.forEach(function (a) { names[a.id] = a.name.toUpperCase(); });
+    $("log").innerHTML = events.map(function (e) {
+      var t = new Date(e.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      var mark = e.state === "done" ? "✓" : e.state === "failed" ? "✗" : "›";
+      return '<span class="t">[' + t + ']</span> ' + names[e.agent] + ' ' + mark + ' ' + esc(e.text);
+    }).join("\n");
+    $("log").scrollTop = $("log").scrollHeight;
+  }
+
+  function renderJourney(phase, day) {
+    var current = phase === "graduated" ? 5 : phase === "bot_live" ? 1.5 : Math.max(day, 1);
+    $("journey").innerHTML = DAYS.map(function (d, i) {
+      var n = i + 1, cls = n < current ? "done" : (Math.floor(current) === n ? "now" : "");
+      if (phase === "bot_live" && n === 1) cls = "done";
+      return '<div class="dayp ' + cls + '"><b>' + d[0] + '</b><span>' + d[1] + '</span></div>';
+    }).join("");
+  }
+
+  function confetti() {
+    if (state.celebrated) return; state.celebrated = true;
+    var colors = ["#22d3ee", "#a78bfa", "#f472b6", "#34d399", "#fbbf24"], html = "";
+    for (var i = 0; i < 46; i++) {
+      html += '<i style="left:' + (Math.random() * 100) + '%;background:' + colors[i % 5] + ';animation-delay:' + (Math.random() * .8) + 's"></i>';
+    }
+    $("confetti").innerHTML = html;
+  }
+
+  function render(d) {
+    var name = d.firstName ? esc(d.firstName) : "there";
+    var run = d.run, running = run && run.status === "running";
+    renderJourney(d.phase, d.day);
+    renderAgents(run ? run.events : []);
+    renderLog(run ? run.events : []);
+
+    $("bfName").innerHTML = esc(d.botfather.displayName) + ' <em>COPY</em>';
+    $("bfName").dataset.copy = d.botfather.displayName;
+    $("bfUser").innerHTML = esc(d.botfather.username) + ' <em>COPY</em>';
+    $("bfUser").dataset.copy = d.botfather.username;
+
+    var botLive = run && run.status === "done" && run.bot_username;
+    var canBuild = d.phase === "build_bot" && !running;
+
+    show("buildPanel", canBuild);
+    show("launchPanel", !!botLive && !running);
+    show("infoPanel", false);
+
+    if (running) {
+      $("hello").innerHTML = 'Hi ' + name + ' — <span>your team is building</span>';
+      $("status").textContent = "Your AI agents are working on your bot right now. Watch each one finish below.";
+      $("stageNote").textContent = "Building now…";
+    } else if (botLive) {
+      $("hello").innerHTML = 'Hi ' + name + ' — <span>@' + esc(run.bot_username) + ' is live</span>';
+      $("status").textContent = "Your SRE sales bot is running 24/7 and replying to buyers.";
+      $("stageNote").textContent = "Build complete";
+      $("launchTitle").textContent = "@" + run.bot_username + " is LIVE";
+      $("openBot").href = "https://t.me/" + run.bot_username;
+      $("openBot").textContent = "Open @" + run.bot_username;
+      var locked = d.phase === "bot_live";
+      show("techStack", locked);
+      $("techStack").href = d.techStackUrl;
+      $("launchText").textContent = locked
+        ? "Day 1 is complete! Day 2 unlocks as soon as you get your Tech Stack and send Amara your payment screenshot."
+        : "Anyone who messages it gets an intelligent reply and is guided to buy — 24/7.";
+      if (Date.now() - new Date(run.created_at).getTime() < 10 * 60 * 1000) confetti();
+    } else if (canBuild) {
+      $("hello").innerHTML = 'Hi ' + name + ' — <span>let\'s build your AI bot</span>';
+      $("status").textContent = "Create your bot with BotFather, paste the token here, and watch 5 AI agents set it up for you live.";
+      $("stageNote").textContent = run && run.status === "failed" ? "Last try failed — check your token" : "Waiting for your token";
+    } else {
+      $("hello").innerHTML = 'Hi ' + name + ' 👋';
+      var msg = {
+        onboarding: ["Let's get you started", "Finish your quick sign-up with Amara on Telegram, then come back here to build your AI bot."],
+        graduated: ["You're an EEM26 graduate 🎓", "Your setup is complete. Keep growing with Amara and Coach Victor."]
+      }[d.phase] || ["You're on Day " + d.day, "Keep going with Amara on Telegram — this page shows your AI agents whenever they're building for you."];
+      $("status").textContent = msg[1];
+      $("infoTitle").textContent = msg[0];
+      $("infoText").textContent = "";
+      show("infoPanel", true);
+      $("stageNote").textContent = run ? "Last build" : "";
+    }
+    schedule(running ? 1000 : 6000);
+  }
+
+  function load() {
+    var url = API + "?k=" + encodeURIComponent(KEY) + (state.runId ? "&run=" + state.runId : "");
+    fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) return fatal(res.j.error || "Couldn't load your page.");
+        if (res.j.run && res.j.run.status !== "running") state.runId = null;
+        render(res.j);
+      })
+      .catch(function () { $("status").textContent = "Reconnecting…"; schedule(4000); });
+  }
+
+  function schedule(ms) { clearTimeout(state.timer); state.timer = setTimeout(load, ms); }
+
+  function fatal(msg) {
+    $("hello").innerHTML = "This link isn't working";
+    $("status").textContent = msg;
+    ["buildPanel", "launchPanel"].forEach(function (id) { show(id, false); });
+    $("infoTitle").textContent = "Get your personal link";
+    $("infoText").textContent = "Message Amara on Telegram and she'll send you your private link.";
+    show("infoPanel", true);
+    renderAgents([]);
+  }
+
+  $("startBtn").addEventListener("click", function () {
+    var token = $("token").value.trim();
+    show("formErr", false);
+    if (!/\d{6,12}:[A-Za-z0-9_-]{30,}/.test(token)) {
+      $("formErr").textContent = "That doesn't look like a BotFather token. It looks like 1234567890:AAH… — copy it from BotFather's \"Done!\" message.";
+      return show("formErr", true);
+    }
+    $("startBtn").disabled = true;
+    $("startBtn").textContent = "Starting your agents…";
+    fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ k: KEY, token: token }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        $("startBtn").disabled = false;
+        $("startBtn").textContent = "🚀 Start my build";
+        if (!res.ok) { $("formErr").textContent = res.j.error; return show("formErr", true); }
+        state.runId = res.j.runId; state.lastLen = 0; state.celebrated = false;
+        $("token").value = "";
+        load();
+        window.scrollTo({ top: $("agents").offsetTop - 80, behavior: "smooth" });
+      })
+      .catch(function () {
+        $("startBtn").disabled = false;
+        $("startBtn").textContent = "🚀 Start my build";
+        $("formErr").textContent = "Couldn't reach Amara. Check your connection and try again.";
+        show("formErr", true);
+      });
+  });
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-copy]");
+    if (!b || !b.dataset.copy) return;
+    var text = b.dataset.copy;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).catch(function () {}).then(function () {
+      var em = b.querySelector("em"); if (em) { em.textContent = "COPIED ✓"; setTimeout(function () { em.textContent = "COPY"; }, 1400); }
+    });
+  });
+
+  renderAgents([]);
+  renderJourney("build_bot", 1);
+  if (!KEY) fatal("This page needs your personal link from Amara.");
+  else load();
+})();
+</script>
+</body>
+</html>

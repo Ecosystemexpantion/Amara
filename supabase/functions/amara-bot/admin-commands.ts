@@ -8,7 +8,9 @@ import { studentLabel, describePosition } from "./admin.ts";
 import { unlockDay2, rejectPayment } from "./day1.ts";
 import { GATE_STEP } from "./day1-content.ts";
 import { buildGitHubAuthUrl } from "./github.ts";
-import { PAGES_VERSION } from "../_shared/pages.ts";
+import { PAGES_VERSION, publishPage } from "../_shared/pages.ts";
+import { AMARA_WEB_HTML } from "../_shared/web-page.ts";
+import { WEB_APP_URL, webLink } from "./sre-pipeline.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const supabase = createClient(
@@ -49,6 +51,17 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
 
   if (/^waiting$/i.test(t)) {
     await listLocked(chatId);
+    return;
+  }
+
+  if (/^web\s+publish$/i.test(t)) {
+    await publishWebApp(chatId);
+    return;
+  }
+
+  const webMatch = t.match(/^web\s+(\d{5,})$/i);
+  if (webMatch) {
+    await sendWebLink(chatId, webMatch[1]);
     return;
   }
 
@@ -228,6 +241,9 @@ async function sendHelp(chatId: number): Promise<void> {
     `<b>Sales pages</b>\n` +
     `<code>pages</code> → Status of every student's sales pages (live / being updated / broken and why).\n` +
     `<code>pages notify</code> → Message students whose pages can't be fixed automatically, with the exact step they need to take.\n\n` +
+    `<b>Amara on the web</b>\n` +
+    `<code>web [ID]</code> → That student's private link to watch their AI agents build live.\n` +
+    `<code>web publish</code> → Re-publish the web page after it changes.\n\n` +
     `<b>Other</b>\n` +
     `<code>announce saturday</code> → Blast "training is TONIGHT at 8:30 PM" to all graduates + Day 4 students.\nCustom time: <code>announce saturday 9:30</code> (PM Nigeria time)\nOnly recent graduates: <code>announce saturday 8:30 last 6 days</code>\n\n` +
     `<b>Create pages:</b> Send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
@@ -390,6 +406,41 @@ function timeAgo(iso: string): string {
   const hours = Math.round(mins / 60);
   if (hours < 48) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
+}
+
+// ── Amara on the web ──────────────────────────────────────────────────────────
+
+// The page is hosted on the admin's own GitHub Pages (the account Amara already has access to).
+async function publishWebApp(adminChatId: number): Promise<void> {
+  const owner = Deno.env.get("ADMIN_GITHUB_USERNAME") ?? "Ecosystemexpantion";
+  const { data } = await supabase
+    .from("amara_students")
+    .select("github_access_token")
+    .ilike("github_username", owner)
+    .not("github_access_token", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  const token = data?.[0]?.github_access_token as string | undefined;
+  if (!token) {
+    await sendMessage(adminChatId, `❌ No GitHub access saved for <b>${escapeHtml(owner)}</b>. Connect that GitHub account through Amara's Day 2 link first.`);
+    return;
+  }
+  try {
+    await publishPage(token, owner, "amara-live", "Amara — live AI setup", AMARA_WEB_HTML);
+    await sendMessage(adminChatId, `✅ Amara on the web is published:\n${WEB_APP_URL}\n\n<i>GitHub takes about a minute to update it.</i>`);
+  } catch (e) {
+    await sendMessage(adminChatId, `❌ Publishing failed: <code>${escapeHtml(String(e).slice(0, 300))}</code>`);
+  }
+}
+
+async function sendWebLink(adminChatId: number, studentChatId: string): Promise<void> {
+  const student = await getStudentByChatId(studentChatId);
+  const link = webLink(student?.web_key);
+  if (!student || !link) {
+    await sendMessage(adminChatId, `❌ No student with 🆔 <code>${studentChatId}</code>.`);
+    return;
+  }
+  await sendMessage(adminChatId, `🌐 Web link for\n${studentLabel(student.full_name, studentChatId)}\n📍 ${describePosition(student)}\n\n${link}`);
 }
 
 // ── Sales pages status ───────────────────────────────────────────────────────

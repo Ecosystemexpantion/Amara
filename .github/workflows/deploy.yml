@@ -68,6 +68,11 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      - name: Deploy amara-web function
+        run: supabase functions deploy amara-web --no-verify-jwt
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
       - name: Deploy student-bot function
         run: supabase functions deploy student-bot --no-verify-jwt
         env:

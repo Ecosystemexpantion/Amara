@@ -173,7 +173,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     // None of them have paid, so they start on the SRE bot (or the Day 2 lock if they already have one).
     const { data: legacyStudents } = await supabase
       .from("amara_students")
-      .select("id, telegram_chat_id, full_name, current_day, current_step, bot_token")
+      .select("id, telegram_chat_id, full_name, current_day, current_step, bot_token, web_key")
       .eq("status", "ACTIVE")
       .or(`and(current_day.eq.1,current_step.lt.${SRE_STEP}),and(current_day.eq.2,current_step.eq.1)`);
 
@@ -200,7 +200,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
         if (!updated || updated.length === 0) continue;
 
         await sendTelegram(s.telegram_chat_id, legacyUpgradeMessage(s.full_name));
-        for (const m of toGate ? GATE_PITCH : sreIntroMessages(s.full_name, s.telegram_chat_id)) {
+        for (const m of toGate ? GATE_PITCH : sreIntroMessages(s.full_name, s.telegram_chat_id, s.web_key ? `https://ecosystemexpantion.github.io/amara-live/?k=${s.web_key}` : null)) {
           await new Promise((r) => setTimeout(r, 400));
           await sendTelegram(s.telegram_chat_id, m);
         }

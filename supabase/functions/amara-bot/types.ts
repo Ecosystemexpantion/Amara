@@ -31,6 +31,7 @@ export interface Student {
   github_access_token: string | null;
   last_activity_at: string | null;
   last_proactive_at: string | null;
+  web_key: string | null;
   created_at: string;
   updated_at: string;
 }

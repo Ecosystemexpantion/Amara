@@ -4,6 +4,7 @@ import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } 
 import { notifyAdmin, studentLabel, describePosition } from "./admin.ts";
 import { sendGitHubIntro } from "./day2.ts";
 import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, sreIntroMessages, suggestedBotNames, legacyUpgradeMessage } from "./day1-content.ts";
+import { startRun, runSreBuild, webLink } from "./sre-pipeline.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
@@ -24,8 +25,8 @@ export async function handleDay1(
   await handleSreStep(student, chatId, text, photo, 1);
 }
 
-export async function sendSreIntro(chatId: number | string, fullName: string | null): Promise<void> {
-  for (const m of sreIntroMessages(fullName, chatId)) await typeMessage(chatId, m);
+export async function sendSreIntro(chatId: number | string, fullName: string | null, webKey?: string | null): Promise<void> {
+  for (const m of sreIntroMessages(fullName, chatId, webLink(webKey))) await typeMessage(chatId, m);
 }
 
 async function sendGatePitch(chatId: number | string): Promise<void> {
@@ -145,56 +146,58 @@ function misplacedBotFatherInput(text: string, username: string, displayName: st
 }
 
 async function setupStudentBot(student: Student, chatId: number, token: string, day: 1 | 3): Promise<void> {
-  await typeMessage(chatId, `Got your token! Let me verify it and set up your bot... 🔧`);
+  const link = webLink(student.web_key);
+  const runId = await startRun(student.id, "telegram");
+  await typeMessage(
+    chatId,
+    link
+      ? `Got your token! 🔧 My AI team is building your bot right now.\n\n👀 <a href="${link}">Watch them work live here</a>`
+      : `Got your token! Let me verify it and set up your bot... 🔧`
+  );
 
-  let botUsername = "";
-  try {
-    const getMeRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
-    const getMeData = await getMeRes.json();
-    if (!getMeData.ok) {
-      await typeMessage(
-        chatId,
-        `That token doesn't look right 🤔 Please copy it directly from BotFather — it should look like:\n<code>1234567890:ABCDefGHIjklMNOpqrstUVWxyz12345678901</code>`
-      );
-      return;
-    }
-    botUsername = getMeData.result.username ?? "";
-  } catch {
-    await typeMessage(chatId, `Had trouble verifying the token — please paste it again 😊`);
+  const outcome = await runSreBuild(runId, student, token, (botUsername, webhookUrl) => saveSreResult(student, token, botUsername, webhookUrl, day));
+  if (!outcome.ok) {
+    await typeMessage(
+      chatId,
+      outcome.reason === "bad_token"
+        ? `That token doesn't look right 🤔 Please copy it directly from BotFather — it should look like:\n<code>1234567890:ABCDefGHIjklMNOpqrstUVWxyz12345678901</code>`
+        : `Had trouble setting up your bot — please paste the token again 😊`
+    );
     return;
   }
+  await announceSreLive(student, chatId, outcome.botUsername, day);
+}
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const webhookUrl = `${supabaseUrl}/functions/v1/student-bot/${student.id}`;
+// Started from the web page; the page follows progress through sre_runs.
+export async function buildSreFromWeb(student: Student, token: string): Promise<{ runId: string; done: Promise<void> }> {
+  const day: 1 | 3 = student.current_day === 3 ? 3 : 1;
+  const runId = await startRun(student.id, "web");
+  const done = (async () => {
+    const outcome = await runSreBuild(runId, student, token, (botUsername, webhookUrl) => saveSreResult(student, token, botUsername, webhookUrl, day));
+    if (outcome.ok) await announceSreLive(student, student.telegram_chat_id, outcome.botUsername, day);
+  })();
+  return { runId, done };
+}
 
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: webhookUrl }),
-    });
-  } catch {
-    // Non-fatal — bot still works, just webhook may need retry
-    console.error("Webhook registration failed for student", student.id);
-  }
-
+async function saveSreResult(student: Student, token: string, botUsername: string, webhookUrl: string, day: 1 | 3): Promise<void> {
   const now = new Date().toISOString();
-  if (day === 1) {
-    await advanceStep(student.id, 1, GATE_STEP, {
-      bot_token: token,
-      day1_completed_at: now,
-      next_day_unlocks_at: null,
-      last_proactive_at: now,
-    });
-  } else {
-    await advanceStep(student.id, 3, 0, {
-      bot_token: token,
-      day3_completed_at: now,
-      next_day_unlocks_at: computeNextUnlockAt(),
-    });
-  }
+  const moved = day === 1
+    ? await advanceIfAt(student.id, 1, SRE_STEP, 1, GATE_STEP, {
+        bot_token: token,
+        day1_completed_at: now,
+        next_day_unlocks_at: null,
+        last_proactive_at: now,
+      })
+    : await advanceIfAt(student.id, 3, student.current_step, 3, 0, {
+        bot_token: token,
+        day3_completed_at: now,
+        next_day_unlocks_at: computeNextUnlockAt(),
+      });
+  if (!moved) throw new Error("This bot was already set up from another device");
   await recordStepCompletion(student.id, day, day === 1 ? SRE_STEP : 1, false, `Bot: @${botUsername} | Webhook: ${webhookUrl}`);
+}
 
+async function announceSreLive(student: Student, chatId: number | string, botUsername: string, day: 1 | 3): Promise<void> {
   await typeMessage(
     chatId,
     `<b>YOUR BOT IS LIVE!! 🤖🔥</b>\n\n@${botUsername} is now running 24/7 — I set it all up automatically for you! No terminal, no Supabase account, no code. Done! 💪`
@@ -325,5 +328,5 @@ export async function migrateLegacyToSre(student: Student, chatId: number): Prom
 
   await typeMessage(chatId, legacyUpgradeMessage(student.full_name));
   if (toGate) await sendGatePitch(chatId);
-  else await sendSreIntro(chatId, student.full_name);
+  else await sendSreIntro(chatId, student.full_name, student.web_key);
 }
