@@ -93,6 +93,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
 .hud .who span{color:var(--label3);font-weight:500;margin-left:6px}
 .hud .what{color:var(--label2);font-size:.86rem;line-height:1.4;margin-top:2px;min-height:1.4em}
 .hud .what b{font-family:"JetBrains Mono",monospace;color:var(--c,var(--blue))}
+.hud .what svg,.drop svg{vertical-align:-3px}
 
 /* Agent list (iOS-style grouped list) */
 .list{padding:4px 0;margin-bottom:16px}
@@ -122,7 +123,9 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
 
 /* Finale */
 .finale{position:relative;overflow:hidden;text-align:center;padding:26px 18px;margin-bottom:16px}
-.finale .big{font-size:2.8rem}
+.finale .big{width:68px;height:68px;margin:0 auto 4px;border-radius:22px;display:grid;place-items:center;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--fc,var(--blue)) 34%,transparent),color-mix(in srgb,var(--fc,var(--blue)) 12%,transparent));
+  border:1px solid color-mix(in srgb,var(--fc,var(--blue)) 45%,transparent);box-shadow:0 10px 30px color-mix(in srgb,var(--fc,var(--blue)) 28%,transparent)}
 .finale h2{font-size:1.45rem;margin:6px 0;letter-spacing:-.02em;overflow-wrap:anywhere}
 .finale p{color:var(--label2);line-height:1.5;overflow-wrap:anywhere}
 .confetti{position:absolute;inset:0;pointer-events:none}
@@ -152,7 +155,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
   <section class="panel glass hidden" id="buildPanel">
     <h2>Create your bot with BotFather</h2>
     <ol class="steps">
-      <li><div>Tap <a class="link" href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> and press <b>START</b> (look for the blue ✔️ tick)</div></li>
+      <li><div>Tap <a class="link" href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> and press <b>START</b> (look for the blue verified tick)</div></li>
       <li><div>Send <b>/newbot</b></div></li>
       <li><div>Send this as the <b>name</b>:<br><button class="copy" data-copy id="bfName"></button></div></li>
       <li><div>Send this as the <b>username</b>:<br><button class="copy" data-copy id="bfUser"></button></div></li>
@@ -169,7 +172,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
 
   <section class="panel glass hidden" id="pagesPanel">
     <h2>Day 2 · Build your two sales pages</h2>
-    <p class="lead">Your AI team takes the landing page code, premium template, images and sales copy from your Tech Stack 📦 and builds both pages for you.</p>
+    <p class="lead">Your AI team takes the landing page code, premium template, images and sales copy from your Tech Stack and builds both pages for you.</p>
     <ol class="steps">
       <li><div>Have a free <b>GitHub</b> account — no account yet? <a class="link" href="https://github.com/signup" target="_blank" rel="noopener">Create one here</a> (2 minutes), then come back</div></li>
       <li><div>Tap <b>Connect GitHub</b> below</div></li>
@@ -189,7 +192,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
   <section class="panel glass hidden" id="uploadPanel">
     <h2 id="upTitle"></h2>
     <ol class="steps" id="upSteps"></ol>
-    <label class="drop" for="upFile" id="upDrop"><span id="upName">📷 Tap to choose your screenshot</span></label>
+    <label class="drop" for="upFile" id="upDrop"><span id="upName">Tap to choose your screenshot</span></label>
     <input type="file" id="upFile" accept="image/*" hidden>
     <button class="btn" id="upBtn">Upload and let the agents check it</button>
     <div class="err hidden" id="upErr"></div>
@@ -198,7 +201,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
 
   <section class="finale glass hidden" id="finale">
     <div class="confetti" id="confetti"></div>
-    <div class="big" id="finIcon">🤖</div>
+    <div class="big" id="finIcon"></div>
     <h2 id="finTitle"></h2>
     <p id="finText"></p>
     <a class="btn hidden" id="finBtn" target="_blank" rel="noopener"></a>
@@ -215,7 +218,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     <div class="stage-top"><h2 id="stageTitle">Your AI agents</h2><small id="stageNote">Standing by</small></div>
     <div class="bar"><i id="bar"></i></div>
     <canvas id="scene"></canvas>
-    <div class="hud" id="hud"><div class="av" id="hudAv">✨</div><div><div class="who" id="hudWho">Amara Core<span>online</span></div><div class="what" id="hudWhat">Agents are docked and ready.</div></div></div>
+    <div class="hud" id="hud"><div class="av" id="hudAv"></div><div><div class="who" id="hudWho">Amara Core<span>online</span></div><div class="what" id="hudWhat">Agents are docked and ready.</div></div></div>
   </section>
 
   <section class="list glass" id="agents"></section>
@@ -235,48 +238,66 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
   var KEY = params.get("k");
   var SPEED = Math.max(0.05, Math.min(1, parseFloat(params.get("speed")) || 1));
 
+  // Icons: Lucide v1.59.0 (https://github.com/lucide-icons/lucide), ISC License.
+  var ICON_SVG = {"key-round":"<path d=\"M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z\" /> <circle cx=\"16.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />","plug-zap":"<path d=\"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z\" /> <path d=\"m2 22 3-3\" /> <path d=\"M7.5 13.5 10 11\" /> <path d=\"M10.5 16.5 13 14\" /> <path d=\"m18 3-4 4h6l-4 4\" />","pen-line":"<path d=\"M13 21h8\" /> <path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" />","brain-circuit":"<path d=\"M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z\" /> <path d=\"M9 13a4.5 4.5 0 0 0 3-4\" /> <path d=\"M6.003 5.125A3 3 0 0 0 6.401 6.5\" /> <path d=\"M3.477 10.896a4 4 0 0 1 .585-.396\" /> <path d=\"M6 18a4 4 0 0 1-1.967-.516\" /> <path d=\"M12 13h4\" /> <path d=\"M12 18h6a2 2 0 0 1 2 2v1\" /> <path d=\"M12 8h8\" /> <path d=\"M16 8V5a2 2 0 0 1 2-2\" /> <circle cx=\"16\" cy=\"13\" r=\".5\" /> <circle cx=\"18\" cy=\"3\" r=\".5\" /> <circle cx=\"20\" cy=\"21\" r=\".5\" /> <circle cx=\"20\" cy=\"8\" r=\".5\" />","messages-square":"<path d=\"M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z\" /> <path d=\"M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1\" />","activity":"<path d=\"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2\" />","rocket":"<path d=\"M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5\" /> <path d=\"M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09\" /> <path d=\"M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z\" /> <path d=\"M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05\" />","git-fork":"<circle cx=\"12\" cy=\"18\" r=\"3\" /> <circle cx=\"6\" cy=\"6\" r=\"3\" /> <circle cx=\"18\" cy=\"6\" r=\"3\" /> <path d=\"M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9\" /> <path d=\"M12 12v3\" />","folder-git-2":"<path d=\"M18 19a5 5 0 0 1-5-5v8\" /> <path d=\"M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5\" /> <circle cx=\"13\" cy=\"12\" r=\"2\" /> <circle cx=\"20\" cy=\"19\" r=\"2\" />","folder-git":"<circle cx=\"12\" cy=\"13\" r=\"2\" /> <path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" /> <path d=\"M14 13h3\" /> <path d=\"M7 13h3\" />","layout-template":"<rect width=\"18\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\" /> <rect width=\"9\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\" /> <rect width=\"5\" height=\"7\" x=\"16\" y=\"14\" rx=\"1\" />","gem":"<path d=\"M10.5 3 8 9l4 13 4-13-2.5-6\" /> <path d=\"M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z\" /> <path d=\"M2 9h20\" />","link":"<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\" /> <path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\" />","shield-check":"<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" /> <path d=\"m9 12 2 2 4-4\" />","radio-tower":"<path d=\"M4.9 16.1C1 12.2 1 5.8 4.9 1.9\" /> <path d=\"M7.8 4.7a6.14 6.14 0 0 0-.8 7.5\" /> <circle cx=\"12\" cy=\"9\" r=\"2\" /> <path d=\"M16.2 4.8c2 2 2.26 5.11.8 7.47\" /> <path d=\"M19.1 1.9a9.96 9.96 0 0 1 0 14.1\" /> <path d=\"M9.5 18h5\" /> <path d=\"m8 22 4-11 4 11\" />","satellite-dish":"<path d=\"M18 12a6 6 0 00-6-6\" /> <path d=\"M2.824 10.459a8 8 0 0010.717 10.717c.558-.276.623-1.012.183-1.452l-9.448-9.448c-.44-.44-1.176-.375-1.452.183\" /> <path d=\"M22 12A10 10 0 0012 2\" /> <path d=\"m9 15 4-4\" />","scan-search":"<path d=\"M3 7V5a2 2 0 0 1 2-2h2\" /> <path d=\"M17 3h2a2 2 0 0 1 2 2v2\" /> <path d=\"M21 17v2a2 2 0 0 1-2 2h-2\" /> <path d=\"M7 21H5a2 2 0 0 1-2-2v-2\" /> <circle cx=\"12\" cy=\"12\" r=\"3\" /> <path d=\"m16 16-1.9-1.9\" />","cloud-upload":"<path d=\"M12 13v8\" /> <path d=\"M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242\" /> <path d=\"m8 17 4-4 4 4\" />","scan-eye":"<path d=\"M3 7V5a2 2 0 0 1 2-2h2\" /> <path d=\"M17 3h2a2 2 0 0 1 2 2v2\" /> <path d=\"M21 17v2a2 2 0 0 1-2 2h-2\" /> <path d=\"M7 21H5a2 2 0 0 1-2-2v-2\" /> <circle cx=\"12\" cy=\"12\" r=\"1\" /> <path d=\"M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0\" />","scale":"<path d=\"M12 3v18\" /> <path d=\"m19 8 3 8a5 5 0 0 1-6 0zV7\" /> <path d=\"M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1\" /> <path d=\"m5 8 3 8a5 5 0 0 1-6 0zV7\" /> <path d=\"M7 21h10\" />","message-square-text":"<path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\" /> <path d=\"M7 11h10\" /> <path d=\"M7 15h6\" /> <path d=\"M7 7h8\" />","pen-tool":"<path d=\"m18 13-.654-4.736a4 4 0 00-2.756-3.266l-9.163-2.9a2 2 0 00-2.017.493l-.82.819a2 2 0 00-.492 2.017l2.9 9.163a4 4 0 003.266 2.756L13 18\" /> <path d=\"M18.648 12.352a1.205 1.205 0 011.704 0l1.296 1.296a1.205 1.205 0 010 1.704l-6.296 6.296a1.205 1.205 0 01-1.704 0l-1.296-1.296a1.205 1.205 0 010-1.704z\" /> <path d=\"m3 3 6.586 6.586\" /> <circle cx=\"11\" cy=\"11\" r=\"2\" />","badge-check":"<path d=\"M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z\" /> <path d=\"m16 9-5.5 5.5L8 12\" />","send":"<path d=\"M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z\" /> <path d=\"m21.854 2.147-10.94 10.939\" />","database":"<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\" /> <path d=\"M3 5V19A9 3 0 0 0 21 19V5\" /> <path d=\"M3 12A9 3 0 0 0 21 12\" />","bot":"<path d=\"M12 8V4H8\" /> <rect width=\"16\" height=\"12\" x=\"4\" y=\"8\" rx=\"2\" /> <path d=\"M2 14h2\" /> <path d=\"M20 14h2\" /> <path d=\"M15 13v2\" /> <path d=\"M9 13v2\" />","globe":"<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20\" /> <path d=\"M2 12h20\" />","graduation-cap":"<path d=\"M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z\" /> <path d=\"M22 10v6\" /> <path d=\"M6 12.5V16a6 3 0 0 0 12 0v-3.5\" />","hourglass":"<path d=\"M5 22h14\" /> <path d=\"M5 2h14\" /> <path d=\"M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22\" /> <path d=\"M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2\" />","mail-check":"<path d=\"M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8\" /> <path d=\"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7\" /> <path d=\"m16 19 2 2 4-4\" />","signature":"<path d=\"m21 17-2.156-1.868A.5.5 0 0 0 18 15.5v.5a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1c0-2.545-3.991-3.97-8.5-4a1 1 0 0 0 0 5c4.153 0 4.745-11.295 5.708-13.5a2.5 2.5 0 1 1 3.31 3.284\" /> <path d=\"M3 21h18\" />","camera":"<path d=\"M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z\" /> <circle cx=\"12\" cy=\"13\" r=\"3\" />","circle-check":"<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"m16 9-5.5 5.5L8 12\" />","sparkles":"<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\" /> <path d=\"M20 2v4\" /> <path d=\"M22 4h-4\" /> <circle cx=\"4\" cy=\"20\" r=\"2\" />","package":"<path d=\"M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z\" /> <path d=\"M12 22V12\" /> <polyline points=\"3.29 7 12 12 20.71 7\" /> <path d=\"m7.5 4.27 9 5.15\" />"};
+
+  function svg(name, color, size, sw) {
+    var inner = (ICON_SVG[name] || ICON_SVG.sparkles).replace(/currentColor/g, color);
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="' + color +
+      '" stroke-width="' + (sw || 2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + "</svg>";
+  }
+  // Canvas draws icons from pre-rendered SVG images (white strokes on the coloured orbs).
+  var iconCache = {};
+  function iconImg(name, color) {
+    var key = name + color;
+    if (!iconCache[key]) { var img = new Image(); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg(name, color, 48, 2)); iconCache[key] = img; }
+    return iconCache[key];
+  }
+  var EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{FE0F}\u{200D}]/gu;
+  function clean(text) { return String(text == null ? "" : text).replace(EMOJI, "").replace(/\s{2,}/g, " ").trim(); }
+
   var C = { blue: "#0A84FF", green: "#30D158", orange: "#FF9F0A", purple: "#BF5AF2", pink: "#FF375F", teal: "#64D2FF", indigo: "#5E5CE6", yellow: "#FFD60A", mint: "#66D4CF", red: "#FF453A" };
   function A(id, name, role, icon, color, tools) { return { id: id, name: name, role: role, icon: icon, color: color, tools: tools }; }
   function t(code, does) { return { t: code, d: does }; }
-  var LAUNCHER = A("amara", "Amara", "Launcher", "🚀", C.green, [t("SQL", "writing your setup to the database"), t("DB", "saving your progress"), t("UTC", "time-stamping the launch"), t("TX", "making the save all-or-nothing"), t("ACL", "locking your data to you"), t("SaaS", "switching your service on 24/7")]);
-  var RECORDER = A("amara", "Amara", "Progress Keeper", "🚀", C.green, [t("SQL", "updating your record"), t("DB", "saving your progress"), t("UTC", "time-stamping this step"), t("TX", "making the save safe"), t("ACL", "keeping your file private"), t("CRM", "updating your student file")]);
+  var LAUNCHER = A("amara", "Amara", "Launcher", "rocket", C.green, [t("SQL", "writing your setup to the database"), t("DB", "saving your progress"), t("UTC", "time-stamping the launch"), t("TX", "making the save all-or-nothing"), t("ACL", "locking your data to you"), t("SaaS", "switching your service on 24/7")]);
+  var RECORDER = A("amara", "Amara", "Progress Keeper", "database", C.green, [t("SQL", "updating your record"), t("DB", "saving your progress"), t("UTC", "time-stamping this step"), t("TX", "making the save safe"), t("ACL", "keeping your file private"), t("CRM", "updating your student file")]);
 
   var ROSTERS = {
     sre: [
-      A("nova", "Nova", "Token Verifier", "🔐", C.teal, [t("API", "calling the Telegram Bot API"), t("HTTPS", "opening a secure request"), t("TLS", "encrypting the line to Telegram"), t("JSON", "reading Telegram's answer"), t("UID", "confirming your bot's identity"), t("AUTH", "validating the token")]),
-      A("bolt", "Bolt", "Connector", "🔌", C.orange, [t("URL", "building your bot's server address"), t("DNS", "locating Amara's servers"), t("SSL", "checking the security certificate"), t("REST", "registering the webhook"), t("TCP", "opening the delivery channel"), t("ACK", "waiting for Telegram to confirm")]),
-      A("scribe", "Scribe", "Profile Writer", "✍️", C.blue, [t("NLP", "writing your bot's introduction"), t("UTF-8", "keeping emojis and text safe"), t("CMD", "adding the /start menu"), t("UX", "polishing the first impression"), t("I18N", "keeping the text readable everywhere"), t("API", "saving the profile to Telegram")]),
-      A("sage", "Sage", "Sales Brain", "🧠", C.purple, [t("LLM", "loading the language model"), t("KB", "adding real student results"), t("CRM", "setting up lead stages"), t("CTA", "tuning the buy-button wording"), t("NLP", "loading objection handling"), t("RAG", "linking answers to your knowledge base")]),
-      A("echo", "Echo", "Test Customer", "💬", C.pink, [t("QA", "planning the test"), t("NLU", "asking like a real customer"), t("API", "calling the AI"), t("LLM", "generating your bot's reply"), t("JSON", "checking the answer came back"), t("UX", "rating the reply for buyers")]),
-      A("pulse", "Pulse", "Health Monitor", "🩺", C.mint, [t("HTTP", "checking message delivery"), t("PING", "testing the connection"), t("LOG", "reading the error log"), t("QoS", "measuring delivery quality"), t("SLA", "confirming 24/7 readiness"), t("APM", "watching performance")]),
+      A("nova", "Nova", "Token Verifier", "key-round", C.teal, [t("API", "calling the Telegram Bot API"), t("HTTPS", "opening a secure request"), t("TLS", "encrypting the line to Telegram"), t("JSON", "reading Telegram's answer"), t("UID", "confirming your bot's identity"), t("AUTH", "validating the token")]),
+      A("bolt", "Bolt", "Connector", "plug-zap", C.orange, [t("URL", "building your bot's server address"), t("DNS", "locating Amara's servers"), t("SSL", "checking the security certificate"), t("REST", "registering the webhook"), t("TCP", "opening the delivery channel"), t("ACK", "waiting for Telegram to confirm")]),
+      A("scribe", "Scribe", "Profile Writer", "pen-line", C.blue, [t("NLP", "writing your bot's introduction"), t("UTF-8", "keeping emojis and text safe"), t("CMD", "adding the /start menu"), t("UX", "polishing the first impression"), t("I18N", "keeping the text readable everywhere"), t("API", "saving the profile to Telegram")]),
+      A("sage", "Sage", "Sales Brain", "brain-circuit", C.purple, [t("LLM", "loading the language model"), t("KB", "adding real student results"), t("CRM", "setting up lead stages"), t("CTA", "tuning the buy-button wording"), t("NLP", "loading objection handling"), t("RAG", "linking answers to your knowledge base")]),
+      A("echo", "Echo", "Test Customer", "messages-square", C.pink, [t("QA", "planning the test"), t("NLU", "asking like a real customer"), t("API", "calling the AI"), t("LLM", "generating your bot's reply"), t("JSON", "checking the answer came back"), t("UX", "rating the reply for buyers")]),
+      A("pulse", "Pulse", "Health Monitor", "activity", C.mint, [t("HTTP", "checking message delivery"), t("PING", "testing the connection"), t("LOG", "reading the error log"), t("QoS", "measuring delivery quality"), t("SLA", "confirming 24/7 readiness"), t("APM", "watching performance")]),
       LAUNCHER
     ],
     pages: [
-      A("atlas", "Atlas", "GitHub Linker", "🧭", C.teal, [t("OAuth", "using your GitHub permission"), t("SSO", "signing in as you"), t("HTTPS", "opening a secure session"), t("REST", "talking to GitHub's API"), t("API", "reading your account"), t("JWT", "holding your session securely")]),
-      A("forge", "Forge", "Repo Builder", "⚒️", C.orange, [t("Git", "preparing version control"), t("VCS", "creating your sales page repository"), t("SHA", "fingerprinting every file"), t("API", "setting the repo to public"), t("JSON", "confirming the repo exists"), t("ACL", "giving the world read access")]),
-      A("anvil", "Anvil", "Premium Repo Builder", "🛠️", C.yellow, [t("Git", "preparing version control"), t("VCS", "creating your premium repository"), t("SHA", "fingerprinting every file"), t("API", "setting the repo to public"), t("JSON", "confirming the repo exists"), t("ACL", "giving the world read access")]),
-      A("pixel", "Pixel", "Page Designer", "🎨", C.purple, [t("HTML", "landing page code"), t("CSS", "the Liquid Glass design"), t("JS", "live countdowns and slot tracker"), t("SVG", "icons and graphics"), t("UI", "student results and proof videos"), t("UX", "a smooth path to buying")]),
-      A("prism", "Prism", "Premium Designer", "💎", C.pink, [t("HTML", "premium page template"), t("CSS", "the premium look"), t("JS", "the 5-slot exclusivity tracker"), t("UI", "Coach Victor's done-with-you offer"), t("A11Y", "readable on every phone"), t("UX", "a high-ticket buying path")]),
-      A("link", "Link", "Payment Wiring", "🔗", C.blue, [t("DOM", "finding every buy button"), t("HREF", "rewiring each button"), t("URL", "inserting your payment link"), t("CTA", "checking every call to action"), t("UTF-8", "keeping links clean"), t("UX", "testing the buyer's path")]),
-      A("guard", "Guard", "Build Rules", "🛡️", C.indigo, [t("CFG", "writing the publishing rules"), t("YML", "reading the site settings"), t("CI", "skipping the extra build step"), t("SEC", "keeping the pages as designed"), t("API", "saving the rules to GitHub"), t("SHA", "confirming the rule file")]),
-      A("beacon", "Beacon", "Publisher", "📡", C.teal, [t("CI", "starting the GitHub Pages build"), t("CDN", "spreading your page worldwide"), t("DNS", "giving it a web address"), t("SSL", "adding the padlock"), t("HTTPS", "serving it securely"), t("TTL", "setting how fast updates appear")]),
-      A("relay", "Relay", "Premium Publisher", "🛰️", C.orange, [t("CI", "starting the GitHub Pages build"), t("CDN", "spreading your page worldwide"), t("DNS", "giving it a web address"), t("SSL", "adding the padlock"), t("HTTPS", "serving it securely"), t("TTL", "setting how fast updates appear")]),
-      A("scout", "Scout", "Quality Inspector", "🔍", C.mint, [t("QA", "inspecting both pages"), t("HTTP", "checking they respond"), t("LOG", "reading the build log"), t("CI", "confirming the build passed"), t("DOM", "checking the page structure"), t("SEO", "checking titles and descriptions")]),
+      A("atlas", "Atlas", "GitHub Linker", "git-fork", C.teal, [t("OAuth", "using your GitHub permission"), t("SSO", "signing in as you"), t("HTTPS", "opening a secure session"), t("REST", "talking to GitHub's API"), t("API", "reading your account"), t("JWT", "holding your session securely")]),
+      A("forge", "Forge", "Repo Builder", "folder-git-2", C.orange, [t("Git", "preparing version control"), t("VCS", "creating your sales page repository"), t("SHA", "fingerprinting every file"), t("API", "setting the repo to public"), t("JSON", "confirming the repo exists"), t("ACL", "giving the world read access")]),
+      A("anvil", "Anvil", "Premium Repo Builder", "folder-git", C.yellow, [t("Git", "preparing version control"), t("VCS", "creating your premium repository"), t("SHA", "fingerprinting every file"), t("API", "setting the repo to public"), t("JSON", "confirming the repo exists"), t("ACL", "giving the world read access")]),
+      A("pixel", "Pixel", "Page Designer", "layout-template", C.purple, [t("HTML", "landing page code"), t("CSS", "the Liquid Glass design"), t("JS", "live countdowns and slot tracker"), t("SVG", "icons and graphics"), t("UI", "student results and proof videos"), t("UX", "a smooth path to buying")]),
+      A("prism", "Prism", "Premium Designer", "gem", C.pink, [t("HTML", "premium page template"), t("CSS", "the premium look"), t("JS", "the 5-slot exclusivity tracker"), t("UI", "Coach Victor's done-with-you offer"), t("A11Y", "readable on every phone"), t("UX", "a high-ticket buying path")]),
+      A("link", "Link", "Payment Wiring", "link", C.blue, [t("DOM", "finding every buy button"), t("HREF", "rewiring each button"), t("URL", "inserting your payment link"), t("CTA", "checking every call to action"), t("UTF-8", "keeping links clean"), t("UX", "testing the buyer's path")]),
+      A("guard", "Guard", "Build Rules", "shield-check", C.indigo, [t("CFG", "writing the publishing rules"), t("YML", "reading the site settings"), t("CI", "skipping the extra build step"), t("SEC", "keeping the pages as designed"), t("API", "saving the rules to GitHub"), t("SHA", "confirming the rule file")]),
+      A("beacon", "Beacon", "Publisher", "radio-tower", C.teal, [t("CI", "starting the GitHub Pages build"), t("CDN", "spreading your page worldwide"), t("DNS", "giving it a web address"), t("SSL", "adding the padlock"), t("HTTPS", "serving it securely"), t("TTL", "setting how fast updates appear")]),
+      A("relay", "Relay", "Premium Publisher", "satellite-dish", C.orange, [t("CI", "starting the GitHub Pages build"), t("CDN", "spreading your page worldwide"), t("DNS", "giving it a web address"), t("SSL", "adding the padlock"), t("HTTPS", "serving it securely"), t("TTL", "setting how fast updates appear")]),
+      A("scout", "Scout", "Quality Inspector", "scan-search", C.mint, [t("QA", "inspecting both pages"), t("HTTP", "checking they respond"), t("LOG", "reading the build log"), t("CI", "confirming the build passed"), t("DOM", "checking the page structure"), t("SEO", "checking titles and descriptions")]),
       LAUNCHER
     ],
     check: [
-      A("intake", "Intake", "Upload Receiver", "📥", C.indigo, [t("HTTPS", "receiving your upload securely"), t("TLS", "encrypting the transfer"), t("MIME", "checking the file type"), t("JPEG", "unpacking the image"), t("KB", "measuring the file"), t("SHA", "fingerprinting the upload")]),
-      A("iris", "Iris", "Vision Reader", "👁️", C.teal, [t("CV", "running computer vision"), t("OCR", "reading the text on your screen"), t("JPEG", "decoding your screenshot"), t("AI", "understanding the page"), t("LLM", "describing what it sees"), t("UI", "recognising buttons and menus")]),
-      A("judge", "Judge", "Verifier", "⚖️", C.orange, [t("SOP", "loading this step's checklist"), t("QA", "comparing item by item"), t("AI", "weighing the evidence"), t("RULE", "applying the pass rules"), t("JSON", "recording the verdict"), t("LOG", "keeping an audit trail")]),
-      A("coach", "Coach", "Next-Step Writer", "🧑‍🏫", C.purple, [t("NLP", "writing clear instructions"), t("LLM", "tailoring them to you"), t("UX", "keeping it simple"), t("CTA", "deciding your next action"), t("UTF-8", "adding the right emojis"), t("API", "sending it to Telegram")]),
+      A("intake", "Intake", "Upload Receiver", "cloud-upload", C.indigo, [t("HTTPS", "receiving your upload securely"), t("TLS", "encrypting the transfer"), t("MIME", "checking the file type"), t("JPEG", "unpacking the image"), t("KB", "measuring the file"), t("SHA", "fingerprinting the upload")]),
+      A("iris", "Iris", "Vision Reader", "scan-eye", C.teal, [t("CV", "running computer vision"), t("OCR", "reading the text on your screen"), t("JPEG", "decoding your screenshot"), t("AI", "understanding the page"), t("LLM", "describing what it sees"), t("UI", "recognising buttons and menus")]),
+      A("judge", "Judge", "Verifier", "scale", C.orange, [t("SOP", "loading this step's checklist"), t("QA", "comparing item by item"), t("AI", "weighing the evidence"), t("RULE", "applying the pass rules"), t("JSON", "recording the verdict"), t("LOG", "keeping an audit trail")]),
+      A("coach", "Coach", "Next-Step Writer", "message-square-text", C.purple, [t("NLP", "writing clear instructions"), t("LLM", "tailoring them to you"), t("UX", "keeping it simple"), t("CTA", "deciding your next action"), t("UTF-8", "adding the right emojis"), t("API", "sending it to Telegram")]),
       RECORDER
     ],
     certificate: [
-      A("intake", "Intake", "Upload Receiver", "📥", C.indigo, [t("HTTPS", "receiving your photo securely"), t("TLS", "encrypting the transfer"), t("MIME", "checking the file type"), t("JPEG", "unpacking the image"), t("KB", "measuring the file"), t("SHA", "fingerprinting the upload")]),
-      A("iris", "Iris", "Signature Reader", "👁️", C.teal, [t("CV", "running computer vision"), t("OCR", "finding your handwriting"), t("JPEG", "decoding the photo"), t("AI", "confirming it's a signature"), t("ROI", "cropping to the signature"), t("PNG", "preparing it for the certificate")]),
-      A("quill", "Quill", "Certificate Designer", "🖋️", C.purple, [t("PDF", "creating the document"), t("A4", "setting the page size"), t("TTF", "typesetting your name"), t("PNG", "placing logo and signature"), t("RGB", "applying the colours"), t("DPI", "keeping it print-sharp")]),
-      A("seal", "Seal", "Authenticator", "🏅", C.orange, [t("ID", "assigning your certificate number"), t("UTC", "dating the certificate"), t("META", "writing document details"), t("PDF", "sealing the file"), t("SHA", "fingerprinting the certificate"), t("QA", "final quality check")]),
-      A("courier", "Courier", "Delivery", "📦", C.blue, [t("MIME", "packaging the PDF"), t("API", "calling Telegram"), t("HTTPS", "opening a secure upload"), t("TLS", "encrypting the transfer"), t("CDN", "delivering it fast"), t("PDF", "handing over your certificate")]),
+      A("intake", "Intake", "Upload Receiver", "cloud-upload", C.indigo, [t("HTTPS", "receiving your photo securely"), t("TLS", "encrypting the transfer"), t("MIME", "checking the file type"), t("JPEG", "unpacking the image"), t("KB", "measuring the file"), t("SHA", "fingerprinting the upload")]),
+      A("iris", "Iris", "Signature Reader", "signature", C.teal, [t("CV", "running computer vision"), t("OCR", "finding your handwriting"), t("JPEG", "decoding the photo"), t("AI", "confirming it's a signature"), t("ROI", "cropping to the signature"), t("PNG", "preparing it for the certificate")]),
+      A("quill", "Quill", "Certificate Designer", "pen-tool", C.purple, [t("PDF", "creating the document"), t("A4", "setting the page size"), t("TTF", "typesetting your name"), t("PNG", "placing logo and signature"), t("RGB", "applying the colours"), t("DPI", "keeping it print-sharp")]),
+      A("seal", "Seal", "Authenticator", "badge-check", C.orange, [t("ID", "assigning your certificate number"), t("UTC", "dating the certificate"), t("META", "writing document details"), t("PDF", "sealing the file"), t("SHA", "fingerprinting the certificate"), t("QA", "final quality check")]),
+      A("courier", "Courier", "Delivery", "send", C.blue, [t("MIME", "packaging the PDF"), t("API", "calling Telegram"), t("HTTPS", "opening a secure upload"), t("TLS", "encrypting the transfer"), t("CDN", "delivering it fast"), t("PDF", "handing over your certificate")]),
       RECORDER
     ]
   };
@@ -366,7 +387,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
         agents = roster.map(function (r) { return { id: r.id, name: r.name, icon: r.icon, color: r.color, status: "idle", x: 0, y: 0, hx: 0, hy: 0, trail: [], bob: Math.random() * 6, carry: null, scale: 1 }; });
         tools = []; packets = []; beams = []; core.progress = 0; core.color = C.blue;
         dest.label = DEST[kind] || "TELEGRAM";
-        ringLabel = kind === "pages" ? "YOUR TECH STACK 📦" : kind === "sre" ? "TECH STACK TOOLS" : "AGENT TOOLS";
+        ringLabel = kind === "pages" ? "YOUR TECH STACK" : kind === "sre" ? "TECH STACK TOOLS" : "AGENT TOOLS";
         layoutDock();
       },
       setStatus: function (i, st) { if (agents[i]) agents[i].status = st; },
@@ -575,8 +596,9 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
           ctx.beginPath(); ctx.arc(x, y, r + 6, s, s + 1.4); ctx.stroke();
           ctx.beginPath(); ctx.arc(x, y, r + 6, s + Math.PI, s + Math.PI + 1.4); ctx.stroke();
         }
-        ctx.font = (active ? 17 : compact ? 12 : 14) + "px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(a.icon, x, y + 1);
+        var ic = iconImg(a.icon, "#ffffff"), sz = active ? 19 : compact ? 13 : 15;
+        if (ic.complete && ic.naturalWidth) ctx.drawImage(ic, x - sz / 2, y - sz / 2, sz, sz);
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
         if (a.status === "done" || a.status === "failed") {
           ctx.fillStyle = a.status === "done" ? C.green : C.red;
           ctx.beginPath(); ctx.arc(x + r * .75, y - r * .75, 6, 0, Math.PI * 2); ctx.fill();
@@ -651,7 +673,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
 
   function buildList(roster) {
     $("agents").innerHTML = roster.map(function (a, i) {
-      return '<div class="row idle" id="ag' + i + '" style="--c:' + a.color + '"><div class="ic">' + a.icon + '</div>' +
+      return '<div class="row idle" id="ag' + i + '" style="--c:' + a.color + '"><div class="ic">' + svg(a.icon, a.color, 21) + '</div>' +
         '<div><div class="t">' + a.name + '<span>' + a.role + '</span></div><div class="d">Docked and ready</div></div>' +
         '<div class="st">Queued</div></div>';
     }).join("");
@@ -660,7 +682,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     var r = $("ag" + i); if (!r) return;
     r.className = "row " + st;
     r.querySelector(".st").textContent = label;
-    if (text != null) r.querySelector(".d").textContent = text;
+    if (text != null) r.querySelector(".d").textContent = clean(text);
     if (tools && !r.querySelector(".chips")) {
       var c = document.createElement("div"); c.className = "chips";
       c.innerHTML = tools.map(function (tl) { return "<b>" + esc(tl.t) + "</b>"; }).join("");
@@ -669,7 +691,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
   }
   function hud(a, what) {
     $("hud").style.setProperty("--c", a ? a.color : C.blue);
-    $("hudAv").textContent = a ? a.icon : "✨";
+    $("hudAv").innerHTML = svg(a ? a.icon : "sparkles", a ? a.color : C.blue, 21);
     $("hudWho").innerHTML = a ? esc(a.name) + "<span>" + esc(a.role) + "</span>" : "Amara Core<span>online</span>";
     $("hudWhat").innerHTML = what;
   }
@@ -704,12 +726,12 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       hud(a, "Undocking and flying to the Amara Core…");
       log("<b>" + esc(a.name.toUpperCase()) + "</b> undocked · " + esc(a.role));
       await scene.enter(i);
-      hud(a, fromStack ? "Opening your Tech Stack 📦 and choosing the right software…" : "Scanning the tool ring for the right technology…");
+      hud(a, fromStack ? "Opening your Tech Stack and choosing the right software…" : "Scanning the tool ring for the right technology…");
       await scene.loadTools(i, a.tools);
       for (var j = 0; j < a.tools.length; j++) {
         if (tk !== show.token) return;
         var tl = a.tools[j];
-        hud(a, "Picking <b>" + esc(tl.t) + "</b>" + (fromStack ? " from your Tech Stack 📦" : "") + " — " + esc(tl.d) + "…");
+        hud(a, "Picking <b>" + esc(tl.t) + "</b>" + (fromStack ? " from your Tech Stack " + svg("package", "currentColor", 14) : "") + " — " + esc(tl.d) + "…");
         log(esc(a.name.toUpperCase()) + " ⟶ picked <b>" + esc(tl.t) + "</b>" + (fromStack ? " from the Tech Stack" : "") + " · " + esc(tl.d));
         await scene.pick(i, j);
       }
@@ -777,6 +799,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     for (var i = 0; i < 48; i++) html += '<i style="left:' + (Math.random() * 100) + '%;background:' + colors[i % 6] + ';animation-delay:' + (Math.random() * .8) + 's"></i>';
     $("confetti").innerHTML = html;
   }
+  function finIcon(name, color) { $("finIcon").style.setProperty("--fc", color); $("finIcon").innerHTML = svg(name, color, 32, 1.8); }
   function finale(run, ok, quiet) {
     if (data && data.run && data.run.id === run.id) run = data.run;
     show.playing = false; show.finished = true;
@@ -785,29 +808,29 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     if (!ok) {
       var why = "";
       (run.events || []).forEach(function (e) { if (e.state === "failed") why = e.text; });
-      $("finIcon").textContent = "⏳";
+      finIcon("hourglass", C.orange);
       if (run.kind === "check") {
-        $("finIcon").textContent = "📸";
+        finIcon("camera", C.orange);
         $("finTitle").textContent = "Not quite yet";
         $("finText").textContent = "Amara has sent you exactly what to fix in Telegram — then upload a new screenshot here.";
       } else if (run.kind === "pages" && /verify your email/i.test(why)) {
-        $("finIcon").textContent = "📧";
+        finIcon("mail-check", C.blue);
         $("finTitle").textContent = "One quick step left";
         $("finText").textContent = "GitHub needs you to verify your email. Open the email from GitHub, tap Verify, then tap Connect GitHub again — your agents pick up from there.";
         $("finBtn").href = "https://github.com/settings/emails"; $("finBtn").textContent = "Open my GitHub email settings"; vis("finBtn", true);
       } else if (run.kind === "pages" && /Connect GitHub again|access was removed/i.test(why)) {
-        $("finIcon").textContent = "🔗";
+        finIcon("link", C.blue);
         $("finTitle").textContent = "Reconnect GitHub";
         $("finText").textContent = "GitHub disconnected before your pages were finished. Tap Connect GitHub again and your agents will pick up where they left off.";
       } else if (run.kind === "pages") {
         $("finTitle").textContent = "Almost there";
         $("finText").textContent = "GitHub is taking a little longer to publish your pages. They're being finished automatically — Amara will message you on Telegram the moment they're live. Nothing for you to do.";
       } else if (run.kind === "sre") {
-        $("finIcon").textContent = "🔑";
+        finIcon("key-round", C.orange);
         $("finTitle").textContent = "Let's try that again";
         $("finText").textContent = (why ? why + " " : "") + "Paste your token again below and your agents will start over.";
       } else if (run.kind === "certificate") {
-        $("finIcon").textContent = "✍️";
+        finIcon("signature", C.purple);
         $("finTitle").textContent = "Let's try that again";
         $("finText").textContent = "Upload a clear photo of your signature on paper and your agents will make your certificate.";
       } else {
@@ -815,7 +838,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
         $("finText").textContent = "Amara is finishing this for you and will message you on Telegram.";
       }
     } else if (run.kind === "sre") {
-      $("finIcon").textContent = "🤖";
+      finIcon("bot", C.green);
       $("finTitle").textContent = "@" + run.bot_username + " is live";
       $("finText").textContent = data && data.phase === "bot_live"
         ? "Day 1 is complete! Day 2 unlocks as soon as you get your Tech Stack and send Amara your payment screenshot."
@@ -824,14 +847,14 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       if (data && data.phase === "bot_live") { $("finBtn2").href = data.techStackUrl; $("finBtn2").textContent = "Unlock Day 2 — get the Tech Stack"; vis("finBtn2", true); }
     } else if (run.kind === "pages") {
       var url = ((last && last.text) || "").match(/https?:\/\/\S+/);
-      $("finIcon").textContent = "🌐";
+      finIcon("globe", C.green);
       $("finTitle").textContent = "Your sales pages are live";
       $("finText").textContent = "Both pages are published. GitHub can take a minute or two to show the newest version.";
       if (url) { $("finBtn").href = url[0]; $("finBtn").textContent = "Open my sales page"; vis("finBtn", true); }
     } else if (run.kind === "certificate") {
-      $("finIcon").textContent = "🎓"; $("finTitle").textContent = "You're an EEM26 graduate!"; $("finText").textContent = "Your certificate is waiting for you in Telegram.";
+      finIcon("graduation-cap", C.green); $("finTitle").textContent = "You're an EEM26 graduate!"; $("finText").textContent = "Your certificate is waiting for you in Telegram.";
     } else {
-      $("finIcon").textContent = "✅"; $("finTitle").textContent = "Step checked"; $("finText").textContent = "Your next step is waiting in Telegram.";
+      finIcon("circle-check", C.green); $("finTitle").textContent = "Step checked"; $("finText").textContent = "Your next step is waiting in Telegram.";
     }
     vis("finale", true);
     if (ok && !quiet && run.kind !== "check") confetti();
@@ -874,7 +897,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     }
 
     if (run && run.kind === "pages" && run.status === "failed" && d.phase !== "build_pages" && d.pages && show.finished) {
-      run.status = "done"; run.events = (run.events || []).concat([{ agent: "amara", state: "done", text: "Both sales pages are LIVE 🚀 " + d.pages.normal, at: new Date().toISOString() }]);
+      run.status = "done"; run.events = (run.events || []).concat([{ agent: "amara", state: "done", text: "Both sales pages are live " + d.pages.normal, at: new Date().toISOString() }]);
       finale(run, true, true);
     }
     var busy = show.playing || (run && run.status === "running");
@@ -902,7 +925,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       $("status").textContent = "Create your bot with BotFather, paste the token here, and watch 7 AI agents set it up for you live.";
     } else if (d.phase === "build_pages") {
       $("hello").innerHTML = "Hi " + name + " — <span>Day 2 is unlocked</span>";
-      $("status").textContent = "Connect GitHub and watch 11 AI agents build your two sales pages from your Tech Stack 📦.";
+      $("status").textContent = "Connect GitHub and watch 11 AI agents build your two sales pages from your Tech Stack.";
     } else if (d.phase === "day3_start") {
       $("hello").innerHTML = "Hi " + name + " — <span>Day 3 is here</span>";
       $("status").textContent = "Set up your two money platforms. Your AI agents check every screenshot you upload.";
@@ -912,12 +935,12 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     } else {
       var msg = {
         onboarding: ["Let's get you started", "Finish your quick sign-up with Amara on Telegram, then come back here to watch your AI team build your bot."],
-        bot_live: ["Day 1 complete 🎉", "Your bot is live. Get your Tech Stack and send Amara your payment screenshot to unlock Day 2 — you'll watch your sales pages being built right here."],
-        pages_live: ["Day 2 complete 🎉", "Your two sales pages are live. Day 3 unlocks tomorrow at 8AM Nigeria time — Amara will message you."],
-        day3_done: ["Day 3 complete 🎉", "Selar and Payhip are set up. Day 4 — your final day — unlocks tomorrow at 8AM Nigeria time."],
-        graduated: ["You're an EEM26 graduate 🎓", "Your setup is complete. Keep growing with Amara and Coach Victor."]
+        bot_live: ["Day 1 complete", "Your bot is live. Get your Tech Stack and send Amara your payment screenshot to unlock Day 2 — you'll watch your sales pages being built right here."],
+        pages_live: ["Day 2 complete", "Your two sales pages are live. Day 3 unlocks tomorrow at 8AM Nigeria time — Amara will message you."],
+        day3_done: ["Day 3 complete", "Selar and Payhip are set up. Day 4 — your final day — unlocks tomorrow at 8AM Nigeria time."],
+        graduated: ["You're an EEM26 graduate", "Your setup is complete. Keep growing with Amara and Coach Victor."]
       }[d.phase] || ["You're on Day " + d.day, "Keep going with Amara on Telegram — your AI agents appear here whenever they work on your setup."];
-      $("hello").innerHTML = "Hi " + name + " 👋";
+      $("hello").innerHTML = "Hi " + name;
       $("status").textContent = msg[1];
       if (!show.finished) { $("infoTitle").textContent = msg[0]; vis("infoPanel", true); }
     }
@@ -976,7 +999,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     "Selar dashboard": ["Day 3 · Selar dashboard", ["Finish your Selar registration and verify your email", "Open your Selar <b>creator dashboard</b>", "Screenshot it and upload it below"]],
     "Payhip dashboard": ["Day 3 · Payhip account", ['Use this exact link: <a class="link" href="https://payhip.com/auth/register/af650fe07ce1c3c" target="_blank" rel="noopener">payhip.com/auth/register/af650fe07ce1c3c</a>', 'Fill in the <b>"Join as an Affiliate"</b> form and tap <b>Create account</b>', "Screenshot the form or your Payhip dashboard and upload it below"]],
     "Bot test": ["Day 4 · Test your bot", ["Open Telegram and search for your bot's username", "Send it any message, like <b>Hi</b>", "Screenshot your bot replying and upload it below"]],
-    "Signature": ["Day 4 · Your signature", ["Sign your name on any paper", "Take a clear, well-lit photo of it", "Upload it below — it goes on your certificate 🎓"]]
+    "Signature": ["Day 4 · Your signature", ["Sign your name on any paper", "Take a clear, well-lit photo of it", "Upload it below — it goes on your certificate"]]
   };
   var pendingSince = 0;
 
@@ -1013,7 +1036,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       .then(function (res) {
         btn.disabled = false; btn.textContent = "Upload and let the agents check it";
         if (!res.ok) { $("upErr").textContent = res.j.error; return vis("upErr", true); }
-        $("upFile").value = ""; $("upDrop").classList.remove("has"); $("upName").textContent = "📷 Tap to choose your screenshot";
+        $("upFile").value = ""; $("upDrop").classList.remove("has"); $("upName").innerHTML = svg("camera", "currentColor", 20) + " Tap to choose your screenshot";
         pendingSince = Date.now(); vis("uploadPanel", false); load();
       })
       .catch(function () { btn.disabled = false; btn.textContent = "Upload and let the agents check it"; $("upErr").textContent = "Couldn't upload. Check your connection and try again."; vis("upErr", true); });
@@ -1027,6 +1050,8 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     }).catch(function () { btn.disabled = false; });
   });
 
+  $("upName").innerHTML = svg("camera", "currentColor", 20) + " Tap to choose your screenshot";
+  hud(null, "Agents are docked and ready.");
   renderJourney("build_bot", 1);
   buildList(ROSTERS.sre); scene.setRoster(ROSTERS.sre, "sre");
   if (!KEY) fatal("This page needs your personal link from Amara.");
