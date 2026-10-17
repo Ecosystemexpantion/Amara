@@ -2,7 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { NORMAL_TEMPLATE } from "./normal_template.ts";
 import { PREMIUM_TEMPLATE } from "./premium_template.ts";
 import { modifyForStudent, publishPage, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
-import { startRun, reporter, finishRun, webLink, sleepUntil, WEB_SHOW_MS } from "../_shared/runs.ts";
+import { startRun, reporter, finishRun, webLink, holdAnnouncement, type Announcement } from "../_shared/runs.ts";
+import { sendAnnouncement } from "../amara-bot/announce.ts";
 
 // ---------------------------------------------------------------------------
 // Supabase client (service role — full access)
@@ -351,7 +352,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
 // deno-lint-ignore no-explicit-any
 async function buildPages(student: any, githubToken: string, runId: string | null, isRepair: boolean, watched: boolean): Promise<void> {
-  const startedAt = Date.now();
   const state = String(student.telegram_chat_id);
   const report = reporter(runId);
   const result = await syncStudentPages(githubToken, student.payhip_link, report);
@@ -394,16 +394,9 @@ async function buildPages(student: any, githubToken: string, runId: string | nul
   await report("amara", "done", isRepair ? "Your sales pages are repaired and live 🚀" : `Both sales pages are LIVE 🚀 ${result.normalUrl}`);
   await finishRun(runId, "done");
 
-  if (watched) await sleepUntil(startedAt, WEB_SHOW_MS.pages);
-
-  const studentName = student.full_name ? student.full_name.split(" ")[0] : "there";
-  const links = `📌 <b>Normal page:</b>\n${result.normalUrl}\n\n⭐ <b>Premium page:</b>\n${result.premiumUrl}`;
-  await sendTg(
-    state,
-    isRepair
-      ? `✅ <b>Your sales pages are fixed and updated, ${studentName}!</b>\n\n${links}\n\n<i>Give GitHub a minute or two to publish the changes.</i>`
-      : `🎉 <b>GitHub connected, ${studentName}!</b>\n\nYour two sales pages are live (it may take a minute for GitHub to fully publish them):\n\n${links}\n\n✅ <b>Day 2 is COMPLETE!</b> Day 3 unlocks tomorrow at 8AM Nigeria time.\n\nUntil then I'll stay quiet so you can rest 🤫 — no need to message me. I'll message you the moment it opens 🔔`
-  );
+  const announce: Announcement = { type: "pages_live", isRepair, normalUrl: result.normalUrl!, premiumUrl: result.premiumUrl! };
+  if (watched) await holdAnnouncement(runId, announce);
+  else await sendAnnouncement({ ...student, github_repo_normal: result.normalUrl }, announce);
   await sendTg(
     adminChatId,
     `🔔 ${isRepair ? "Sales pages repaired" : "GitHub setup complete"} for <b>${student.full_name ?? "unknown"}</b> (@${result.username})\n\nNormal: ${result.normalUrl}\nPremium: ${result.premiumUrl}`

@@ -9,6 +9,7 @@ import {
 } from "../amara-bot/day1-content.ts";
 import { aiHealthCheck } from "../_shared/ai.ts";
 import { webLink } from "../_shared/runs.ts";
+import { deliverRunAnnouncement } from "../amara-bot/announce.ts";
 import { PAGES_VERSION, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
 
 // Amara Day Unlock — Cron Job Function
@@ -21,6 +22,7 @@ import { PAGES_VERSION, syncStudentPages, recordPageSync } from "../_shared/page
 // 3. Silence nudge when a student hasn't messaged in 20+ hours
 // 6. AI health check every 3 hours — alerts the admin before students notice
 // 7. Sales page sync — repairs 404s and rolls out new page designs, a few students per run
+// 8. Held "it's done" messages for web builds the student closed before the animation ended
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -481,6 +483,20 @@ Deno.serve(async (_req: Request): Promise<Response> => {
         }
       }
       results.pagesSynced = `${pagesOk}/${due.length}`;
+    }
+
+    // ── 8. Held Telegram announcements (page closed before the show ended) ───
+    {
+      const { data: held } = await supabase
+        .from("sre_runs")
+        .select("id")
+        .not("announce", "is", null)
+        .is("announced_at", null)
+        .lt("updated_at", new Date(now.getTime() - 6 * 60_000).toISOString())
+        .limit(20);
+      let sent = 0;
+      for (const r of held ?? []) if (await deliverRunAnnouncement(r.id).catch(() => false)) sent++;
+      results.heldAnnouncements = sent;
     }
 
     console.log("Cron result:", JSON.stringify(results));

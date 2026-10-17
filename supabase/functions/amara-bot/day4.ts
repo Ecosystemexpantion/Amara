@@ -138,6 +138,8 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   );
   const runId = await startRun(student.id, "certificate", "telegram", "Creating your certificate");
   const r = reporter(runId);
+  await r("intake", "working", "Receiving your signature photo…");
+  await r("intake", "done", `Signature photo received securely (${(photo.bytes.length / 1024).toFixed(0)} KB).`);
   await r("iris", "working", "Reading your signature photo…");
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
   await r("iris", result.verified ? "done" : "failed", result.verified ? "Signature found ✍️" : "I couldn't find a handwritten signature in that photo.");

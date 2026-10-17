@@ -1,6 +1,6 @@
-// Screenshot checks (Day 3 Selar/Payhip, Day 4 bot test) shown on the web as a 4-agent team:
-// Iris reads the screenshot, Judge compares it with the step's checklist, Coach prepares the
-// next instruction, Amara saves progress.
+// Screenshot checks (Day 3 Selar/Payhip, Day 4 bot test) shown on the web as a 5-agent team:
+// Intake receives the image, Iris reads it, Judge compares it with the step's checklist,
+// Coach prepares the next instruction, Amara saves progress.
 import { geminiVision } from "./gemini.ts";
 import { startRun, reporter, finishRun } from "../_shared/runs.ts";
 import type { ScreenshotResult } from "./types.ts";
@@ -13,6 +13,9 @@ export async function checkWithAgents(
 ): Promise<ScreenshotResult> {
   const runId = await startRun(studentId, "check", "telegram", title);
   const r = reporter(runId);
+
+  await r("intake", "working", "Receiving your screenshot…");
+  await r("intake", "done", `Screenshot received securely (${(photo.bytes.length / 1024).toFixed(0)} KB ${photo.mimeType.replace("image/", "").toUpperCase()}).`);
 
   await r("iris", "working", "Reading your screenshot…");
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);

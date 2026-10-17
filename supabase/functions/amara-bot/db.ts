@@ -16,6 +16,11 @@ export async function getStudentByChatId(chatId: string): Promise<Student | null
   return data ?? null;
 }
 
+export async function getStudentById(id: string): Promise<Student | null> {
+  const { data } = await supabase.from("amara_students").select("*").eq("id", id).maybeSingle();
+  return (data as Student) ?? null;
+}
+
 export async function createStudent(chatId: string): Promise<Student> {
   const { data, error } = await supabase
     .from("amara_students")

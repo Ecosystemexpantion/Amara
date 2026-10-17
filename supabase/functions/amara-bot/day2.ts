@@ -2,6 +2,7 @@ import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
 import { advanceStep, getRecentConversation } from "./db.ts";
 import { geminiChat, geminiVisionGuide, AI_FALLBACK_REPLY } from "./gemini.ts";
 import { buildGitHubAuthUrl } from "./github.ts";
+import { webLink } from "../_shared/runs.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 export async function handleDay2(
@@ -28,7 +29,7 @@ async function handleGitHubAccount(
   text: string | null,
   photo: { bytes: Uint8Array; mimeType: string } | null
 ): Promise<void> {
-  const oauthUrl = buildGitHubAuthUrl(String(chatId));
+  const oauthUrl = connectLink(student, chatId);
   const history = await getRecentConversation(student.id, 6);
 
   if (photo) {
@@ -65,7 +66,7 @@ Be warm, short (2-3 sentences), and specific about what you see on their screen.
   const alreadyAsked = history.some(m => m.message.toLowerCase().includes("github account"));
 
   if (isFirstTrigger && !alreadyAsked) {
-    await sendGitHubIntro(chatId);
+    await sendGitHubIntro(chatId, student.web_key);
     return;
   }
 
@@ -79,7 +80,7 @@ Be warm, short (2-3 sentences), and specific about what you see on their screen.
   if (hasAccount) {
     await typeMessage(
       chatId,
-      `Perfect! Now tap the link below — log into your GitHub account and I'll create BOTH your sales pages automatically! 🤖\n\n<a href="${oauthUrl}">👉 Connect GitHub here</a>\n\n<i>📱 On mobile: scroll down to the bottom of that page to find the green <b>Authorize</b> button, then tap it.</i>`
+      `Perfect! Now tap the link below — log into your GitHub account and I'll create BOTH your sales pages automatically! 🤖\n\n<a href="${oauthUrl}">👉 Open your build room and tap Connect GitHub</a>\n\n<i>📱 On mobile: scroll down to the bottom of that page to find the green <b>Authorize</b> button, then tap it.</i>`
     );
     await advanceStep(student.id, 2, 3);
     return;
@@ -107,15 +108,23 @@ IMPORTANT: Do NOT tell the student to create repositories, tap plus icons, or na
   await sendMessage(chatId, reply);
 }
 
-export async function sendGitHubIntro(chatId: number | string): Promise<void> {
+// Day 2 happens on the web: Amara explains it here and hands over the build-room link.
+export async function sendGitHubIntro(chatId: number | string, webKey?: string | null): Promise<void> {
+  const room = webLink(webKey);
   await typeMessage(
     chatId,
-    `Now let's build your <b>TWO sales pages</b> — a normal version and a premium version — fully automated from your Tech Stack 📦\n\nOnce they're live, you'll have real shop links to share and start making sales 💰`
+    `Today your AI team builds your <b>TWO sales pages</b> — a normal and a premium version — using the landing page code and templates from your Tech Stack 📦\n\nOnce they're live, you'll have real shop links to share and start making sales 💰`
   );
   await typeMessage(
     chatId,
-    `To create your pages I need to connect to a <b>GitHub account</b>.\n\nDo you already have a GitHub account, or do I need to help you create one first? 🙋`
+    room
+      ? `Here's all you need to do:\n\n1️⃣ Make sure you have a free <b>GitHub</b> account — no account yet? Create one at <a href="https://github.com/signup">github.com/signup</a> (2 minutes)\n2️⃣ Open your build room and tap <b>Connect GitHub</b>\n3️⃣ On GitHub, scroll down and tap the green <b>Authorize</b> button\n\nYou'll land back in your build room and watch 11 AI agents build both pages live 🤖\n\n👉 <a href="${room}">Open your Day 2 build room</a>`
+      : `To create your pages I need to connect to a <b>GitHub account</b>.\n\nDo you already have a GitHub account, or do I need to help you create one first? 🙋`
   );
+}
+
+function connectLink(student: Student, chatId: number): string {
+  return webLink(student.web_key) ?? buildGitHubAuthUrl(String(chatId));
 }
 
 // Step 3: Waiting for the OAuth callback (github-oauth function will advance to step 0)
@@ -130,7 +139,7 @@ async function handleGitHubOAuth(
     return;
   }
 
-  const oauthUrl = buildGitHubAuthUrl(String(chatId));
+  const oauthUrl = connectLink(student, chatId);
 
   if (photo) {
     const guidance = await geminiVisionGuide(
@@ -173,7 +182,7 @@ Answer their question warmly and briefly, then guide them to scroll down and tap
     if (reply === AI_FALLBACK_REPLY) {
       await typeMessage(
         chatId,
-        `The green <b>Authorize</b> button is at the <b>bottom</b> of the GitHub page — scroll down to find it! 👇\n\nIf you've lost the page, tap here again:\n<a href="${oauthUrl}">👉 Connect GitHub</a>`
+        `The green <b>Authorize</b> button is at the <b>bottom</b> of the GitHub page — scroll down to find it! 👇\n\nIf you've lost the page, tap here again:\n<a href="${oauthUrl}">👉 Open your build room</a>`
       );
     } else {
       await sendMessage(chatId, reply);
@@ -181,10 +190,10 @@ Answer their question warmly and briefly, then guide them to scroll down and tap
     return;
   }
 
-  await typeMessage(chatId, `Still waiting for your GitHub connection 🔗\n\nTap the link below, log in if needed, then <b>scroll down</b> to find the green <b>Authorize</b> button and tap it — I'll create your sales pages automatically after that! 🚀\n\n<a href="${oauthUrl}">👉 Connect GitHub here</a>`);
+  await typeMessage(chatId, `Still waiting for your GitHub connection 🔗\n\nTap the link below, log in if needed, then <b>scroll down</b> to find the green <b>Authorize</b> button and tap it — I'll create your sales pages automatically after that! 🚀\n\n<a href="${oauthUrl}">👉 Open your build room and tap Connect GitHub</a>`);
 }
 
 async function resendOAuthLink(student: Student, chatId: number): Promise<void> {
-  const oauthUrl = buildGitHubAuthUrl(String(chatId));
-  await typeMessage(chatId, `Tap the link below to connect your GitHub account and I'll set up your sales pages automatically:\n\n<a href="${oauthUrl}">👉 Connect GitHub here</a>`);
+  const oauthUrl = connectLink(student, chatId);
+  await typeMessage(chatId, `Tap the link below to connect your GitHub account and I'll set up your sales pages automatically:\n\n<a href="${oauthUrl}">👉 Open your build room and tap Connect GitHub</a>`);
 }

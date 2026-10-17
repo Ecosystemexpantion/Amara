@@ -175,13 +175,13 @@ export async function recordPageSync(db: any, studentId: string, result: SyncRes
 type PageReport = (agent: string, state: "working" | "done" | "failed", text: string) => Promise<void>;
 const noReport: PageReport = async () => {};
 
-// `report` feeds the Day 2 agents on the web page: atlas, forge, pixel, link, beacon, scout.
+// `report` feeds the 11 Day 2 agents on the web page — each one is a real step of the build.
 export async function syncStudentPages(token: string, payhipLink: string | null, report: PageReport = noReport): Promise<SyncResult> {
-  await report("atlas", "working", "Signing in to your GitHub account…");
+  await report("atlas", "working", "Signing in to your GitHub account with the permission you just gave…");
   const me = await gh(token, "/user");
   if (me.status === 401) {
     await me.body?.cancel();
-    await report("atlas", "failed", "GitHub access was removed — tap the GitHub link in Telegram again.");
+    await report("atlas", "failed", "GitHub access was removed — tap Connect GitHub again.");
     return { status: "token_revoked", detail: "GitHub access was removed — the student must reconnect GitHub" };
   }
   if (!me.ok) {
@@ -194,17 +194,23 @@ export async function syncStudentPages(token: string, payhipLink: string | null,
   const startedAt = Date.now() - 5_000;
   let stage = "forge";
   try {
-    await report("forge", "working", `Preparing your two repositories on @${username}…`);
-    const branches = {
-      normal: await ensureRepo(token, username, PAGE_REPOS.normal, "EEM26 Sales Page"),
-      premium: await ensureRepo(token, username, PAGE_REPOS.premium, "EEM26 Premium Sales Page"),
-    };
-    await report("forge", "done", `Repositories ${PAGE_REPOS.normal} and ${PAGE_REPOS.premium} are ready and public.`);
+    await report("forge", "working", `Creating your ${PAGE_REPOS.normal} repository…`);
+    const normalBranch = await ensureRepo(token, username, PAGE_REPOS.normal, "EEM26 Sales Page");
+    await report("forge", "done", `${PAGE_REPOS.normal} is ready and public on @${username}.`);
+
+    stage = "anvil";
+    await report("anvil", "working", `Creating your ${PAGE_REPOS.premium} repository…`);
+    const premiumBranch = await ensureRepo(token, username, PAGE_REPOS.premium, "EEM26 Premium Sales Page");
+    await report("anvil", "done", `${PAGE_REPOS.premium} is ready and public on @${username}.`);
 
     stage = "pixel";
-    await report("pixel", "working", "Designing your normal and premium sales pages…");
+    await report("pixel", "working", "Building your normal sales page from the Tech Stack landing page code…");
     const html = buildPages(payhipLink);
-    await report("pixel", "done", "Both pages designed — Liquid Glass look, real student results and proof videos.");
+    await report("pixel", "done", "Normal page built — real student results, proof videos and the Liquid Glass design.");
+
+    stage = "prism";
+    await report("prism", "working", "Building your premium page from the Tech Stack premium template…");
+    await report("prism", "done", "Premium page built — Coach Victor's done-with-you offer, timeline and slot tracker.");
 
     stage = "link";
     await report("link", "working", "Wiring every buy button to your link…");
@@ -215,18 +221,26 @@ export async function syncStudentPages(token: string, payhipLink: string | null,
       payhipLink ? `${buttons} buy buttons now send buyers to your link: ${payhipLink}` : `${buttons} buy buttons wired — your own Payhip link is added on Day 3.`
     );
 
+    stage = "guard";
+    await report("guard", "working", "Setting the publishing rules so GitHub serves your pages exactly as designed…");
+    await putFile(token, username, PAGE_REPOS.normal, normalBranch, ".nojekyll", "");
+    await putFile(token, username, PAGE_REPOS.premium, premiumBranch, ".nojekyll", "");
+    await report("guard", "done", "Publishing rules set on both repositories.");
+
     stage = "beacon";
-    await report("beacon", "working", "Publishing both pages to the internet…");
-    for (const kind of ["normal", "premium"] as const) {
-      const repo = PAGE_REPOS[kind];
-      await putFile(token, username, repo, branches[kind], ".nojekyll", "");
-      await putFile(token, username, repo, branches[kind], "index.html", html[kind]);
-      await ensurePages(token, username, repo, branches[kind]);
-    }
-    await report("beacon", "done", "Published on GitHub Pages with a secure HTTPS address.");
+    await report("beacon", "working", "Uploading and publishing your normal page…");
+    await putFile(token, username, PAGE_REPOS.normal, normalBranch, "index.html", html.normal);
+    await ensurePages(token, username, PAGE_REPOS.normal, normalBranch);
+    await report("beacon", "done", `Normal page published: https://${username.toLowerCase()}.github.io/${PAGE_REPOS.normal}/`);
+
+    stage = "relay";
+    await report("relay", "working", "Uploading and publishing your premium page…");
+    await putFile(token, username, PAGE_REPOS.premium, premiumBranch, "index.html", html.premium);
+    await ensurePages(token, username, PAGE_REPOS.premium, premiumBranch);
+    await report("relay", "done", `Premium page published: https://${username.toLowerCase()}.github.io/${PAGE_REPOS.premium}/`);
 
     stage = "scout";
-    await report("scout", "working", "Inspecting both pages for errors…");
+    await report("scout", "working", "Inspecting both pages for build errors…");
     for (const repo of Object.values(PAGE_REPOS)) {
       const err = await lastBuildError(token, username, repo, startedAt);
       if (err) {

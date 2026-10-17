@@ -73,6 +73,10 @@ a.link{color:var(--blue);text-decoration:none;font-weight:600}
 .btn:disabled{opacity:.55;cursor:wait}
 .btn.tinted{background:rgba(255,255,255,.12);box-shadow:none}
 .err{margin-top:10px;color:var(--red);font-size:.88rem;line-height:1.45}
+.lead{color:var(--label2);line-height:1.5;font-size:.94rem;margin:-4px 0 14px}
+.drop{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px;padding:22px 14px;border-radius:16px;border:1.5px dashed rgba(255,255,255,.22);background:rgba(0,0,0,.3);color:var(--label2);font-size:.92rem;cursor:pointer;text-align:center;overflow-wrap:anywhere}
+.drop.has{border-color:var(--blue);color:var(--label)}
+.drop img{max-height:120px;max-width:100%;border-radius:10px}
 .hint{margin-top:10px;color:var(--label3);font-size:.82rem;line-height:1.5}
 
 /* Stage */
@@ -163,6 +167,35 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     <p class="hint">Prefer Telegram? Paste the token to Amara there — this page updates live either way.</p>
   </section>
 
+  <section class="panel glass hidden" id="pagesPanel">
+    <h2>Day 2 · Build your two sales pages</h2>
+    <p class="lead">Your AI team takes the landing page code, premium template, images and sales copy from your Tech Stack 📦 and builds both pages for you.</p>
+    <ol class="steps">
+      <li><div>Have a free <b>GitHub</b> account — no account yet? <a class="link" href="https://github.com/signup" target="_blank" rel="noopener">Create one here</a> (2 minutes), then come back</div></li>
+      <li><div>Tap <b>Connect GitHub</b> below</div></li>
+      <li><div>On GitHub, scroll down and tap the green <b>Authorize</b> button</div></li>
+      <li><div>You'll come straight back here to watch <b>11 AI agents</b> build your pages live</div></li>
+    </ol>
+    <a class="btn" id="ghBtn">Connect GitHub</a>
+  </section>
+
+  <section class="panel glass hidden" id="day3Panel">
+    <h2>Day 3 · Your money platforms</h2>
+    <p class="lead">Today you set up <b>Selar</b> — your own storefront — and <b>Payhip</b>, which pays you commission on every sale through your link. Upload a screenshot after each step and your AI agents check it live.</p>
+    <button class="btn" id="readyBtn">I'm ready — start Day 3</button>
+    <div class="err hidden" id="readyErr"></div>
+  </section>
+
+  <section class="panel glass hidden" id="uploadPanel">
+    <h2 id="upTitle"></h2>
+    <ol class="steps" id="upSteps"></ol>
+    <label class="drop" for="upFile" id="upDrop"><span id="upName">📷 Tap to choose your screenshot</span></label>
+    <input type="file" id="upFile" accept="image/*" hidden>
+    <button class="btn" id="upBtn">Upload and let the agents check it</button>
+    <div class="err hidden" id="upErr"></div>
+    <p class="hint">You can also send it to Amara on Telegram — this page updates live either way.</p>
+  </section>
+
   <section class="finale glass hidden" id="finale">
     <div class="confetti" id="confetti"></div>
     <div class="big" id="finIcon">🤖</div>
@@ -205,42 +238,51 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
   var C = { blue: "#0A84FF", green: "#30D158", orange: "#FF9F0A", purple: "#BF5AF2", pink: "#FF375F", teal: "#64D2FF", indigo: "#5E5CE6", yellow: "#FFD60A", mint: "#66D4CF", red: "#FF453A" };
   function A(id, name, role, icon, color, tools) { return { id: id, name: name, role: role, icon: icon, color: color, tools: tools }; }
   function t(code, does) { return { t: code, d: does }; }
-  var LAUNCHER = A("amara", "Amara", "Launcher", "🚀", C.green, [t("SQL", "writing your setup to the database"), t("DB", "saving your progress"), t("UTC", "time-stamping the launch"), t("TX", "making the save all-or-nothing"), t("SaaS", "switching your service on 24/7")]);
-  var RECORDER = A("amara", "Amara", "Progress Keeper", "🚀", C.green, [t("SQL", "updating your record"), t("DB", "saving your progress"), t("UTC", "time-stamping this step"), t("TX", "making the save safe"), t("CRM", "updating your student file")]);
+  var LAUNCHER = A("amara", "Amara", "Launcher", "🚀", C.green, [t("SQL", "writing your setup to the database"), t("DB", "saving your progress"), t("UTC", "time-stamping the launch"), t("TX", "making the save all-or-nothing"), t("ACL", "locking your data to you"), t("SaaS", "switching your service on 24/7")]);
+  var RECORDER = A("amara", "Amara", "Progress Keeper", "🚀", C.green, [t("SQL", "updating your record"), t("DB", "saving your progress"), t("UTC", "time-stamping this step"), t("TX", "making the save safe"), t("ACL", "keeping your file private"), t("CRM", "updating your student file")]);
 
   var ROSTERS = {
     sre: [
-      A("nova", "Nova", "Token Verifier", "🔐", C.teal, [t("API", "calling the Telegram Bot API"), t("HTTPS", "opening a secure request"), t("TLS", "encrypting the line to Telegram"), t("JSON", "reading Telegram's answer"), t("UID", "confirming your bot's identity")]),
-      A("bolt", "Bolt", "Connector", "🔌", C.orange, [t("URL", "building your bot's server address"), t("DNS", "locating Amara's servers"), t("SSL", "checking the security certificate"), t("REST", "registering the webhook"), t("ACK", "waiting for Telegram to confirm")]),
-      A("scribe", "Scribe", "Profile Writer", "✍️", C.blue, [t("NLP", "writing your bot's introduction"), t("UTF-8", "keeping emojis and text safe"), t("CMD", "adding the /start menu"), t("UX", "polishing the first impression"), t("API", "saving the profile to Telegram")]),
-      A("sage", "Sage", "Sales Brain", "🧠", C.purple, [t("LLM", "loading the language model"), t("KB", "adding real student results"), t("CRM", "setting up lead stages"), t("CTA", "tuning the buy-button wording"), t("NLP", "loading objection handling")]),
-      A("echo", "Echo", "Test Customer", "💬", C.pink, [t("QA", "planning the test"), t("NLU", "asking like a real customer"), t("API", "calling the AI"), t("LLM", "generating your bot's reply"), t("JSON", "checking the answer came back")]),
-      A("pulse", "Pulse", "Health Monitor", "🩺", C.mint, [t("HTTP", "checking message delivery"), t("PING", "testing the connection"), t("LOG", "reading the error log"), t("QoS", "measuring delivery quality"), t("SLA", "confirming 24/7 readiness")]),
+      A("nova", "Nova", "Token Verifier", "🔐", C.teal, [t("API", "calling the Telegram Bot API"), t("HTTPS", "opening a secure request"), t("TLS", "encrypting the line to Telegram"), t("JSON", "reading Telegram's answer"), t("UID", "confirming your bot's identity"), t("AUTH", "validating the token")]),
+      A("bolt", "Bolt", "Connector", "🔌", C.orange, [t("URL", "building your bot's server address"), t("DNS", "locating Amara's servers"), t("SSL", "checking the security certificate"), t("REST", "registering the webhook"), t("TCP", "opening the delivery channel"), t("ACK", "waiting for Telegram to confirm")]),
+      A("scribe", "Scribe", "Profile Writer", "✍️", C.blue, [t("NLP", "writing your bot's introduction"), t("UTF-8", "keeping emojis and text safe"), t("CMD", "adding the /start menu"), t("UX", "polishing the first impression"), t("I18N", "keeping the text readable everywhere"), t("API", "saving the profile to Telegram")]),
+      A("sage", "Sage", "Sales Brain", "🧠", C.purple, [t("LLM", "loading the language model"), t("KB", "adding real student results"), t("CRM", "setting up lead stages"), t("CTA", "tuning the buy-button wording"), t("NLP", "loading objection handling"), t("RAG", "linking answers to your knowledge base")]),
+      A("echo", "Echo", "Test Customer", "💬", C.pink, [t("QA", "planning the test"), t("NLU", "asking like a real customer"), t("API", "calling the AI"), t("LLM", "generating your bot's reply"), t("JSON", "checking the answer came back"), t("UX", "rating the reply for buyers")]),
+      A("pulse", "Pulse", "Health Monitor", "🩺", C.mint, [t("HTTP", "checking message delivery"), t("PING", "testing the connection"), t("LOG", "reading the error log"), t("QoS", "measuring delivery quality"), t("SLA", "confirming 24/7 readiness"), t("APM", "watching performance")]),
       LAUNCHER
     ],
     pages: [
-      A("atlas", "Atlas", "GitHub Linker", "🧭", C.teal, [t("OAuth", "using your GitHub permission"), t("SSO", "signing in as you"), t("HTTPS", "opening a secure session"), t("REST", "talking to GitHub's API"), t("API", "reading your account")]),
-      A("forge", "Forge", "Repo Builder", "⚒️", C.orange, [t("Git", "preparing version control"), t("VCS", "creating your page repositories"), t("SHA", "fingerprinting every file"), t("API", "setting repos to public"), t("JSON", "confirming the repos exist")]),
-      A("pixel", "Pixel", "Page Designer", "🎨", C.purple, [t("HTML", "laying out both pages"), t("CSS", "applying the Liquid Glass design"), t("JS", "adding the live countdowns"), t("UI", "placing proof and results"), t("UX", "making it easy to buy")]),
-      A("link", "Link", "Payment Wiring", "🔗", C.pink, [t("DOM", "finding every buy button"), t("HREF", "rewiring each button"), t("URL", "inserting your payment link"), t("CTA", "checking every call to action"), t("UX", "testing the buyer's path")]),
-      A("beacon", "Beacon", "Publisher", "📡", C.blue, [t("CI", "starting the GitHub Pages build"), t("CDN", "spreading your pages worldwide"), t("DNS", "giving them a web address"), t("SSL", "adding the padlock"), t("HTTPS", "serving them securely")]),
-      A("scout", "Scout", "Quality Inspector", "🔍", C.mint, [t("QA", "inspecting both pages"), t("HTTP", "checking they respond"), t("LOG", "reading the build log"), t("CI", "confirming the build passed"), t("DOM", "checking the page structure")]),
+      A("atlas", "Atlas", "GitHub Linker", "🧭", C.teal, [t("OAuth", "using your GitHub permission"), t("SSO", "signing in as you"), t("HTTPS", "opening a secure session"), t("REST", "talking to GitHub's API"), t("API", "reading your account"), t("JWT", "holding your session securely")]),
+      A("forge", "Forge", "Repo Builder", "⚒️", C.orange, [t("Git", "preparing version control"), t("VCS", "creating your sales page repository"), t("SHA", "fingerprinting every file"), t("API", "setting the repo to public"), t("JSON", "confirming the repo exists"), t("ACL", "giving the world read access")]),
+      A("anvil", "Anvil", "Premium Repo Builder", "🛠️", C.yellow, [t("Git", "preparing version control"), t("VCS", "creating your premium repository"), t("SHA", "fingerprinting every file"), t("API", "setting the repo to public"), t("JSON", "confirming the repo exists"), t("ACL", "giving the world read access")]),
+      A("pixel", "Pixel", "Page Designer", "🎨", C.purple, [t("HTML", "landing page code"), t("CSS", "the Liquid Glass design"), t("JS", "live countdowns and slot tracker"), t("SVG", "icons and graphics"), t("UI", "student results and proof videos"), t("UX", "a smooth path to buying")]),
+      A("prism", "Prism", "Premium Designer", "💎", C.pink, [t("HTML", "premium page template"), t("CSS", "the premium look"), t("JS", "the 5-slot exclusivity tracker"), t("UI", "Coach Victor's done-with-you offer"), t("A11Y", "readable on every phone"), t("UX", "a high-ticket buying path")]),
+      A("link", "Link", "Payment Wiring", "🔗", C.blue, [t("DOM", "finding every buy button"), t("HREF", "rewiring each button"), t("URL", "inserting your payment link"), t("CTA", "checking every call to action"), t("UTF-8", "keeping links clean"), t("UX", "testing the buyer's path")]),
+      A("guard", "Guard", "Build Rules", "🛡️", C.indigo, [t("CFG", "writing the publishing rules"), t("YML", "reading the site settings"), t("CI", "skipping the extra build step"), t("SEC", "keeping the pages as designed"), t("API", "saving the rules to GitHub"), t("SHA", "confirming the rule file")]),
+      A("beacon", "Beacon", "Publisher", "📡", C.teal, [t("CI", "starting the GitHub Pages build"), t("CDN", "spreading your page worldwide"), t("DNS", "giving it a web address"), t("SSL", "adding the padlock"), t("HTTPS", "serving it securely"), t("TTL", "setting how fast updates appear")]),
+      A("relay", "Relay", "Premium Publisher", "🛰️", C.orange, [t("CI", "starting the GitHub Pages build"), t("CDN", "spreading your page worldwide"), t("DNS", "giving it a web address"), t("SSL", "adding the padlock"), t("HTTPS", "serving it securely"), t("TTL", "setting how fast updates appear")]),
+      A("scout", "Scout", "Quality Inspector", "🔍", C.mint, [t("QA", "inspecting both pages"), t("HTTP", "checking they respond"), t("LOG", "reading the build log"), t("CI", "confirming the build passed"), t("DOM", "checking the page structure"), t("SEO", "checking titles and descriptions")]),
       LAUNCHER
     ],
     check: [
-      A("iris", "Iris", "Vision Reader", "👁️", C.teal, [t("CV", "running computer vision"), t("OCR", "reading the text on your screen"), t("JPEG", "decoding your screenshot"), t("AI", "understanding the page"), t("LLM", "describing what it sees")]),
-      A("judge", "Judge", "Verifier", "⚖️", C.orange, [t("SOP", "loading this step's checklist"), t("QA", "comparing item by item"), t("AI", "weighing the evidence"), t("JSON", "recording the verdict"), t("LOG", "keeping an audit trail")]),
-      A("coach", "Coach", "Next-Step Writer", "🧑‍🏫", C.purple, [t("NLP", "writing clear instructions"), t("LLM", "tailoring them to you"), t("UX", "keeping it simple"), t("CTA", "deciding your next action"), t("API", "sending it to Telegram")]),
+      A("intake", "Intake", "Upload Receiver", "📥", C.indigo, [t("HTTPS", "receiving your upload securely"), t("TLS", "encrypting the transfer"), t("MIME", "checking the file type"), t("JPEG", "unpacking the image"), t("KB", "measuring the file"), t("SHA", "fingerprinting the upload")]),
+      A("iris", "Iris", "Vision Reader", "👁️", C.teal, [t("CV", "running computer vision"), t("OCR", "reading the text on your screen"), t("JPEG", "decoding your screenshot"), t("AI", "understanding the page"), t("LLM", "describing what it sees"), t("UI", "recognising buttons and menus")]),
+      A("judge", "Judge", "Verifier", "⚖️", C.orange, [t("SOP", "loading this step's checklist"), t("QA", "comparing item by item"), t("AI", "weighing the evidence"), t("RULE", "applying the pass rules"), t("JSON", "recording the verdict"), t("LOG", "keeping an audit trail")]),
+      A("coach", "Coach", "Next-Step Writer", "🧑‍🏫", C.purple, [t("NLP", "writing clear instructions"), t("LLM", "tailoring them to you"), t("UX", "keeping it simple"), t("CTA", "deciding your next action"), t("UTF-8", "adding the right emojis"), t("API", "sending it to Telegram")]),
       RECORDER
     ],
     certificate: [
-      A("iris", "Iris", "Signature Reader", "👁️", C.teal, [t("CV", "running computer vision"), t("OCR", "finding your handwriting"), t("JPEG", "decoding the photo"), t("AI", "confirming it's a signature"), t("PNG", "preparing it for the certificate")]),
-      A("quill", "Quill", "Certificate Designer", "🖋️", C.purple, [t("PDF", "creating the document"), t("A4", "setting the page size"), t("TTF", "typesetting your name"), t("PNG", "placing logo and signature"), t("RGB", "applying the colours")]),
-      A("seal", "Seal", "Authenticator", "🏅", C.orange, [t("ID", "assigning your certificate number"), t("UTC", "dating the certificate"), t("META", "writing document details"), t("PDF", "sealing the file"), t("QA", "final quality check")]),
-      A("courier", "Courier", "Delivery", "📦", C.blue, [t("MIME", "packaging the PDF"), t("API", "calling Telegram"), t("HTTPS", "opening a secure upload"), t("TLS", "encrypting the transfer"), t("PDF", "delivering your certificate")]),
+      A("intake", "Intake", "Upload Receiver", "📥", C.indigo, [t("HTTPS", "receiving your photo securely"), t("TLS", "encrypting the transfer"), t("MIME", "checking the file type"), t("JPEG", "unpacking the image"), t("KB", "measuring the file"), t("SHA", "fingerprinting the upload")]),
+      A("iris", "Iris", "Signature Reader", "👁️", C.teal, [t("CV", "running computer vision"), t("OCR", "finding your handwriting"), t("JPEG", "decoding the photo"), t("AI", "confirming it's a signature"), t("ROI", "cropping to the signature"), t("PNG", "preparing it for the certificate")]),
+      A("quill", "Quill", "Certificate Designer", "🖋️", C.purple, [t("PDF", "creating the document"), t("A4", "setting the page size"), t("TTF", "typesetting your name"), t("PNG", "placing logo and signature"), t("RGB", "applying the colours"), t("DPI", "keeping it print-sharp")]),
+      A("seal", "Seal", "Authenticator", "🏅", C.orange, [t("ID", "assigning your certificate number"), t("UTC", "dating the certificate"), t("META", "writing document details"), t("PDF", "sealing the file"), t("SHA", "fingerprinting the certificate"), t("QA", "final quality check")]),
+      A("courier", "Courier", "Delivery", "📦", C.blue, [t("MIME", "packaging the PDF"), t("API", "calling Telegram"), t("HTTPS", "opening a secure upload"), t("TLS", "encrypting the transfer"), t("CDN", "delivering it fast"), t("PDF", "handing over your certificate")]),
       RECORDER
     ]
   };
+  // Days 2–4 play slower than Day 1 so every step gets its moment.
+  var TEMPO = { sre: 1, pages: 1.2, check: 1.15, certificate: 1.15 };
+  var tempo = 1;
   var DEST = { sre: "TELEGRAM", pages: "GITHUB", check: "TELEGRAM", certificate: "TELEGRAM" };
   var KIND_TITLE = { sre: "Day 1 · Building your AI sales bot", pages: "Day 2 · Building your sales pages", check: "Checking your step", certificate: "Day 4 · Creating your certificate" };
   var DAYS = [["DAY 1", "AI Bot"], ["DAY 2", "Pages"], ["DAY 3", "Stores"], ["DAY 4", "Go Live"]];
@@ -248,7 +290,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function vis(id, on) { $(id).classList.toggle("hidden", !on); }
-  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms * SPEED); }); }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms * SPEED * tempo); }); }
 
   // ══════════════════════════════════════════════════════════════════════════
   // Scene: the Amara Core reactor, a ring of tool stations and a docking bay.
@@ -277,12 +319,17 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       if (!stars.length) for (var i = 0; i < 90; i++) stars.push({ x: Math.random(), y: Math.random(), z: Math.random(), p: Math.random() * 6 });
     }
     function layoutDock() {
-      var n = agents.length, m = 30, gap = n > 1 ? (W - m * 2) / (n - 1) : 0;
+      var n = agents.length, rows = n > 8 ? 2 : 1, per = Math.ceil(n / rows), m = 30;
       agents.forEach(function (a, i) {
-        a.hx = n > 1 ? m + gap * i : W / 2; a.hy = H - 40;
+        var row = Math.floor(i / per), col = i % per, count = row === rows - 1 ? n - per * (rows - 1) : per;
+        var gap = count > 1 ? (W - m * 2) / (count - 1) : 0;
+        a.hx = count > 1 ? m + gap * col : W / 2;
+        a.hy = rows === 2 ? H - 76 + row * 44 : H - 40;
         if (!a.flying) { a.x = a.hx; a.y = a.hy; }
       });
+      compact = rows === 2;
     }
+    var compact = false, ringLabel = "";
     function toolPos(j, n) {
       var a0 = Math.PI * 1.08, a1 = Math.PI * 1.92;
       var a = n > 1 ? a0 + (a1 - a0) * (j / (n - 1)) : Math.PI * 1.5;
@@ -295,7 +342,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     // ── tweening ──
     function ease(x) { return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
     function tween(dur, step) {
-      return new Promise(function (resolve) { tweens.push({ t0: clock, dur: dur * SPEED, step: step, done: resolve }); });
+      return new Promise(function (resolve) { tweens.push({ t0: clock, dur: dur * SPEED * tempo, step: step, done: resolve }); });
     }
     function fly(obj, tx, ty, dur, lift) {
       var sx = obj.x, sy = obj.y, mx = (sx + tx) / 2, my = Math.min(sy, ty) - (lift == null ? 70 : lift);
@@ -319,6 +366,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
         agents = roster.map(function (r) { return { id: r.id, name: r.name, icon: r.icon, color: r.color, status: "idle", x: 0, y: 0, hx: 0, hy: 0, trail: [], bob: Math.random() * 6, carry: null, scale: 1 }; });
         tools = []; packets = []; beams = []; core.progress = 0; core.color = C.blue;
         dest.label = DEST[kind] || "TELEGRAM";
+        ringLabel = kind === "pages" ? "YOUR TECH STACK 📦" : kind === "sre" ? "TECH STACK TOOLS" : "AGENT TOOLS";
         layoutDock();
       },
       setStatus: function (i, st) { if (agents[i]) agents[i].status = st; },
@@ -464,6 +512,11 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       ctx.restore();
     }
     function drawTools() {
+      if (tools.length && ringLabel) {
+        ctx.save(); ctx.fillStyle = "rgba(235,235,245,.5)"; ctx.font = "600 9px Inter, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText(ringLabel, core.x, Math.max(14, core.y - core.R * 0.92 - 30));
+        ctx.restore();
+      }
       tools.forEach(function (tl) {
         if (tl.state === "done" || tl.s <= 0.01) return;
         var r = 21 * tl.s;
@@ -508,7 +561,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
         // carried tool rides above the agent
         if (a.carry) { a.carry.x = x + 16; a.carry.y = y - 24; }
         ctx.save();
-        var r = active ? 19 : 16;
+        var r = active ? 19 : compact ? 13 : 16;
         ctx.shadowColor = a.color; ctx.shadowBlur = active ? 26 : 10;
         var g = ctx.createRadialGradient(x - r * .3, y - r * .4, 2, x, y, r);
         g.addColorStop(0, "rgba(255,255,255,.35)"); g.addColorStop(1, rgba(a.color, active ? .55 : .28));
@@ -522,14 +575,14 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
           ctx.beginPath(); ctx.arc(x, y, r + 6, s, s + 1.4); ctx.stroke();
           ctx.beginPath(); ctx.arc(x, y, r + 6, s + Math.PI, s + Math.PI + 1.4); ctx.stroke();
         }
-        ctx.font = (active ? 17 : 14) + "px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif";
+        ctx.font = (active ? 17 : compact ? 12 : 14) + "px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif";
         ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(a.icon, x, y + 1);
         if (a.status === "done" || a.status === "failed") {
           ctx.fillStyle = a.status === "done" ? C.green : C.red;
           ctx.beginPath(); ctx.arc(x + r * .75, y - r * .75, 6, 0, Math.PI * 2); ctx.fill();
           ctx.fillStyle = "#000"; ctx.font = "700 8px Inter, sans-serif"; ctx.fillText(a.status === "done" ? "✓" : "!", x + r * .75, y - r * .75 + .5);
         }
-        if (!a.flying && !active) {
+        if (!a.flying && !active && !compact) {
           ctx.fillStyle = a.status === "idle" ? "rgba(235,235,245,.45)" : "rgba(235,235,245,.8)";
           ctx.font = "600 9px Inter, sans-serif"; ctx.fillText(a.name, x, y + r + 11);
         }
@@ -636,7 +689,9 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
 
   async function play(run, tk) {
     show.playing = true; show.finished = false;
+    tempo = TEMPO[run.kind] || 1;
     var roster = ROSTERS[run.kind] || ROSTERS.sre;
+    var fromStack = run.kind === "pages" || run.kind === "sre";
     buildList(roster); scene.setRoster(roster, run.kind);
     $("stageTitle").textContent = run.title || KIND_TITLE[run.kind] || "Your AI agents";
     $("log").dataset.fresh = "0";
@@ -649,13 +704,13 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       hud(a, "Undocking and flying to the Amara Core…");
       log("<b>" + esc(a.name.toUpperCase()) + "</b> undocked · " + esc(a.role));
       await scene.enter(i);
-      hud(a, "Scanning the tool ring for the right technology…");
+      hud(a, fromStack ? "Opening your Tech Stack 📦 and choosing the right software…" : "Scanning the tool ring for the right technology…");
       await scene.loadTools(i, a.tools);
       for (var j = 0; j < a.tools.length; j++) {
         if (tk !== show.token) return;
         var tl = a.tools[j];
-        hud(a, "Picking <b>" + esc(tl.t) + "</b> — " + esc(tl.d) + "…");
-        log(esc(a.name.toUpperCase()) + " ⟶ picked <b>" + esc(tl.t) + "</b> for the core · " + esc(tl.d));
+        hud(a, "Picking <b>" + esc(tl.t) + "</b>" + (fromStack ? " from your Tech Stack 📦" : "") + " — " + esc(tl.d) + "…");
+        log(esc(a.name.toUpperCase()) + " ⟶ picked <b>" + esc(tl.t) + "</b>" + (fromStack ? " from the Tech Stack" : "") + " · " + esc(tl.d));
         await scene.pick(i, j);
       }
       if (tk !== show.token) return;
@@ -675,6 +730,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
           for (var k = i + 1; k < roster.length; k++) { rowState(k, "skipped", "Skipped", "Not needed after the stop above"); scene.setStatus(k, "idle"); }
           progress(i, roster.length, "Stopped at " + a.name);
           hud(a, "Stopped — see the details below.");
+          shown(run);
           return finale(run, false);
         }
       }
@@ -684,7 +740,13 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     progress(roster.length, roster.length, "All " + roster.length + " agents finished");
     hud(null, passed ? "All agents finished — mission complete." : "Finished — this step needs another try.");
     log(passed ? '<span class="ok">Mission complete ✓</span>' : '<span class="bad">Finished — this step needs another try</span>');
+    shown(run);
     finale(run, passed);
+  }
+
+  // Tells the server the student has watched the build, so Amara's Telegram message goes out now.
+  function shown(run) {
+    fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ k: KEY, action: "shown", run: run.id }) }).catch(function () {});
   }
 
   function renderStatic(run) {
@@ -779,30 +841,55 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       } else renderStatic(run);
     }
     if (!run && !show.runId) {
-      var roster = ROSTERS[d.phase === "day3" || d.phase === "day4" ? "check" : d.phase === "day2" ? "pages" : "sre"];
-      buildList(roster); scene.setRoster(roster, "sre"); progress(0, 1, "Standing by");
+      var kind = /pages/.test(d.phase) ? "pages" : /day3|day4/.test(d.phase) ? (d.upload && d.upload.label === "Signature" ? "certificate" : "check") : "sre";
+      buildList(ROSTERS[kind]); scene.setRoster(ROSTERS[kind], kind); progress(0, 1, "Standing by");
     }
 
     var busy = show.playing || (run && run.status === "running");
+    if (pendingSince && (busy || Date.now() - pendingSince > 30000)) pendingSince = 0;
+    var waiting = !!pendingSince;
     vis("buildPanel", d.phase === "build_bot" && !busy);
+    vis("pagesPanel", d.phase === "build_pages" && !busy);
+    if (d.githubConnectUrl) $("ghBtn").href = d.githubConnectUrl;
+    vis("day3Panel", d.phase === "day3_start" && !busy);
+    var up = d.upload && !busy && !waiting ? UPLOAD_STEPS[d.upload.label] : null;
+    vis("uploadPanel", !!up);
+    if (up) {
+      $("upTitle").textContent = up[0];
+      $("upSteps").innerHTML = up[1].map(function (x) { return "<li><div>" + x + "</div></li>"; }).join("");
+    }
     vis("infoPanel", false);
     if (busy) {
       $("hello").innerHTML = "Hi " + name + " — <span>your team is on it</span>";
       $("status").textContent = "Watch each agent fly out, collect its tools and hand them to the Amara Core for processing.";
+    } else if (waiting) {
+      $("hello").innerHTML = "Hi " + name + " — <span>agents incoming</span>";
+      $("status").textContent = "Your upload reached Amara — the agents are starting…";
     } else if (d.phase === "build_bot") {
       $("hello").innerHTML = "Hi " + name + " — <span>let's build your AI bot</span>";
       $("status").textContent = "Create your bot with BotFather, paste the token here, and watch 7 AI agents set it up for you live.";
+    } else if (d.phase === "build_pages") {
+      $("hello").innerHTML = "Hi " + name + " — <span>Day 2 is unlocked</span>";
+      $("status").textContent = "Connect GitHub and watch 11 AI agents build your two sales pages from your Tech Stack 📦.";
+    } else if (d.phase === "day3_start") {
+      $("hello").innerHTML = "Hi " + name + " — <span>Day 3 is here</span>";
+      $("status").textContent = "Set up your two money platforms. Your AI agents check every screenshot you upload.";
+    } else if (d.upload) {
+      $("hello").innerHTML = "Hi " + name + " — <span>" + (d.day === 4 ? "final day" : "Day 3") + "</span>";
+      $("status").textContent = d.upload.hint;
     } else {
       var msg = {
         onboarding: ["Let's get you started", "Finish your quick sign-up with Amara on Telegram, then come back here to watch your AI team build your bot."],
         bot_live: ["Day 1 complete 🎉", "Your bot is live. Get your Tech Stack and send Amara your payment screenshot to unlock Day 2 — you'll watch your sales pages being built right here."],
+        pages_live: ["Day 2 complete 🎉", "Your two sales pages are live. Day 3 unlocks tomorrow at 8AM Nigeria time — Amara will message you."],
+        day3_done: ["Day 3 complete 🎉", "Selar and Payhip are set up. Day 4 — your final day — unlocks tomorrow at 8AM Nigeria time."],
         graduated: ["You're an EEM26 graduate 🎓", "Your setup is complete. Keep growing with Amara and Coach Victor."]
       }[d.phase] || ["You're on Day " + d.day, "Keep going with Amara on Telegram — your AI agents appear here whenever they work on your setup."];
       $("hello").innerHTML = "Hi " + name + " 👋";
       $("status").textContent = msg[1];
       if (!show.finished) { $("infoTitle").textContent = msg[0]; vis("infoPanel", true); }
     }
-    schedule(busy ? 1000 : 5000);
+    schedule(busy || waiting ? 1000 : 5000);
   }
 
   var timer = null;
@@ -850,6 +937,62 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     (navigator.clipboard ? navigator.clipboard.writeText(b.dataset.copy) : Promise.reject()).catch(function () {}).then(function () {
       var em = b.querySelector("em"); if (em) { em.textContent = "Copied ✓"; setTimeout(function () { em.textContent = "Copy"; }, 1400); }
     });
+  });
+
+  var UPLOAD_STEPS = {
+    "Selar screenshot": ["Day 3 · Selar account", ['Go to <a class="link" href="https://selar.com/register" target="_blank" rel="noopener">selar.com/register</a> and sign up as a <b>CREATOR</b> (not affiliate)', "Take a screenshot of the sign-up page — or your dashboard if you already have an account", "Upload it below"]],
+    "Selar dashboard": ["Day 3 · Selar dashboard", ["Finish your Selar registration and verify your email", "Open your Selar <b>creator dashboard</b>", "Screenshot it and upload it below"]],
+    "Payhip dashboard": ["Day 3 · Payhip account", ['Use this exact link: <a class="link" href="https://payhip.com/auth/register/af650fe07ce1c3c" target="_blank" rel="noopener">payhip.com/auth/register/af650fe07ce1c3c</a>', 'Fill in the <b>"Join as an Affiliate"</b> form and tap <b>Create account</b>', "Screenshot the form or your Payhip dashboard and upload it below"]],
+    "Bot test": ["Day 4 · Test your bot", ["Open Telegram and search for your bot's username", "Send it any message, like <b>Hi</b>", "Screenshot your bot replying and upload it below"]],
+    "Signature": ["Day 4 · Your signature", ["Sign your name on any paper", "Take a clear, well-lit photo of it", "Upload it below — it goes on your certificate 🎓"]]
+  };
+  var pendingSince = 0;
+
+  function compress(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 1600 / Math.max(img.width, img.height));
+        var c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(img.src);
+        resolve(c.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  function post(body) {
+    body.k = KEY;
+    return fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+  }
+
+  $("upFile").addEventListener("change", function () {
+    var f = $("upFile").files[0]; if (!f) return;
+    $("upDrop").classList.add("has");
+    $("upName").innerHTML = '<img alt="" src="' + URL.createObjectURL(f) + '">';
+  });
+  $("upBtn").addEventListener("click", function () {
+    var f = $("upFile").files[0]; vis("upErr", false);
+    if (!f) { $("upErr").textContent = "Choose a screenshot first."; return vis("upErr", true); }
+    var btn = $("upBtn"); btn.disabled = true; btn.textContent = "Sending to your agents…";
+    compress(f).then(function (dataUrl) { return post({ action: "upload", image: dataUrl.split(",")[1], mime: "image/jpeg" }); })
+      .then(function (res) {
+        btn.disabled = false; btn.textContent = "Upload and let the agents check it";
+        if (!res.ok) { $("upErr").textContent = res.j.error; return vis("upErr", true); }
+        $("upFile").value = ""; $("upDrop").classList.remove("has"); $("upName").textContent = "📷 Tap to choose your screenshot";
+        pendingSince = Date.now(); vis("uploadPanel", false); load();
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = "Upload and let the agents check it"; $("upErr").textContent = "Couldn't upload. Check your connection and try again."; vis("upErr", true); });
+  });
+  $("readyBtn").addEventListener("click", function () {
+    var btn = $("readyBtn"); btn.disabled = true; vis("readyErr", false);
+    post({ action: "ready" }).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { $("readyErr").textContent = res.j.error; return vis("readyErr", true); }
+      vis("day3Panel", false); setTimeout(load, 2500);
+    }).catch(function () { btn.disabled = false; });
   });
 
   renderJourney("build_bot", 1);
