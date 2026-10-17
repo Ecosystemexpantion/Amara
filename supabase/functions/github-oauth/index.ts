@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { NORMAL_TEMPLATE } from "./normal_template.ts";
 import { PREMIUM_TEMPLATE } from "./premium_template.ts";
 import { modifyForStudent, publishPage, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
+import { startRun, reporter, finishRun, webLink, sleepUntil, WEB_SHOW_MS } from "../_shared/runs.ts";
 
 // ---------------------------------------------------------------------------
 // Supabase client (service role — full access)
@@ -330,18 +331,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Reconnecting after Day 2 repairs and re-publishes the pages instead of redoing the day.
   const isRepair = !!student.day2_completed_at;
-  const now = new Date().toISOString();
 
   await supabase
     .from("amara_students")
-    .update({ github_access_token: githubToken, github_username: githubUsername, updated_at: now })
+    .update({ github_access_token: githubToken, github_username: githubUsername, updated_at: new Date().toISOString() })
     .eq("id", student.id);
 
-  const result = await syncStudentPages(githubToken, student.payhip_link);
+  // The student is sent to the live page to watch the Day 2 agents; the build runs in the background.
+  const live = webLink(student.web_key);
+  const runId = await startRun(student.id, "pages", "web", isRepair ? "Repairing your sales pages" : "Building your two sales pages");
+  const work = buildPages(student, githubToken, runId, isRepair, !!live).catch((e) => console.error("Page build error:", e));
+  if (live && typeof EdgeRuntime !== "undefined") {
+    (EdgeRuntime as unknown as { waitUntil: (p: Promise<unknown>) => void }).waitUntil(work);
+    return Response.redirect(live, 302);
+  }
+  await work;
+  return htmlResponse(SUCCESS_HTML, 200);
+});
+
+// deno-lint-ignore no-explicit-any
+async function buildPages(student: any, githubToken: string, runId: string | null, isRepair: boolean, watched: boolean): Promise<void> {
+  const startedAt = Date.now();
+  const state = String(student.telegram_chat_id);
+  const report = reporter(runId);
+  const result = await syncStudentPages(githubToken, student.payhip_link, report);
   await recordPageSync(supabase, student.id, result);
   const adminChatId = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
 
   if (result.status !== "ok") {
+    await finishRun(runId, "failed");
     console.error("Page setup failed:", result.detail);
     await sendTg(adminChatId, `⚠️ <b>Sales page setup failed</b> for <b>${student.full_name ?? "unknown"}</b> (🆔 <code>${state}</code>)\n\n<code>${result.detail.replace(/</g, "&lt;").slice(0, 400)}</code>`);
     await sendTg(
@@ -350,9 +368,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ? "Almost there! 📧 GitHub needs you to <b>verify your email</b> before your pages can go live.\n\nOpen the email GitHub sent you, tap <b>Verify</b>, then tap the GitHub link I sent you again 🙏"
         : "Small hiccup setting up your pages — tap the GitHub link again and it should go through! 😅"
     );
-    return htmlResponse(RETRY_HTML, 200);
+    return;
   }
 
+  await report("amara", "working", "Saving your pages and updating your progress…");
+  const now = new Date().toISOString();
   await supabase
     .from("amara_students")
     .update({
@@ -371,6 +391,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
           }),
     })
     .eq("id", student.id);
+  await report("amara", "done", isRepair ? "Your sales pages are repaired and live 🚀" : `Both sales pages are LIVE 🚀 ${result.normalUrl}`);
+  await finishRun(runId, "done");
+
+  if (watched) await sleepUntil(startedAt, WEB_SHOW_MS.pages);
 
   const studentName = student.full_name ? student.full_name.split(" ")[0] : "there";
   const links = `📌 <b>Normal page:</b>\n${result.normalUrl}\n\n⭐ <b>Premium page:</b>\n${result.premiumUrl}`;
@@ -384,30 +408,5 @@ Deno.serve(async (req: Request): Promise<Response> => {
     adminChatId,
     `🔔 ${isRepair ? "Sales pages repaired" : "GitHub setup complete"} for <b>${student.full_name ?? "unknown"}</b> (@${result.username})\n\nNormal: ${result.normalUrl}\nPremium: ${result.premiumUrl}`
   );
+}
 
-  return htmlResponse(SUCCESS_HTML, 200);
-});
-
-const RETRY_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Almost there!</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-    .card { background: #161b22; border: 1px solid #30363d; border-radius: 16px; padding: 40px 32px; max-width: 420px; width: 100%; text-align: center; }
-    .emoji { font-size: 56px; margin-bottom: 16px; }
-    h1 { font-size: 22px; font-weight: 700; margin-bottom: 12px; color: #d29922; }
-    p { font-size: 16px; line-height: 1.6; color: #8b949e; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="emoji">&#x1F504;</div>
-    <h1>Almost there!</h1>
-    <p>Go back to Telegram — Amara has sent you the next step.</p>
-  </div>
-</body>
-</html>`;

@@ -172,31 +172,74 @@ export async function recordPageSync(db: any, studentId: string, result: SyncRes
 
 // ── Sync one student ─────────────────────────────────────────────────────────
 
-export async function syncStudentPages(token: string, payhipLink: string | null): Promise<SyncResult> {
+type PageReport = (agent: string, state: "working" | "done" | "failed", text: string) => Promise<void>;
+const noReport: PageReport = async () => {};
+
+// `report` feeds the Day 2 agents on the web page: atlas, forge, pixel, link, beacon, scout.
+export async function syncStudentPages(token: string, payhipLink: string | null, report: PageReport = noReport): Promise<SyncResult> {
+  await report("atlas", "working", "Signing in to your GitHub account…");
   const me = await gh(token, "/user");
   if (me.status === 401) {
     await me.body?.cancel();
+    await report("atlas", "failed", "GitHub access was removed — tap the GitHub link in Telegram again.");
     return { status: "token_revoked", detail: "GitHub access was removed — the student must reconnect GitHub" };
   }
-  if (!me.ok) return { status: "error", detail: `GitHub /user → ${me.status}` };
+  if (!me.ok) {
+    await report("atlas", "failed", "GitHub didn't answer — please try again in a minute.");
+    return { status: "error", detail: `GitHub /user → ${me.status}` };
+  }
   const username: string = (await me.json()).login;
+  await report("atlas", "done", `Connected to GitHub as @${username}.`);
 
   const startedAt = Date.now() - 5_000;
+  let stage = "forge";
   try {
-    const html = buildPages(payhipLink);
-    await publishPage(token, username, PAGE_REPOS.normal, "EEM26 Sales Page", html.normal);
-    await publishPage(token, username, PAGE_REPOS.premium, "EEM26 Premium Sales Page", html.premium);
+    await report("forge", "working", `Preparing your two repositories on @${username}…`);
+    const branches = {
+      normal: await ensureRepo(token, username, PAGE_REPOS.normal, "EEM26 Sales Page"),
+      premium: await ensureRepo(token, username, PAGE_REPOS.premium, "EEM26 Premium Sales Page"),
+    };
+    await report("forge", "done", `Repositories ${PAGE_REPOS.normal} and ${PAGE_REPOS.premium} are ready and public.`);
 
+    stage = "pixel";
+    await report("pixel", "working", "Designing your normal and premium sales pages…");
+    const html = buildPages(payhipLink);
+    await report("pixel", "done", "Both pages designed — Liquid Glass look, real student results and proof videos.");
+
+    stage = "link";
+    await report("link", "working", "Wiring every buy button to your link…");
+    const buttons = (html.normal.match(/buy-trigger/g)?.length ?? 0) + (html.premium.match(/buy-trigger/g)?.length ?? 0);
+    await report(
+      "link",
+      "done",
+      payhipLink ? `${buttons} buy buttons now send buyers to your link: ${payhipLink}` : `${buttons} buy buttons wired — your own Payhip link is added on Day 3.`
+    );
+
+    stage = "beacon";
+    await report("beacon", "working", "Publishing both pages to the internet…");
+    for (const kind of ["normal", "premium"] as const) {
+      const repo = PAGE_REPOS[kind];
+      await putFile(token, username, repo, branches[kind], ".nojekyll", "");
+      await putFile(token, username, repo, branches[kind], "index.html", html[kind]);
+      await ensurePages(token, username, repo, branches[kind]);
+    }
+    await report("beacon", "done", "Published on GitHub Pages with a secure HTTPS address.");
+
+    stage = "scout";
+    await report("scout", "working", "Inspecting both pages for errors…");
     for (const repo of Object.values(PAGE_REPOS)) {
       const err = await lastBuildError(token, username, repo, startedAt);
       if (err) {
         const unverified = /verif/i.test(err) && /email/i.test(err);
+        await report("scout", "failed", unverified ? "GitHub needs you to verify your email first — check your inbox." : `GitHub reported a problem: ${err}`);
         return { status: unverified ? "email_unverified" : "error", detail: `${repo}: ${err}`, username };
       }
     }
+    await report("scout", "done", "No errors found — both pages pass inspection.");
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const unverified = /verif/i.test(msg) && /email/i.test(msg);
+    await report(stage, "failed", unverified ? "GitHub needs you to verify your email first — check your inbox." : "GitHub hit a problem — Amara has been alerted.");
     return { status: unverified ? "email_unverified" : "error", detail: msg.slice(0, 400), username };
   }
 

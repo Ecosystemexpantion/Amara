@@ -4,7 +4,8 @@ import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } 
 import { notifyAdmin, studentLabel, describePosition } from "./admin.ts";
 import { sendGitHubIntro } from "./day2.ts";
 import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, sreIntroMessages, suggestedBotNames, legacyUpgradeMessage } from "./day1-content.ts";
-import { startRun, runSreBuild, webLink } from "./sre-pipeline.ts";
+import { startSreRun, runSreBuild, webLink } from "./sre-pipeline.ts";
+import { WEB_SHOW_MS, sleepUntil } from "../_shared/runs.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
@@ -147,7 +148,7 @@ function misplacedBotFatherInput(text: string, username: string, displayName: st
 
 async function setupStudentBot(student: Student, chatId: number, token: string, day: 1 | 3): Promise<void> {
   const link = webLink(student.web_key);
-  const runId = await startRun(student.id, "telegram");
+  const runId = await startSreRun(student.id, "telegram");
   await typeMessage(
     chatId,
     link
@@ -171,10 +172,14 @@ async function setupStudentBot(student: Student, chatId: number, token: string, 
 // Started from the web page; the page follows progress through sre_runs.
 export async function buildSreFromWeb(student: Student, token: string): Promise<{ runId: string; done: Promise<void> }> {
   const day: 1 | 3 = student.current_day === 3 ? 3 : 1;
-  const runId = await startRun(student.id, "web");
+  const startedAt = Date.now();
+  const runId = await startSreRun(student.id, "web");
+  if (!runId) throw new Error("Couldn't start the build log");
   const done = (async () => {
     const outcome = await runSreBuild(runId, student, token, (botUsername, webhookUrl) => saveSreResult(student, token, botUsername, webhookUrl, day));
-    if (outcome.ok) await announceSreLive(student, student.telegram_chat_id, outcome.botUsername, day);
+    if (!outcome.ok) return;
+    await sleepUntil(startedAt, WEB_SHOW_MS.sre);
+    await announceSreLive(student, student.telegram_chat_id, outcome.botUsername, day);
   })();
   return { runId, done };
 }

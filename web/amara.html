@@ -4,16 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Amara Live</title>
-<meta name="description" content="Watch Amara's AI team build your EEM26 sales bot live.">
+<meta name="description" content="Watch Amara's AI agents set up your EEM26 business live.">
 <meta name="theme-color" content="#060914">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#060914;--panel:rgba(18,24,48,.72);--panel2:rgba(26,34,66,.6);--line:rgba(140,160,255,.16);
+  --bg:#060914;--panel:rgba(18,24,48,.74);--panel2:rgba(26,34,66,.6);--line:rgba(140,160,255,.16);
   --text:#e9ecff;--muted:#8d95c2;--dim:#5b628d;
-  --cyan:#22d3ee;--amber:#fbbf24;--violet:#a78bfa;--pink:#f472b6;--green:#34d399;--red:#f87171;
+  --cyan:#22d3ee;--amber:#fbbf24;--violet:#a78bfa;--pink:#f472b6;--green:#34d399;--red:#f87171;--sky:#60a5fa;--teal:#2dd4bf;
   --radius:20px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -27,6 +27,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
   background-image:linear-gradient(rgba(140,160,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(140,160,255,.05) 1px,transparent 1px);
   background-size:36px 36px;mask-image:linear-gradient(180deg,#000 0%,transparent 75%)}
 .wrap{max-width:760px;margin:0 auto;padding:16px 16px 48px}
+.mono{font-family:"JetBrains Mono",monospace}
 
 /* Top bar */
 .top{display:flex;align-items:center;justify-content:space-between;padding:6px 0 18px}
@@ -35,6 +36,8 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .orb::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--bg)}
 .live{display:inline-flex;align-items:center;gap:7px;font-size:.72rem;font-weight:600;letter-spacing:.14em;color:var(--green);padding:6px 11px;border:1px solid rgba(52,211,153,.35);border-radius:999px;background:rgba(52,211,153,.08)}
 .live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.3s infinite}
+.live.replay{color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
+.live.replay i{background:var(--amber)}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes blink{50%{opacity:.25}}
 
@@ -61,71 +64,105 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .steps li::before{content:counter(s);flex:0 0 26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:.8rem;font-weight:700;color:var(--text);background:rgba(167,139,250,.2);border:1px solid rgba(167,139,250,.45)}
 .steps b{color:var(--text)}
 .copy{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-family:"JetBrains Mono",monospace;font-size:.82rem;color:var(--text);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:10px;padding:7px 10px;cursor:pointer;max-width:100%;overflow-wrap:anywhere;text-align:left}
-.copy:active{transform:scale(.98)}
 .copy em{font-style:normal;color:var(--cyan);font-family:"Space Grotesk",sans-serif;font-size:.72rem;letter-spacing:.06em}
 a.link{color:var(--cyan);text-decoration:none;font-weight:600}
-
 .field{margin-top:16px}
 .field label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:8px}
 .field textarea{width:100%;min-height:74px;resize:vertical;font-family:"JetBrains Mono",monospace;font-size:.85rem;color:var(--text);background:rgba(4,7,18,.65);border:1px solid var(--line);border-radius:14px;padding:12px;outline:none}
 .field textarea:focus{border-color:rgba(167,139,250,.7);box-shadow:0 0 0 3px rgba(167,139,250,.18)}
-.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:12px;padding:15px 18px;border:0;border-radius:14px;cursor:pointer;font:600 1rem "Space Grotesk",sans-serif;color:#0a0f1f;
-  background:linear-gradient(90deg,var(--cyan),var(--violet) 55%,var(--pink));box-shadow:0 10px 30px rgba(167,139,250,.35);text-decoration:none}
+.btn{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:12px;padding:15px 18px;border:0;border-radius:14px;cursor:pointer;font:600 1rem "Space Grotesk",sans-serif;color:#0a0f1f;
+  background:linear-gradient(90deg,var(--cyan),var(--violet) 55%,var(--pink));box-shadow:0 10px 30px rgba(167,139,250,.35);text-decoration:none;text-align:center}
 .btn:disabled{opacity:.5;cursor:wait}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);box-shadow:none}
 .err{margin-top:10px;color:var(--red);font-size:.88rem;line-height:1.45}
 .hint{margin-top:10px;color:var(--dim);font-size:.82rem;line-height:1.5}
 
+/* Stage header + progress */
+.stage-head{margin:26px 0 12px}
+.stage-head .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.stage-head h2{font-size:1.1rem;font-weight:600}
+.stage-head small{color:var(--dim);font-size:.78rem;white-space:nowrap}
+.bar{height:6px;border-radius:999px;background:rgba(140,160,255,.12);margin-top:10px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--cyan),var(--violet),var(--pink));transition:width .8s ease}
+
 /* Agents */
-.stage-head{display:flex;align-items:center;justify-content:space-between;margin:26px 0 12px}
-.stage-head h2{font-size:1.05rem;font-weight:600}
-.stage-head small{color:var(--dim);font-size:.78rem}
-.agents{display:grid;gap:10px;position:relative}
-.agent{display:grid;grid-template-columns:52px 1fr;gap:14px;align-items:center;padding:14px;border-radius:18px;background:var(--panel);border:1px solid var(--line);transition:border-color .3s,box-shadow .3s,opacity .3s;opacity:.55}
+.agents{display:grid;gap:10px}
+.agent{padding:14px;border-radius:18px;background:var(--panel);border:1px solid var(--line);transition:border-color .4s,box-shadow .4s,opacity .4s;opacity:.5}
+.agent .head{display:grid;grid-template-columns:52px 1fr;gap:14px;align-items:center}
 .agent .av{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:1.5rem;position:relative;background:color-mix(in srgb,var(--c) 18%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
 .agent .nm{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .agent .nm b{font-size:1rem}
 .agent .nm span{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .chip{font-style:normal;margin-left:auto;font-size:.68rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
 .agent .tx{color:var(--muted);font-size:.88rem;line-height:1.45;margin-top:5px;min-height:1.3em;overflow-wrap:anywhere}
-.agent.working{opacity:1;border-color:color-mix(in srgb,var(--c) 60%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 30%,transparent),0 10px 40px color-mix(in srgb,var(--c) 22%,transparent)}
-.agent.working .av::after{content:"";position:absolute;inset:-5px;border-radius:20px;border:2px solid transparent;border-top-color:var(--c);border-right-color:var(--c);animation:spin 1s linear infinite}
-.agent.working .chip{color:var(--c);border-color:color-mix(in srgb,var(--c) 50%,transparent)}
-.agent.working .tx{color:var(--text)}
-.agent.working .tx::after{content:"▍";color:var(--c);animation:blink .9s infinite;margin-left:2px}
+.mini{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.mini b{font:600 .66rem "JetBrains Mono",monospace;padding:3px 7px;border-radius:7px;color:color-mix(in srgb,var(--c) 80%,white);background:color-mix(in srgb,var(--c) 12%,transparent);border:1px solid color-mix(in srgb,var(--c) 35%,transparent)}
+
+.agent.active{opacity:1;border-color:color-mix(in srgb,var(--c) 60%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 30%,transparent),0 14px 44px color-mix(in srgb,var(--c) 24%,transparent)}
+.agent.active .av::after{content:"";position:absolute;inset:-5px;border-radius:20px;border:2px solid transparent;border-top-color:var(--c);border-right-color:var(--c);animation:spin 1s linear infinite}
+.agent.active .chip{color:var(--c);border-color:color-mix(in srgb,var(--c) 50%,transparent)}
+.agent.active .tx{color:var(--text)}
+.agent.active .tx::after{content:"▍";color:var(--c);animation:blink .9s infinite;margin-left:2px}
 .agent.done{opacity:1}
 .agent.done .chip{color:var(--green);border-color:rgba(52,211,153,.45)}
 .agent.failed{opacity:1;border-color:rgba(248,113,113,.55)}
 .agent.failed .chip{color:var(--red);border-color:rgba(248,113,113,.55)}
+.agent.skipped{opacity:.35}
+
+/* Workbench: tool tray + toolbelt (only on the active agent) */
+.bench{display:none;margin-top:14px;padding:12px;border-radius:14px;background:rgba(4,7,18,.55);border:1px dashed color-mix(in srgb,var(--c) 35%,transparent)}
+.agent.active .bench{display:block}
+.bench .lbl{font-size:.66rem;letter-spacing:.16em;color:var(--dim);text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between}
+.tray{display:flex;gap:6px;flex-wrap:wrap;min-height:30px;margin-bottom:12px}
+.tray b{font:600 .7rem "JetBrains Mono",monospace;padding:6px 9px;border-radius:9px;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--line);transition:all .35s}
+.tray b.lift{opacity:0;transform:translateY(-18px) scale(.7)}
+.belt{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.slot{position:relative;aspect-ratio:1/1.05;border-radius:12px;border:1px dashed rgba(140,160,255,.22);display:grid;place-items:center;overflow:hidden}
+.slot .tool{position:absolute;inset:0;display:grid;place-items:center;border-radius:12px;font:700 clamp(.66rem,3vw,.86rem) "JetBrains Mono",monospace;color:#fff;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--c) 55%,#0b1024),color-mix(in srgb,var(--c) 22%,#0b1024));border:1px solid color-mix(in srgb,var(--c) 70%,transparent);
+  animation:pick .75s cubic-bezier(.2,.9,.25,1.25) both;box-shadow:0 0 0 0 var(--c)}
+.slot .tool.using{animation:pick .75s cubic-bezier(.2,.9,.25,1.25) both,glow 1s ease-in-out .75s infinite alternate}
+.slot .tool .fill{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--c)}
+.slot .tool.using .fill{animation:fillw var(--dur,1.6s) linear .6s forwards}
+.slot .tool .ok{position:absolute;top:3px;right:5px;font-size:.7rem;color:var(--green);opacity:0;transition:opacity .3s}
+.slot .tool.used{opacity:.9}
+.slot .tool.used .ok{opacity:1}
+@keyframes pick{0%{transform:translateY(-46px) rotate(-14deg) scale(.5);opacity:0}60%{transform:translateY(5px) rotate(4deg) scale(1.08);opacity:1}100%{transform:none;opacity:1}}
+@keyframes glow{to{box-shadow:0 0 18px 2px color-mix(in srgb,var(--c) 60%,transparent)}}
+@keyframes fillw{to{width:100%}}
+.doing{margin-top:10px;font-size:.84rem;color:var(--text);min-height:2.6em;line-height:1.45}
+.doing b{font-family:"JetBrains Mono",monospace;color:var(--c)}
 
 /* Console */
 .console{margin-top:16px;border-radius:16px;border:1px solid var(--line);background:rgba(3,5,14,.8);overflow:hidden}
 .console header{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:.72rem;color:var(--dim);letter-spacing:.12em}
 .console header i{width:9px;height:9px;border-radius:50%;background:#2a3050}
-.console pre{font-family:"JetBrains Mono",monospace;font-size:.76rem;line-height:1.65;padding:12px;max-height:230px;overflow:auto;white-space:pre-wrap;color:#b9c0ea}
+.console pre{font-family:"JetBrains Mono",monospace;font-size:.74rem;line-height:1.65;padding:12px;max-height:260px;overflow:auto;white-space:pre-wrap;color:#b9c0ea}
 .console pre .t{color:var(--dim)}
+.console pre .ok{color:var(--green)}
+.console pre .bad{color:var(--red)}
 
-/* Launch */
+/* Finale */
 .launch{position:relative;overflow:hidden;text-align:center;padding:26px 18px;border-color:rgba(52,211,153,.45)}
 .launch .big{font-size:2.6rem}
 .launch h2{font-size:1.4rem;margin:6px 0 6px;overflow-wrap:anywhere}
-.launch .btn{position:relative;z-index:1}
-.launch p{color:var(--muted);line-height:1.55}
+.launch p{color:var(--muted);line-height:1.55;overflow-wrap:anywhere}
+.launch.bad{border-color:rgba(248,113,113,.5)}
 .confetti{position:absolute;inset:0;pointer-events:none}
 .confetti i{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;animation:fall 2.8s ease-in forwards}
-@keyframes fall{to{transform:translateY(420px) rotate(540deg);opacity:0}}
+@keyframes fall{to{transform:translateY(460px) rotate(540deg);opacity:0}}
 
 .hidden{display:none!important}
 .foot{margin-top:28px;text-align:center;color:var(--dim);font-size:.78rem;line-height:1.6}
-@media (min-width:640px){.agents{grid-template-columns:1fr 1fr}.agent:last-child{grid-column:1/-1}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+@media (min-width:640px){.agents{grid-template-columns:1fr 1fr}.agent.active{grid-column:1/-1}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top">
     <div class="brand"><div class="orb"></div>AMARA</div>
-    <div class="live"><i></i>LIVE</div>
+    <div class="live" id="liveBadge"><i></i><span>LIVE</span></div>
   </div>
 
   <section class="hero">
@@ -138,7 +175,7 @@ a.link{color:var(--cyan);text-decoration:none;font-weight:600}
   <section class="panel hidden" id="buildPanel">
     <h2>Create your bot with BotFather</h2>
     <ol class="steps">
-      <li><div>Tap <a class="link" id="bfLink" href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> and press <b>START</b> (look for the blue ✔️ tick)</div></li>
+      <li><div>Tap <a class="link" href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> and press <b>START</b> (look for the blue ✔️ tick)</div></li>
       <li><div>Send <b>/newbot</b></div></li>
       <li><div>Send this as the <b>name</b>:<br><button class="copy" data-copy id="bfName"></button></div></li>
       <li><div>Send this as the <b>username</b>:<br><button class="copy" data-copy id="bfUser"></button></div></li>
@@ -153,13 +190,13 @@ a.link{color:var(--cyan);text-decoration:none;font-weight:600}
     <p class="hint">Prefer Telegram? Paste the token to Amara there — this page updates live either way.</p>
   </section>
 
-  <section class="panel launch hidden" id="launchPanel">
+  <section class="panel launch hidden" id="finale">
     <div class="confetti" id="confetti"></div>
-    <div class="big">🤖</div>
-    <h2 id="launchTitle">Your bot is LIVE</h2>
-    <p id="launchText">Anyone who messages it gets an intelligent reply and is guided to buy — 24/7.</p>
-    <a class="btn" id="openBot" target="_blank" rel="noopener">Open my bot</a>
-    <a class="btn ghost hidden" id="techStack" target="_blank" rel="noopener">🔓 Unlock Day 2 — get the Tech Stack</a>
+    <div class="big" id="finIcon">🤖</div>
+    <h2 id="finTitle"></h2>
+    <p id="finText"></p>
+    <a class="btn hidden" id="finBtn" target="_blank" rel="noopener"></a>
+    <a class="btn ghost hidden" id="finBtn2" target="_blank" rel="noopener"></a>
   </section>
 
   <section class="panel hidden" id="infoPanel">
@@ -168,7 +205,10 @@ a.link{color:var(--cyan);text-decoration:none;font-weight:600}
     <a class="btn ghost" href="https://t.me/Amara_EEM26bot" target="_blank" rel="noopener">Continue with Amara on Telegram</a>
   </section>
 
-  <div class="stage-head"><h2>Your AI agents</h2><small id="stageNote">Waiting for your token</small></div>
+  <div class="stage-head" id="stageHead">
+    <div class="row"><h2 id="stageTitle">Your AI agents</h2><small id="stageNote">Standing by</small></div>
+    <div class="bar"><i id="bar"></i></div>
+  </div>
   <div class="agents" id="agents"></div>
 
   <div class="console">
@@ -176,54 +216,261 @@ a.link{color:var(--cyan);text-decoration:none;font-weight:600}
     <pre id="log"><span class="t">Agents are standing by…</span></pre>
   </div>
 
-  <p class="foot">Every step on this page is real work on your actual bot,<br>happening right now on Amara's servers.</p>
+  <p class="foot">Every agent here does real work on your actual setup —<br>the tools shown are the technologies each step uses.</p>
 </div>
 
 <script>
 (function () {
   var API = "https://leqizarzgfpiriknpnxw.supabase.co/functions/v1/amara-web";
-  var KEY = new URLSearchParams(location.search).get("k");
-  var AGENTS = [
-    { id: "verifier",  name: "Nova",  role: "Token Verifier", icon: "🔐", color: "var(--cyan)" },
-    { id: "connector", name: "Bolt",  role: "Connector",      icon: "🔌", color: "var(--amber)" },
-    { id: "brain",     name: "Sage",  role: "Sales Brain",    icon: "🧠", color: "var(--violet)" },
-    { id: "tester",    name: "Echo",  role: "Test Customer",  icon: "💬", color: "var(--pink)" },
-    { id: "launcher",  name: "Amara", role: "Launcher",       icon: "🚀", color: "var(--green)" }
-  ];
+  var params = new URLSearchParams(location.search);
+  var KEY = params.get("k");
+  var SPEED = Math.max(0.05, Math.min(1, parseFloat(params.get("speed")) || 1));
+  var T = { intro: 1300, tool: 2000, outro: 700 };
+
+  function A(id, name, role, icon, color, tools) { return { id: id, name: name, role: role, icon: icon, color: color, tools: tools }; }
+  function t(code, does) { return { t: code, d: does }; }
+  var LAUNCHER = A("amara", "Amara", "Launcher", "🚀", "var(--green)", [t("SQL", "writing your setup to the database"), t("DB", "saving your progress"), t("UTC", "time-stamping the launch"), t("TX", "making the save all-or-nothing"), t("SaaS", "switching your service on 24/7")]);
+  var RECORDER = A("amara", "Amara", "Progress Keeper", "🚀", "var(--green)", [t("SQL", "updating your record"), t("DB", "saving your progress"), t("UTC", "time-stamping this step"), t("TX", "making the save safe"), t("CRM", "updating your student file")]);
+
+  var ROSTERS = {
+    sre: [
+      A("nova", "Nova", "Token Verifier", "🔐", "var(--cyan)", [t("API", "calling the Telegram Bot API"), t("HTTPS", "opening a secure request"), t("TLS", "encrypting the line to Telegram"), t("JSON", "reading Telegram's answer"), t("UID", "confirming your bot's identity")]),
+      A("bolt", "Bolt", "Connector", "🔌", "var(--amber)", [t("URL", "building your bot's server address"), t("DNS", "locating Amara's servers"), t("SSL", "checking the security certificate"), t("REST", "registering the webhook"), t("ACK", "waiting for Telegram to confirm")]),
+      A("scribe", "Scribe", "Profile Writer", "✍️", "var(--sky)", [t("NLP", "writing your bot's introduction"), t("UTF-8", "keeping emojis and text safe"), t("CMD", "adding the /start menu"), t("UX", "polishing the first impression"), t("API", "saving the profile to Telegram")]),
+      A("sage", "Sage", "Sales Brain", "🧠", "var(--violet)", [t("LLM", "loading the language model"), t("KB", "adding real student results"), t("CRM", "setting up lead stages"), t("CTA", "tuning the buy-button wording"), t("NLP", "loading objection handling")]),
+      A("echo", "Echo", "Test Customer", "💬", "var(--pink)", [t("QA", "planning the test"), t("NLU", "asking like a real customer"), t("API", "calling the AI"), t("LLM", "generating your bot's reply"), t("JSON", "checking the answer came back")]),
+      A("pulse", "Pulse", "Health Monitor", "🩺", "var(--teal)", [t("HTTP", "checking message delivery"), t("PING", "testing the connection"), t("LOG", "reading the error log"), t("QoS", "measuring delivery quality"), t("SLA", "confirming 24/7 readiness")]),
+      LAUNCHER
+    ],
+    pages: [
+      A("atlas", "Atlas", "GitHub Linker", "🧭", "var(--cyan)", [t("OAuth", "using your GitHub permission"), t("SSO", "signing in as you"), t("HTTPS", "opening a secure session"), t("REST", "talking to GitHub's API"), t("API", "reading your account")]),
+      A("forge", "Forge", "Repo Builder", "⚒️", "var(--amber)", [t("Git", "preparing version control"), t("VCS", "creating your page repositories"), t("SHA", "fingerprinting every file"), t("API", "setting repos to public"), t("JSON", "confirming the repos exist")]),
+      A("pixel", "Pixel", "Page Designer", "🎨", "var(--violet)", [t("HTML", "laying out both pages"), t("CSS", "applying the Liquid Glass design"), t("JS", "adding the live countdowns"), t("UI", "placing proof and results"), t("UX", "making it easy to buy")]),
+      A("link", "Link", "Payment Wiring", "🔗", "var(--pink)", [t("DOM", "finding every buy button"), t("HREF", "rewiring each button"), t("URL", "inserting your payment link"), t("CTA", "checking every call to action"), t("UX", "testing the buyer's path")]),
+      A("beacon", "Beacon", "Publisher", "📡", "var(--sky)", [t("CI", "starting the GitHub Pages build"), t("CDN", "spreading your pages worldwide"), t("DNS", "giving them a web address"), t("SSL", "adding the padlock"), t("HTTPS", "serving them securely")]),
+      A("scout", "Scout", "Quality Inspector", "🔍", "var(--teal)", [t("QA", "inspecting both pages"), t("HTTP", "checking they respond"), t("LOG", "reading the build log"), t("CI", "confirming the build passed"), t("DOM", "checking the page structure")]),
+      LAUNCHER
+    ],
+    check: [
+      A("iris", "Iris", "Vision Reader", "👁️", "var(--cyan)", [t("CV", "running computer vision"), t("OCR", "reading the text on your screen"), t("JPEG", "decoding your screenshot"), t("AI", "understanding the page"), t("LLM", "describing what it sees")]),
+      A("judge", "Judge", "Verifier", "⚖️", "var(--amber)", [t("SOP", "loading this step's checklist"), t("QA", "comparing item by item"), t("AI", "weighing the evidence"), t("JSON", "recording the verdict"), t("LOG", "keeping an audit trail")]),
+      A("coach", "Coach", "Next-Step Writer", "🧑‍🏫", "var(--violet)", [t("NLP", "writing clear instructions"), t("LLM", "tailoring them to you"), t("UX", "keeping it simple"), t("CTA", "deciding your next action"), t("API", "sending it to Telegram")]),
+      RECORDER
+    ],
+    certificate: [
+      A("iris", "Iris", "Signature Reader", "👁️", "var(--cyan)", [t("CV", "running computer vision"), t("OCR", "finding your handwriting"), t("JPEG", "decoding the photo"), t("AI", "confirming it's a signature"), t("PNG", "preparing it for the certificate")]),
+      A("quill", "Quill", "Certificate Designer", "🖋️", "var(--violet)", [t("PDF", "creating the document"), t("A4", "setting the page size"), t("TTF", "typesetting your name"), t("PNG", "placing logo and signature"), t("RGB", "applying the colours")]),
+      A("seal", "Seal", "Authenticator", "🏅", "var(--amber)", [t("ID", "assigning your certificate number"), t("UTC", "dating the certificate"), t("META", "writing document details"), t("PDF", "sealing the file"), t("QA", "final quality check")]),
+      A("courier", "Courier", "Delivery", "📦", "var(--sky)", [t("MIME", "packaging the PDF"), t("API", "calling Telegram"), t("HTTPS", "opening a secure upload"), t("TLS", "encrypting the transfer"), t("PDF", "delivering your certificate")]),
+      RECORDER
+    ]
+  };
+  var KIND_TITLE = { sre: "Day 1 · Building your AI sales bot", pages: "Day 2 · Building your sales pages", check: "Checking your step", certificate: "Day 4 · Creating your certificate" };
   var DAYS = [["DAY 1", "AI Bot"], ["DAY 2", "Sales Pages"], ["DAY 3", "Stores"], ["DAY 4", "Go Live"]];
+
   var $ = function (id) { return document.getElementById(id); };
-  var state = { runId: null, timer: null, celebrated: false, lastLen: 0 };
+  var data = null;
+  var show = { runId: null, token: 0, playing: false, finished: false };
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function show(id, on) { $(id).classList.toggle("hidden", !on); }
+  function vis(id, on) { $(id).classList.toggle("hidden", !on); }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms * SPEED); }); }
+  function now() { return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
+  function log(html) {
+    var pre = $("log");
+    if (pre.dataset.fresh !== "1") { pre.innerHTML = ""; pre.dataset.fresh = "1"; }
+    pre.innerHTML += (pre.innerHTML ? "\n" : "") + '<span class="t">[' + now() + ']</span> ' + html;
+    pre.scrollTop = pre.scrollHeight;
+  }
+  function seen(id) { try { return localStorage.getItem("amara-run-" + id) === "1"; } catch (e) { return false; } }
+  function markSeen(id) { try { localStorage.setItem("amara-run-" + id, "1"); } catch (e) {} }
+  function workingOf(run, agent) {
+    var ev = null;
+    (run && run.events || []).forEach(function (e) { if (e.agent === agent && e.state === "working" && !ev) ev = e; });
+    return ev;
+  }
+  // A "failed" agent only stops the team if nobody after it did any work (e.g. a screenshot
+  // that doesn't pass still gets Coach's fix and Amara's record).
+  function laterWork(run, roster, i) {
+    for (var k = i + 1; k < roster.length; k++) if (latestOf(run, roster[k].id)) return true;
+    return false;
+  }
+  function latestOf(run, agent) {
+    var ev = null;
+    (run && run.events || []).forEach(function (e) { if (e.agent === agent) ev = e; });
+    return ev;
+  }
 
-  function renderAgents(events) {
-    var latest = {};
-    (events || []).forEach(function (e) { latest[e.agent] = e; });
-    $("agents").innerHTML = AGENTS.map(function (a) {
-      var e = latest[a.id];
-      var st = e ? e.state : "idle";
-      var chip = { idle: "Waiting", working: "Working", done: "Done", failed: "Failed" }[st];
-      return '<div class="agent ' + st + '" style="--c:' + a.color + '">' +
-        '<div class="av">' + a.icon + '</div>' +
-        '<div><div class="nm"><b>' + a.name + '</b><span>' + a.role + '</span><em class="chip">' + chip + '</em></div>' +
-        '<div class="tx">' + esc(e ? e.text : "Standing by") + '</div></div></div>';
+  // ── Cards ──────────────────────────────────────────────────────────────────
+  function buildCards(kind) {
+    var roster = ROSTERS[kind] || ROSTERS.sre;
+    $("agents").innerHTML = roster.map(function (a, i) {
+      return '<div class="agent" id="ag' + i + '" style="--c:' + a.color + '">' +
+        '<div class="head"><div class="av">' + a.icon + '</div>' +
+        '<div><div class="nm"><b>' + a.name + '</b><span>' + a.role + '</span><em class="chip">Queued</em></div>' +
+        '<div class="tx">Standing by</div></div></div>' +
+        '<div class="bench"><div class="lbl"><span>Tool tray</span><span class="cnt">0 / ' + a.tools.length + ' tools</span></div>' +
+        '<div class="tray">' + a.tools.map(function (tl) { return "<b>" + esc(tl.t) + "</b>"; }).join("") + '</div>' +
+        '<div class="lbl"><span>' + a.name + '\'s toolbelt</span></div>' +
+        '<div class="belt">' + a.tools.map(function () { return '<div class="slot"></div>'; }).join("") + '</div>' +
+        '<div class="doing"></div></div></div>';
     }).join("");
+    return roster;
+  }
+  function card(i) { return $("ag" + i); }
+  function setState(i, st, chip, text) {
+    var c = card(i); if (!c) return;
+    c.className = "agent " + st;
+    c.querySelector(".chip").textContent = chip;
+    if (text != null) c.querySelector(".tx").textContent = text;
+  }
+  function setMini(i, tools) {
+    var c = card(i); if (!c || c.querySelector(".mini")) return;
+    var m = document.createElement("div"); m.className = "mini";
+    m.innerHTML = tools.map(function (tl) { return "<b>" + esc(tl.t) + "</b>"; }).join("");
+    c.querySelector(".head > div:last-child").appendChild(m);
+  }
+  function progress(doneAgents, total, label) {
+    $("bar").style.width = Math.round((doneAgents / total) * 100) + "%";
+    $("stageNote").textContent = label;
   }
 
-  function renderLog(events) {
-    if (!events || !events.length) return;
-    if (events.length === state.lastLen) return;
-    state.lastLen = events.length;
-    var names = {}; AGENTS.forEach(function (a) { names[a.id] = a.name.toUpperCase(); });
-    $("log").innerHTML = events.map(function (e) {
-      var t = new Date(e.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      var mark = e.state === "done" ? "✓" : e.state === "failed" ? "✗" : "›";
-      return '<span class="t">[' + t + ']</span> ' + names[e.agent] + ' ' + mark + ' ' + esc(e.text);
-    }).join("\n");
-    $("log").scrollTop = $("log").scrollHeight;
+  // ── The show: each agent picks its tools, then reports its real result ─────
+  async function pickTool(i, a, j, tk) {
+    var c = card(i); if (!c || tk !== show.token) return;
+    var tl = a.tools[j];
+    c.querySelectorAll(".tray b")[j].classList.add("lift");
+    var slot = c.querySelectorAll(".slot")[j];
+    slot.innerHTML = '<div class="tool using" style="--dur:' + (T.tool * SPEED / 1000) + 's">' + esc(tl.t) + '<span class="ok">✓</span><span class="fill"></span></div>';
+    c.querySelector(".doing").innerHTML = "🔧 Picking <b>" + esc(tl.t) + "</b> — " + esc(tl.d) + "…";
+    c.querySelector(".cnt").textContent = (j + 1) + " / " + a.tools.length + " tools";
+    log(esc(a.name.toUpperCase()) + " ⟶ picked <b>" + esc(tl.t) + "</b> · " + esc(tl.d));
+    await wait(T.tool);
+    var tool = slot.querySelector(".tool"); if (tool) { tool.classList.remove("using"); tool.classList.add("used"); }
   }
 
+  function waitForAgent(agentId, tk) {
+    return new Promise(function (resolve) {
+      (function check() {
+        if (tk !== show.token) return resolve({ cancelled: true });
+        var run = data && data.run;
+        var ev = latestOf(run, agentId);
+        if (ev && ev.state !== "working") return resolve({ ev: ev });
+        if (run && run.status !== "running" && (!ev || ev.state === "working")) return resolve({ ev: null });
+        setTimeout(check, 300);
+      })();
+    });
+  }
+
+  async function play(run, tk) {
+    show.playing = true; show.finished = false;
+    var roster = buildCards(run.kind);
+    $("stageTitle").textContent = run.title || KIND_TITLE[run.kind] || "Your AI agents";
+    $("log").dataset.fresh = "0";
+    log("Build started · " + roster.length + " agents assigned");
+    for (var i = 0; i < roster.length; i++) {
+      if (tk !== show.token) return;
+      var a = roster[i];
+      progress(i, roster.length, "Agent " + (i + 1) + " of " + roster.length + " · " + a.name + " is working");
+      setState(i, "active", "Working", a.name + " is joining the build…");
+      card(i).scrollIntoView({ behavior: "smooth", block: "center" });
+      log("<b>" + esc(a.name.toUpperCase()) + "</b> (" + esc(a.role) + ") joined the build");
+      await wait(T.intro);
+      var ev0 = workingOf(data && data.run, a.id);
+      if (ev0) card(i).querySelector(".tx").textContent = ev0.text;
+      for (var j = 0; j < a.tools.length; j++) await pickTool(i, a, j, tk);
+      if (tk !== show.token) return;
+      card(i).querySelector(".doing").innerHTML = "⏳ Finishing up and confirming the result…";
+      var res = await waitForAgent(a.id, tk);
+      if (res.cancelled) return;
+      await wait(T.outro);
+      if (res.ev && res.ev.state === "done") {
+        setState(i, "done", "Done", res.ev.text);
+        setMini(i, a.tools);
+        log('<span class="ok">' + esc(a.name.toUpperCase()) + " ✓</span> " + esc(res.ev.text));
+      } else {
+        var goOn = res.ev && laterWork(data && data.run, roster, i);
+        setState(i, "failed", goOn ? "Not passed" : "Stopped", res.ev ? res.ev.text : "This step didn't run.");
+        if (goOn) setMini(i, a.tools);
+        log('<span class="bad">' + esc(a.name.toUpperCase()) + " ✗</span> " + esc(res.ev ? res.ev.text : "Stopped"));
+        if (goOn) continue;
+        for (var k = i + 1; k < roster.length; k++) setState(k, "skipped", "Skipped", "Not needed after the stop above");
+        progress(i, roster.length, "Stopped at " + a.name);
+        return finale(run, false);
+      }
+    }
+    var finalRun = (data && data.run && data.run.id === run.id) ? data.run : run;
+    var passed = finalRun.status !== "failed";
+    progress(roster.length, roster.length, "All " + roster.length + " agents finished");
+    log(passed ? '<span class="ok">All agents finished ✓</span>' : '<span class="bad">Finished — this step needs another try</span>');
+    finale(run, passed);
+  }
+
+  function renderStatic(run) {
+    var roster = buildCards(run.kind);
+    $("stageTitle").textContent = run.title || KIND_TITLE[run.kind] || "Your AI agents";
+    var lines = [], doneCount = 0, stopped = false;
+    roster.forEach(function (a, i) {
+      var ev = latestOf(run, a.id);
+      if (stopped) return setState(i, "skipped", "Skipped", "Not needed after the stop above");
+      if (ev && ev.state === "done") { setState(i, "done", "Done", ev.text); setMini(i, a.tools); doneCount++; lines.push('<span class="ok">' + esc(a.name.toUpperCase()) + " ✓</span> " + esc(ev.text)); }
+      else if (ev && ev.state === "failed") {
+        var goOn = laterWork(run, roster, i);
+        setState(i, "failed", goOn ? "Not passed" : "Stopped", ev.text); if (goOn) setMini(i, a.tools); else stopped = true;
+        lines.push('<span class="bad">' + esc(a.name.toUpperCase()) + " ✗</span> " + esc(ev.text));
+      }
+    });
+    $("log").dataset.fresh = "1";
+    $("log").innerHTML = lines.join("\n") || '<span class="t">No activity yet.</span>';
+    progress(doneCount, roster.length, run.status === "done" ? "Completed" : run.status === "failed" ? "Stopped" : "");
+    finale(run, run.status === "done", true);
+  }
+
+  // ── Finale ──────────────────────────────────────────────────────────────────
+  function confetti() {
+    var colors = ["#22d3ee", "#a78bfa", "#f472b6", "#34d399", "#fbbf24"], html = "";
+    for (var i = 0; i < 46; i++) html += '<i style="left:' + (Math.random() * 100) + '%;background:' + colors[i % 5] + ';animation-delay:' + (Math.random() * .8) + 's"></i>';
+    $("confetti").innerHTML = html;
+  }
+  function finale(run, ok, quiet) {
+    if (data && data.run && data.run.id === run.id) run = data.run;
+    show.playing = false; show.finished = true;
+    var fin = $("finale"), last = latestOf(run, "amara");
+    fin.classList.toggle("bad", !ok);
+    vis("finBtn", false); vis("finBtn2", false);
+    if (!ok) {
+      $("finIcon").textContent = "🛠️";
+      $("finTitle").textContent = run.kind === "check" ? "Not quite yet" : "We hit a snag";
+      $("finText").textContent = run.kind === "check" ? "Amara has sent you exactly what to fix in Telegram." : "Nothing is lost — fix the issue above and try again, or ask Amara on Telegram.";
+    } else if (run.kind === "sre") {
+      $("finIcon").textContent = "🤖";
+      $("finTitle").textContent = "@" + run.bot_username + " is LIVE";
+      $("finText").textContent = data && data.phase === "bot_live"
+        ? "Day 1 is complete! Day 2 unlocks as soon as you get your Tech Stack and send Amara your payment screenshot."
+        : "Anyone who messages it gets an intelligent reply and is guided to buy — 24/7.";
+      $("finBtn").href = "https://t.me/" + run.bot_username; $("finBtn").textContent = "Open @" + run.bot_username; vis("finBtn", true);
+      if (data && data.phase === "bot_live") { $("finBtn2").href = data.techStackUrl; $("finBtn2").textContent = "🔓 Unlock Day 2 — get the Tech Stack"; vis("finBtn2", true); }
+    } else if (run.kind === "pages") {
+      var url = ((last && last.text) || "").match(/https?:\/\/\S+/);
+      $("finIcon").textContent = "🌐";
+      $("finTitle").textContent = "Your sales pages are LIVE";
+      $("finText").textContent = "Both pages are published. GitHub can take a minute or two to show the newest version.";
+      if (url) { $("finBtn").href = url[0]; $("finBtn").textContent = "Open my sales page"; vis("finBtn", true); }
+    } else if (run.kind === "certificate") {
+      $("finIcon").textContent = "🎓";
+      $("finTitle").textContent = "You're an EEM26 graduate!";
+      $("finText").textContent = "Your certificate is waiting for you in Telegram.";
+    } else {
+      $("finIcon").textContent = "✅";
+      $("finTitle").textContent = "Step checked";
+      $("finText").textContent = "Your next step is waiting in Telegram.";
+    }
+    vis("finale", true);
+    if (ok && !quiet && run.kind !== "check") confetti();
+    if (!quiet) { fin.scrollIntoView({ behavior: "smooth", block: "center" }); schedule(300); }
+  }
+
+  // ── Page state ──────────────────────────────────────────────────────────────
   function renderJourney(phase, day) {
     var current = phase === "graduated" ? 5 : phase === "bot_live" ? 1.5 : Math.max(day, 1);
     $("journey").innerHTML = DAYS.map(function (d, i) {
@@ -233,119 +480,93 @@ a.link{color:var(--cyan);text-decoration:none;font-weight:600}
     }).join("");
   }
 
-  function confetti() {
-    if (state.celebrated) return; state.celebrated = true;
-    var colors = ["#22d3ee", "#a78bfa", "#f472b6", "#34d399", "#fbbf24"], html = "";
-    for (var i = 0; i < 46; i++) {
-      html += '<i style="left:' + (Math.random() * 100) + '%;background:' + colors[i % 5] + ';animation-delay:' + (Math.random() * .8) + 's"></i>';
-    }
-    $("confetti").innerHTML = html;
-  }
-
-  function render(d) {
+  function apply(d) {
+    data = d;
     var name = d.firstName ? esc(d.firstName) : "there";
-    var run = d.run, running = run && run.status === "running";
+    var run = d.run;
     renderJourney(d.phase, d.day);
-    renderAgents(run ? run.events : []);
-    renderLog(run ? run.events : []);
+    $("bfName").innerHTML = esc(d.botfather.displayName) + " <em>COPY</em>"; $("bfName").dataset.copy = d.botfather.displayName;
+    $("bfUser").innerHTML = esc(d.botfather.username) + " <em>COPY</em>"; $("bfUser").dataset.copy = d.botfather.username;
 
-    $("bfName").innerHTML = esc(d.botfather.displayName) + ' <em>COPY</em>';
-    $("bfName").dataset.copy = d.botfather.displayName;
-    $("bfUser").innerHTML = esc(d.botfather.username) + ' <em>COPY</em>';
-    $("bfUser").dataset.copy = d.botfather.username;
-
-    var botLive = run && run.status === "done" && run.bot_username;
-    var canBuild = d.phase === "build_bot" && !running;
-
-    show("buildPanel", canBuild);
-    show("launchPanel", !!botLive && !running);
-    show("infoPanel", false);
-
-    if (running) {
-      $("hello").innerHTML = 'Hi ' + name + ' — <span>your team is building</span>';
-      $("status").textContent = "Your AI agents are working on your bot right now. Watch each one finish below.";
-      $("stageNote").textContent = "Building now…";
-    } else if (botLive) {
-      $("hello").innerHTML = 'Hi ' + name + ' — <span>@' + esc(run.bot_username) + ' is live</span>';
-      $("status").textContent = "Your SRE sales bot is running 24/7 and replying to buyers.";
-      $("stageNote").textContent = "Build complete";
-      $("launchTitle").textContent = "@" + run.bot_username + " is LIVE";
-      $("openBot").href = "https://t.me/" + run.bot_username;
-      $("openBot").textContent = "Open @" + run.bot_username;
-      var locked = d.phase === "bot_live";
-      show("techStack", locked);
-      $("techStack").href = d.techStackUrl;
-      $("launchText").textContent = locked
-        ? "Day 1 is complete! Day 2 unlocks as soon as you get your Tech Stack and send Amara your payment screenshot."
-        : "Anyone who messages it gets an intelligent reply and is guided to buy — 24/7.";
-      if (Date.now() - new Date(run.created_at).getTime() < 10 * 60 * 1000) confetti();
-    } else if (canBuild) {
-      $("hello").innerHTML = 'Hi ' + name + ' — <span>let\'s build your AI bot</span>';
-      $("status").textContent = "Create your bot with BotFather, paste the token here, and watch 5 AI agents set it up for you live.";
-      $("stageNote").textContent = run && run.status === "failed" ? "Last try failed — check your token" : "Waiting for your token";
-    } else {
-      $("hello").innerHTML = 'Hi ' + name + ' 👋';
-      var msg = {
-        onboarding: ["Let's get you started", "Finish your quick sign-up with Amara on Telegram, then come back here to build your AI bot."],
-        graduated: ["You're an EEM26 graduate 🎓", "Your setup is complete. Keep growing with Amara and Coach Victor."]
-      }[d.phase] || ["You're on Day " + d.day, "Keep going with Amara on Telegram — this page shows your AI agents whenever they're building for you."];
-      $("status").textContent = msg[1];
-      $("infoTitle").textContent = msg[0];
-      $("infoText").textContent = "";
-      show("infoPanel", true);
-      $("stageNote").textContent = run ? "Last build" : "";
+    // A new run (or a recent one this browser hasn't watched) gets the full show.
+    if (run && run.id !== show.runId) {
+      show.runId = run.id; show.token++;
+      vis("finale", false);
+      var recent = Date.now() - new Date(run.created_at).getTime() < 15 * 60 * 1000;
+      if (run.status === "running" || (recent && !seen(run.id))) {
+        markSeen(run.id);
+        var replay = run.status !== "running";
+        $("liveBadge").classList.toggle("replay", replay);
+        $("liveBadge").querySelector("span").textContent = replay ? "REPLAY" : "LIVE";
+        vis("buildPanel", false);
+        play(run, show.token);
+      } else {
+        renderStatic(run);
+      }
     }
-    schedule(running ? 1000 : 6000);
+    if (!run && !show.runId) { buildCards(d.phase === "build_bot" || d.phase === "onboarding" ? "sre" : "check"); $("stageTitle").textContent = "Your AI agents"; progress(0, 1, "Standing by"); }
+
+    var busy = show.playing || (run && run.status === "running");
+    vis("buildPanel", d.phase === "build_bot" && !busy);
+    vis("infoPanel", false);
+
+    if (busy) {
+      $("hello").innerHTML = "Hi " + name + " — <span>your team is working</span>";
+      $("status").textContent = "Watch each AI agent pick its tools and complete its part of your setup.";
+    } else if (d.phase === "build_bot") {
+      $("hello").innerHTML = "Hi " + name + " — <span>let's build your AI bot</span>";
+      $("status").textContent = "Create your bot with BotFather, paste the token here, and watch 7 AI agents set it up for you live.";
+    } else {
+      var msg = {
+        onboarding: ["Let's get you started", "Finish your quick sign-up with Amara on Telegram, then come back here to watch your AI team build your bot."],
+        bot_live: ["Day 1 complete 🎉", "Your bot is live. Get your Tech Stack and send Amara your payment screenshot to unlock Day 2 — you'll watch your sales pages being built right here."],
+        graduated: ["You're an EEM26 graduate 🎓", "Your setup is complete. Keep growing with Amara and Coach Victor."]
+      }[d.phase] || ["You're on Day " + d.day, "Keep going with Amara on Telegram — your AI agents appear here whenever they work on your setup."];
+      $("hello").innerHTML = "Hi " + name + " 👋";
+      $("status").textContent = msg[1];
+      if (!show.finished) { $("infoTitle").textContent = msg[0]; vis("infoPanel", true); }
+    }
+    schedule(busy ? 1000 : 5000);
   }
 
+  var timer = null;
+  function schedule(ms) { clearTimeout(timer); timer = setTimeout(load, ms); }
   function load() {
-    var url = API + "?k=" + encodeURIComponent(KEY) + (state.runId ? "&run=" + state.runId : "");
+    var url = API + "?k=" + encodeURIComponent(KEY) + (show.playing && show.runId ? "&run=" + show.runId : "");
     fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-      .then(function (res) {
-        if (!res.ok) return fatal(res.j.error || "Couldn't load your page.");
-        if (res.j.run && res.j.run.status !== "running") state.runId = null;
-        render(res.j);
-      })
+      .then(function (res) { if (!res.ok) return fatal(res.j.error || "Couldn't load your page."); apply(res.j); })
       .catch(function () { $("status").textContent = "Reconnecting…"; schedule(4000); });
   }
-
-  function schedule(ms) { clearTimeout(state.timer); state.timer = setTimeout(load, ms); }
 
   function fatal(msg) {
     $("hello").innerHTML = "This link isn't working";
     $("status").textContent = msg;
-    ["buildPanel", "launchPanel"].forEach(function (id) { show(id, false); });
+    vis("buildPanel", false); vis("finale", false);
     $("infoTitle").textContent = "Get your personal link";
     $("infoText").textContent = "Message Amara on Telegram and she'll send you your private link.";
-    show("infoPanel", true);
-    renderAgents([]);
+    vis("infoPanel", true);
   }
 
   $("startBtn").addEventListener("click", function () {
     var token = $("token").value.trim();
-    show("formErr", false);
+    vis("formErr", false);
     if (!/\d{6,12}:[A-Za-z0-9_-]{30,}/.test(token)) {
       $("formErr").textContent = "That doesn't look like a BotFather token. It looks like 1234567890:AAH… — copy it from BotFather's \"Done!\" message.";
-      return show("formErr", true);
+      return vis("formErr", true);
     }
-    $("startBtn").disabled = true;
-    $("startBtn").textContent = "Starting your agents…";
+    var btn = $("startBtn"); btn.disabled = true; btn.textContent = "Calling your agents…";
     fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ k: KEY, token: token }) })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
-        $("startBtn").disabled = false;
-        $("startBtn").textContent = "🚀 Start my build";
-        if (!res.ok) { $("formErr").textContent = res.j.error; return show("formErr", true); }
-        state.runId = res.j.runId; state.lastLen = 0; state.celebrated = false;
+        btn.disabled = false; btn.textContent = "🚀 Start my build";
+        if (!res.ok) { $("formErr").textContent = res.j.error; return vis("formErr", true); }
         $("token").value = "";
         load();
-        window.scrollTo({ top: $("agents").offsetTop - 80, behavior: "smooth" });
       })
       .catch(function () {
-        $("startBtn").disabled = false;
-        $("startBtn").textContent = "🚀 Start my build";
+        btn.disabled = false; btn.textContent = "🚀 Start my build";
         $("formErr").textContent = "Couldn't reach Amara. Check your connection and try again.";
-        show("formErr", true);
+        vis("formErr", true);
       });
   });
 
@@ -358,8 +579,8 @@ a.link{color:var(--cyan);text-decoration:none;font-weight:600}
     });
   });
 
-  renderAgents([]);
   renderJourney("build_bot", 1);
+  buildCards("sre");
   if (!KEY) fatal("This page needs your personal link from Amara.");
   else load();
 })();

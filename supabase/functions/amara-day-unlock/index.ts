@@ -8,6 +8,7 @@ import {
   legacyUpgradeMessage,
 } from "../amara-bot/day1-content.ts";
 import { aiHealthCheck } from "../_shared/ai.ts";
+import { webLink } from "../_shared/runs.ts";
 import { PAGES_VERSION, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
 
 // Amara Day Unlock — Cron Job Function
@@ -200,7 +201,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
         if (!updated || updated.length === 0) continue;
 
         await sendTelegram(s.telegram_chat_id, legacyUpgradeMessage(s.full_name));
-        for (const m of toGate ? GATE_PITCH : sreIntroMessages(s.full_name, s.telegram_chat_id, s.web_key ? `https://ecosystemexpantion.github.io/amara-live/?k=${s.web_key}` : null)) {
+        for (const m of toGate ? GATE_PITCH : sreIntroMessages(s.full_name, s.telegram_chat_id, webLink(s.web_key))) {
           await new Promise((r) => setTimeout(r, 400));
           await sendTelegram(s.telegram_chat_id, m);
         }
@@ -244,7 +245,9 @@ Deno.serve(async (_req: Request): Promise<Response> => {
 
         if (updateError || count === 0) continue;
 
-        const message = nextDay === 3 && !student.bot_token ? LEGACY_DAY3_SRE.unlock : DAY_UNLOCK_MESSAGES[nextDay];
+        const base = nextDay === 3 && !student.bot_token ? LEGACY_DAY3_SRE.unlock : DAY_UNLOCK_MESSAGES[nextDay];
+        const live = webLink(student.web_key);
+        const message = base && live ? `${base}\n\n👀 <a href="${live}">Watch your AI agents work on each step live</a>` : base;
         if (message) await sendTelegram(student.telegram_chat_id, message);
         unlockCount++;
       } catch (err) {

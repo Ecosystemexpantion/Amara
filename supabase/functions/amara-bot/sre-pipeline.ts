@@ -1,57 +1,12 @@
-// Builds a student's SRE sales bot as a team of named agents, logging every real step to sre_runs
-// so the web version of Amara can show the build live. Used by both Telegram and the web page.
-import { createClient } from "npm:@supabase/supabase-js@2";
+// Builds a student's SRE sales bot as a team of named agents. Every agent does a real step and
+// reports it to the run log; the web page animates each agent's tools while the work happens.
 import { aiChat } from "../_shared/ai.ts";
+import { startRun, reporter, finishRun, type Report } from "../_shared/runs.ts";
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-);
+export { WEB_APP_URL, webLink } from "../_shared/runs.ts";
 
-export const WEB_APP_URL = "https://ecosystemexpantion.github.io/amara-live/";
-
-export function webLink(webKey: string | null | undefined): string | null {
-  return webKey ? `${WEB_APP_URL}?k=${webKey}` : null;
-}
-
-export type SreAgent = "verifier" | "connector" | "brain" | "tester" | "launcher";
-type EventState = "working" | "done" | "failed";
-export interface SreEvent {
-  agent: SreAgent;
-  state: EventState;
-  text: string;
-  at: string;
-}
-
-// Each step stays on screen at least this long so students can follow it; the work itself is real.
-const MIN_STEP_MS = 1400;
-
-export async function startRun(studentId: string, source: "telegram" | "web"): Promise<string> {
-  const { data, error } = await supabase.from("sre_runs").insert({ student_id: studentId, source }).select("id").single();
-  if (error || !data) throw new Error(`startRun: ${error?.message}`);
-  return data.id as string;
-}
-
-async function emit(runId: string, agent: SreAgent, state: EventState, text: string): Promise<void> {
-  const { data } = await supabase.from("sre_runs").select("events").eq("id", runId).single();
-  const events = [...((data?.events as SreEvent[]) ?? []), { agent, state, text, at: new Date().toISOString() }];
-  await supabase.from("sre_runs").update({ events, updated_at: new Date().toISOString() }).eq("id", runId);
-}
-
-async function finish(runId: string, status: "done" | "failed", botUsername?: string): Promise<void> {
-  await supabase
-    .from("sre_runs")
-    .update({ status, ...(botUsername ? { bot_username: botUsername } : {}), updated_at: new Date().toISOString() })
-    .eq("id", runId);
-}
-
-async function step<T>(runId: string, agent: SreAgent, working: string, work: () => Promise<T>): Promise<T> {
-  await emit(runId, agent, "working", working);
-  const started = Date.now();
-  const result = await work();
-  const left = MIN_STEP_MS - (Date.now() - started);
-  if (left > 0) await new Promise((r) => setTimeout(r, left));
-  return result;
+export function startSreRun(studentId: string, source: "telegram" | "web"): Promise<string | null> {
+  return startRun(studentId, "sre", source, "Building your AI sales bot");
 }
 
 export interface SreStudent {
@@ -65,87 +20,114 @@ export type SreOutcome =
   | { ok: true; botUsername: string; webhookUrl: string }
   | { ok: false; reason: "bad_token" | "telegram_down" | "error"; message: string };
 
-// `launch` saves the result and moves the student forward; it runs as the final agent's work.
+async function tg(token: string, method: string, body?: unknown): Promise<{ ok?: boolean; result?: Record<string, unknown> } | null> {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: body ? "POST" : "GET",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// `launch` saves the result and moves the student forward; it is the last agent's work.
 export async function runSreBuild(
-  runId: string,
+  runId: string | null,
   student: SreStudent,
   token: string,
   launch: (botUsername: string, webhookUrl: string) => Promise<void>
 ): Promise<SreOutcome> {
+  const r: Report = reporter(runId);
   try {
-    // 1. Verifier — is the BotFather token real?
-    const me = await step(runId, "verifier", "Checking your BotFather token with Telegram…", async () => {
-      try {
-        const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
-        return (await res.json()) as { ok: boolean; result?: { username?: string; first_name?: string } };
-      } catch {
-        return null;
-      }
-    });
+    // 1. Nova — is the BotFather token real?
+    await r("nova", "working", "Checking your BotFather token with Telegram…");
+    const me = await tg(token, "getMe");
     if (!me) {
-      await emit(runId, "verifier", "failed", "Couldn't reach Telegram — try again in a minute.");
-      await finish(runId, "failed");
+      await r("nova", "failed", "Couldn't reach Telegram — try again in a minute.");
+      await finishRun(runId, "failed");
       return { ok: false, reason: "telegram_down", message: "Couldn't reach Telegram" };
     }
-    if (!me.ok || !me.result?.username) {
-      await emit(runId, "verifier", "failed", "Telegram rejected this token. Copy it again from BotFather's \"Done!\" message.");
-      await finish(runId, "failed");
+    const botUsername = me.result?.username as string | undefined;
+    if (!me.ok || !botUsername) {
+      await r("nova", "failed", "Telegram rejected this token. Copy it again from BotFather's \"Done!\" message.");
+      await finishRun(runId, "failed");
       return { ok: false, reason: "bad_token", message: "Invalid token" };
     }
-    const botUsername = me.result.username;
-    await emit(runId, "verifier", "done", `Token is valid — your bot is @${botUsername} (${me.result.first_name ?? botUsername}).`);
+    await r("nova", "done", `Token is valid — your bot is @${botUsername} (${me.result?.first_name ?? botUsername}).`);
 
-    // 2. Connector — point the bot at Amara's servers and confirm Telegram accepted it.
+    // 2. Bolt — point the bot at Amara's servers and confirm Telegram accepted it.
+    await r("bolt", "working", `Connecting @${botUsername} to Amara's servers…`);
     const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/student-bot/${student.id}`;
-    const connected = await step(runId, "connector", `Connecting @${botUsername} to Amara's servers…`, async () => {
-      await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: webhookUrl, drop_pending_updates: true }),
-      });
-      const info = await (await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)).json();
-      return info?.result?.url === webhookUrl;
-    });
-    if (!connected) {
-      await emit(runId, "connector", "failed", "Telegram didn't accept the connection. Please try again.");
-      await finish(runId, "failed");
+    await tg(token, "setWebhook", { url: webhookUrl, drop_pending_updates: true });
+    const hook = await tg(token, "getWebhookInfo");
+    if (hook?.result?.url !== webhookUrl) {
+      await r("bolt", "failed", "Telegram didn't accept the connection. Please try again.");
+      await finishRun(runId, "failed");
       return { ok: false, reason: "error", message: "Webhook not set" };
     }
-    await emit(runId, "connector", "done", `Connected — every message sent to @${botUsername} now reaches your AI.`);
+    await r("bolt", "done", `Connected — every message sent to @${botUsername} now reaches your AI.`);
 
-    // 3. Sales Brain — load the student's own links into the sales script.
+    // 3. Scribe — write the bot's public profile and command menu.
+    await r("scribe", "working", `Writing @${botUsername}'s profile, about text and menu…`);
+    const profile = await Promise.all([
+      tg(token, "setMyShortDescription", { short_description: "Your EEM26 assistant 🤖 Ask me how people are earning online with AI." }),
+      tg(token, "setMyDescription", {
+        description:
+          "Hi! 👋 I help people start a real digital business with EEM26 — AI tools, a done-with-you setup and 4 personal coaches.\n\nTap Start and tell me your name to get registered for the next free training.",
+      }),
+      tg(token, "setMyCommands", { commands: [{ command: "start", description: "Start chatting" }] }),
+    ]);
+    await r(
+      "scribe",
+      "done",
+      profile.every((p) => p?.ok) ? "Profile, about text and menu written — visitors see them before they tap Start." : "Profile partly written — your bot works either way."
+    );
+
+    // 4. Sage — load the student's own links into the sales script.
     const buyLink = student.payhip_link ?? student.sales_page_link;
-    await step(runId, "brain", "Loading your SRE sales brain: EEM26 script, real student results, objection handling…", async () => {});
-    await emit(
-      runId,
-      "brain",
+    await r("sage", "working", "Loading your SRE sales brain: EEM26 script, real student results, objection handling…");
+    await r(
+      "sage",
       "done",
       buyLink ? `Sales brain ready — buyers will be sent to your link: ${buyLink}` : "Sales brain ready — EEM26 script, student results and objection handling loaded."
     );
 
-    // 4. Tester — ask the AI a real customer question in the bot's voice.
-    const reply = await step(runId, "tester", `Sending @${botUsername} a test customer message: "Hi, what is EEM26?"`, () =>
-      aiChat({
-        system:
-          "You are a warm, confident sales assistant for EEM26, a done-with-you digital business setup with AI tools and 4 personal coaches. Reply in clear standard English, 2 short sentences max, and end by asking for the person's name.",
-        history: [],
-        user: "Hi, what is EEM26?",
-        maxTokens: 120,
-        temperature: 0.8,
-        caller: "web live build",
-      })
-    );
-    await emit(runId, "tester", "done", reply ? `Your bot replied: "${reply.replace(/\s+/g, " ").slice(0, 280)}"` : "Test skipped — the AI is busy, but your bot is connected.");
+    // 5. Echo — ask the AI a real customer question in the bot's voice.
+    await r("echo", "working", `Sending @${botUsername} a test customer message: "Hi, what is EEM26?"`);
+    const reply = await aiChat({
+      system:
+        "You are a warm, confident sales assistant for EEM26, a done-with-you digital business setup with AI tools and 4 personal coaches. Reply in clear standard English, 2 short sentences max, and end by asking for the person's name.",
+      history: [],
+      user: "Hi, what is EEM26?",
+      maxTokens: 120,
+      temperature: 0.8,
+      caller: "web live build",
+    });
+    await r("echo", "done", reply ? `Your bot replied: "${reply.replace(/\s+/g, " ").slice(0, 280)}"` : "Test skipped — the AI is busy, but your bot is connected.");
 
-    // 5. Launcher — save everything and move the student forward.
-    await step(runId, "launcher", `Switching @${botUsername} on and saving your setup…`, () => launch(botUsername, webhookUrl));
-    await emit(runId, "launcher", "done", `@${botUsername} is LIVE 24/7 🚀`);
-    await finish(runId, "done", botUsername);
+    // 6. Pulse — health check on the live connection.
+    await r("pulse", "working", `Running a health check on @${botUsername}…`);
+    const health = await tg(token, "getWebhookInfo");
+    const lastError = health?.result?.last_error_message as string | undefined;
+    await r(
+      "pulse",
+      "done",
+      lastError ? `Connection is up. Telegram's last note: "${lastError}" — it clears on the next message.` : "Healthy — no delivery errors, ready for customers 24/7."
+    );
+
+    // 7. Amara — save everything and move the student forward.
+    await r("amara", "working", `Switching @${botUsername} on and saving your setup…`);
+    await launch(botUsername, webhookUrl);
+    await r("amara", "done", `@${botUsername} is LIVE 24/7 🚀`);
+    await finishRun(runId, "done", botUsername);
     return { ok: true, botUsername, webhookUrl };
   } catch (e) {
     console.error("runSreBuild error:", e);
-    await emit(runId, "launcher", "failed", "Something went wrong on our side — Amara has been alerted.");
-    await finish(runId, "failed");
+    await r("amara", "failed", "Something went wrong on our side — Amara has been alerted.");
+    await finishRun(runId, "failed");
     return { ok: false, reason: "error", message: String(e) };
   }
 }

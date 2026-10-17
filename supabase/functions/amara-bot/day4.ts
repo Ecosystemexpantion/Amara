@@ -4,6 +4,8 @@ import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } 
 import { generateCertificate } from "./certificate.ts";
 import { notifyAdmin } from "./admin.ts";
 import { createEscalation } from "./knowledge.ts";
+import { checkWithAgents } from "./agent-checks.ts";
+import { startRun, reporter, finishRun, webLink } from "../_shared/runs.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 export async function handleDay4(
@@ -66,7 +68,7 @@ IMPORTANT guidance for confused students:
   const prompt = buildVerificationPrompt(
     "Does this screenshot show a Telegram chat where a bot is replying to messages? Look for a bot account (bot icon or name ending in Bot) responding with text. If verified=false, describe EXACTLY what you see (group chat, BotFather, wrong screen, etc.) and give step-by-step instructions to find and test their own bot."
   );
-  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
+  const result = await checkWithAgents(student.id, "Testing that your bot replies", photo, prompt);
 
   if (result.reason === "verification_unavailable") {
     notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 4 Step 1 for ${student.full_name}`).catch(() => {});
@@ -134,17 +136,32 @@ async function handleStep3(student: Student, chatId: number, text: string | null
   const prompt = buildVerificationPrompt(
     "Does this photo show a handwritten signature or name written on paper? Any clear handwriting/signature on paper counts — it doesn't need to be on white paper."
   );
+  const runId = await startRun(student.id, "certificate", "telegram", "Creating your certificate");
+  const r = reporter(runId);
+  await r("iris", "working", "Reading your signature photo…");
   const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
+  await r("iris", result.verified ? "done" : "failed", result.verified ? "Signature found ✍️" : "I couldn't find a handwritten signature in that photo.");
+  if (!result.verified) await finishRun(runId, "failed");
 
   if (result.verified) {
     await sendChatAction(chatId, "upload_document");
-    await typeMessage(chatId, `Got your signature! ✍️ Generating your certificate now... 🎓`);
+    const link = webLink(student.web_key);
+    await typeMessage(
+      chatId,
+      `Got your signature! ✍️ Generating your certificate now... 🎓${link ? `\n\n👀 <a href="${link}">Watch your certificate being made live</a>` : ""}`
+    );
 
     try {
+      await r("quill", "working", "Designing your A4 certificate with your name and signature…");
       const certBytes = await generateCertificate(student, photo.bytes, photo.mimeType);
+      await r("quill", "done", `Certificate designed for ${student.full_name ?? "you"} 🎓`);
+      await r("seal", "working", "Dating and sealing your certificate…");
+      await r("seal", "done", `Sealed and dated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.`);
       const certFilename = `${(student.full_name ?? "Student").replace(/\s+/g, "_")}_EEM26_Certificate.pdf`;
 
+      await r("courier", "working", "Delivering your certificate to Telegram…");
       await sendDocument(chatId, certFilename, certBytes, `🎓 Your official EEM26 Certificate of Completion!`);
+      await r("courier", "done", "Delivered — check your Telegram chat with Amara 📄");
 
       await sendDocument(
         Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695",
@@ -153,16 +170,21 @@ async function handleStep3(student: Student, chatId: number, text: string | null
         `🎓 Certificate issued for: ${student.full_name}\nCountry: ${student.country}\nEmail: ${student.email}`
       );
 
+      await r("amara", "working", "Recording your graduation…");
       await recordStepCompletion(student.id, 4, 3, true, "Certificate generated");
       await advanceStep(student.id, 4, 4, {
         certificate_issued: true,
         certificate_issued_at: new Date().toISOString(),
       });
+      await r("amara", "done", "You're officially an EEM26 graduate 🎓");
+      await finishRun(runId, "done");
 
       await new Promise((r) => setTimeout(r, 2000));
       await sendGrandFinale(student, chatId);
     } catch (e) {
       console.error("Certificate generation error:", e);
+      await r("quill", "failed", "Small hiccup making the certificate — please send your signature again.");
+      await finishRun(runId, "failed");
       await typeMessage(chatId, `Small hiccup with the certificate — please send your signature photo again 📸`);
     }
   } else {

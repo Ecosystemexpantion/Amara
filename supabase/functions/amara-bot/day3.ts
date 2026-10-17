@@ -4,6 +4,7 @@ import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } 
 import { notifyAdmin } from "./admin.ts";
 import { createEscalation } from "./knowledge.ts";
 import { handleSreStep } from "./day1.ts";
+import { checkWithAgents } from "./agent-checks.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const READY_WORDS = /\b(ready|let'?s go|start|begin|ok|okay|yes|go|proceed|continue|oya|sure|done)\b/i;
@@ -107,7 +108,7 @@ async function handleStep2(student: Student, chatId: number, text: string | null
     "When in doubt, accept — it is better to accept a genuine student than to reject them.",
     ["page_type: write 'dashboard' if logged in and on any account/management/store page, write 'registration' if showing a signup or login form, write 'store_buyer_view' if showing a store page with Store Home/Dashboard/Purchases links"]
   );
-  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
+  const result = await checkWithAgents(student.id, "Checking your Selar screenshot", photo, prompt);
 
   if (result.reason === "verification_unavailable") {
     notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 3 Step 2 for ${student.full_name}`).catch(() => {});
@@ -165,7 +166,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
     "REJECT only if it is clearly a completely different website, not Selar.\n" +
     "When in doubt, accept — a student showing any Selar account page has completed this step."
   );
-  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
+  const result = await checkWithAgents(student.id, "Checking your Selar dashboard", photo, prompt);
 
   if (result.reason === "verification_unavailable") {
     notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 3 Step 3 for ${student.full_name}`).catch(() => {});
@@ -219,7 +220,7 @@ async function handleStep4(student: Student, chatId: number, text: string | null
     "For guidance: tell the student exactly what page they are on and what to do next.",
     ["page_type: write 'form' if showing the affiliate signup form, write 'dashboard' if showing a logged-in affiliate dashboard"]
   );
-  const result = await geminiVision(photo.bytes, photo.mimeType, prompt);
+  const result = await checkWithAgents(student.id, "Checking your Payhip account", photo, prompt);
 
   if (result.reason === "verification_unavailable") {
     notifyAdmin(`ℹ️ Vision API unavailable — auto-accepted Day 3 Step 4 for ${student.full_name}`).catch(() => {});

@@ -40,7 +40,7 @@ function phaseOf(s: Student): string {
 }
 
 async function latestRun(studentId: string, runId?: string | null) {
-  let q = supabase.from("sre_runs").select("id, status, source, bot_username, events, created_at").eq("student_id", studentId);
+  let q = supabase.from("sre_runs").select("id, kind, title, status, source, bot_username, events, created_at").eq("student_id", studentId);
   q = runId ? q.eq("id", runId) : q.order("created_at", { ascending: false }).limit(1);
   const { data } = await q;
   return data?.[0] ?? null;
