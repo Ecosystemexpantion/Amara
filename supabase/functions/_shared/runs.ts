@@ -14,9 +14,9 @@ export type RunKind = "sre" | "pages" | "check" | "certificate";
 export type AgentState = "working" | "done" | "failed";
 export type Report = (agent: string, state: AgentState, text: string) => Promise<void>;
 
-// The web page plays each agent's tool animation (~10s per agent); Telegram waits this long
+// The web page plays each agent's tool animation (~16s per agent); Telegram waits this long
 // before announcing a result the student is watching on the web, so both finish together.
-export const WEB_SHOW_MS: Record<RunKind, number> = { sre: 75_000, pages: 75_000, check: 0, certificate: 0 };
+export const WEB_SHOW_MS: Record<RunKind, number> = { sre: 110_000, pages: 110_000, check: 0, certificate: 0 };
 
 export async function startRun(studentId: string, kind: RunKind, source: "telegram" | "web", title?: string): Promise<string | null> {
   try {
