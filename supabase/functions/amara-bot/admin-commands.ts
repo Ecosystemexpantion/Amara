@@ -105,12 +105,17 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
   // announce saturday — blast "training is TODAY" to graduates + Day 4 students.
   // Optional time (Nigeria, PM assumed): "announce saturday 9:30"
   // Optional audience: "last 6 days" = only students who got their certificate in that window.
-  const announceMatch = t.match(/^announce\s+saturday(?:\s+(\d{1,2})[:.](\d{2}))?(?:\s+last\s+(\d{1,3})\s*days?)?$/i);
+  // "announce saturday|today [h:mm] [last N days [and day 4]]" — the session is TODAY.
+  // "announce reschedule <weekday> [h:mm] [last N days [and day 4]]" — the session has moved.
+  const announceMatch = t.match(
+    /^announce\s+(saturday|today|reschedule\s+([a-z]+))(?:\s+(\d{1,2})[:.](\d{2}))?(?:\s+last\s+(\d{1,3})\s*days?(\s+(?:and|plus|\+)\s*day\s*4)?)?$/i
+  );
   if (announceMatch) {
-    const hour = announceMatch[1] ? parseInt(announceMatch[1], 10) : 8;
-    const min = announceMatch[2] ? parseInt(announceMatch[2], 10) : 30;
-    const days = announceMatch[3] ? parseInt(announceMatch[3], 10) : undefined;
-    await announceSaturday(chatId, hour, min, days);
+    const hour = announceMatch[3] ? parseInt(announceMatch[3], 10) : 8;
+    const min = announceMatch[4] ? parseInt(announceMatch[4], 10) : 30;
+    const days = announceMatch[5] ? parseInt(announceMatch[5], 10) : undefined;
+    const movedTo = announceMatch[2] ? announceMatch[2][0].toUpperCase() + announceMatch[2].slice(1).toLowerCase() : undefined;
+    await announceSaturday(chatId, hour, min, days, !!announceMatch[6], movedTo);
     return;
   }
 
@@ -263,7 +268,8 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>premium preview</code> → Publish the new Premium Tech Stack sales page to a preview link.\n` +
     `<code>premium live</code> → Put the new Premium Tech Stack page on the live link.\n\n` +
     `<b>Other</b>\n` +
-    `<code>announce saturday</code> → Blast "training is TONIGHT at 8:30 PM" to all graduates + Day 4 students.\nCustom time: <code>announce saturday 9:30</code> (PM Nigeria time)\nOnly recent graduates: <code>announce saturday 8:30 last 6 days</code>\n\n` +
+    `<code>announce saturday</code> → Blast "training is TONIGHT at 8:30 PM" to all graduates + Day 4 students.\nCustom time: <code>announce saturday 9:30</code> (PM Nigeria time)\nOnly recent graduates: <code>announce saturday 8:30 last 6 days</code> (add <code>and day 4</code> to include Day 4 students)\n` +
+    `Moved session: <code>announce reschedule sunday 8:30 last 7 days and day 4</code>\n\n` +
     `<b>Create pages:</b> Send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Active students with their 🆔 and current day.`
   );
@@ -568,7 +574,14 @@ async function confirmTechStack(adminChatId: number, name: string): Promise<void
 
 // ── Announce Saturday training ───────────────────────────────────────────────
 
-async function announceSaturday(adminChatId: number, pmHour = 8, minute = 30, certifiedWithinDays?: number): Promise<void> {
+async function announceSaturday(
+  adminChatId: number,
+  pmHour = 8,
+  minute = 30,
+  certifiedWithinDays?: number,
+  withDay4 = false,
+  movedTo?: string
+): Promise<void> {
   const timeLabel = `${pmHour}:${String(minute).padStart(2, "0")} PM`;
   const allChatIds = new Set<string>();
 
@@ -579,6 +592,10 @@ async function announceSaturday(adminChatId: number, pmHour = 8, minute = 30, ce
       .select("telegram_chat_id")
       .gte("certificate_issued_at", since);
     for (const s of recent ?? []) allChatIds.add(String(s.telegram_chat_id));
+    if (withDay4) {
+      const { data: day4 } = await supabase.from("amara_students").select("telegram_chat_id").eq("status", "ACTIVE").eq("current_day", 4);
+      for (const s of day4 ?? []) allChatIds.add(String(s.telegram_chat_id));
+    }
   } else {
     // 1. ALL COMPLETED graduates — no matter when they finished. The admin
     // controls when to blast, so every graduate hears about the session.
@@ -605,7 +622,12 @@ async function announceSaturday(adminChatId: number, pmHour = 8, minute = 30, ce
     return;
   }
 
-  const announcement =
+  const announcement = movedTo
+    ? `📢 <b>Change of plan</b>\n\n` +
+      `Coach Victor's <b>Final Stage Setup session</b> has moved to <b>${movedTo} at ${timeLabel} Nigeria time</b> — we had technical issues with Telegram Live. Sorry for the change 🙏\n\n` +
+      `Same group, same link 👇\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n` +
+      `See you ${movedTo} — this is where your business goes live! 🔥`
+    :
     `🚨 <b>TODAY is the day!</b>\n\n` +
     `Coach Victor's <b>Final Stage Setup session</b> is <b>TONIGHT at ${timeLabel} Nigeria time!</b> 🎯\n\n` +
     `👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n` +
@@ -621,9 +643,9 @@ async function announceSaturday(adminChatId: number, pmHour = 8, minute = 30, ce
   }
 
   const audience = certifiedWithinDays !== undefined
-    ? `students who got their certificate in the last ${certifiedWithinDays} days`
+    ? `students who got their certificate in the last ${certifiedWithinDays} days${withDay4 ? " + Day 4 students" : ""}`
     : "graduates + Day 4 students";
-  await sendMessage(adminChatId, `✅ Saturday announcement (${timeLabel}) sent to <b>${sent}</b> ${audience}.`);
+  await sendMessage(adminChatId, `✅ ${movedTo ? `Reschedule notice (${movedTo} ${timeLabel})` : `Session announcement (${timeLabel})`} sent to <b>${sent}</b> ${audience}.`);
 }
 
 // ── List students ─────────────────────────────────────────────────────────────
