@@ -1,6 +1,6 @@
 // Sends the Telegram "it's done" messages for builds, either straight away or once the
 // student's web animation has finished (see holdAnnouncement in _shared/runs.ts).
-import { sendMessage } from "./telegram.ts";
+import { sendMessage, sendHeldMessages } from "./telegram.ts";
 import { getStudentById } from "./db.ts";
 import { announceSreLive } from "./day1.ts";
 import { claimAnnouncement, type Announcement } from "../_shared/runs.ts";
@@ -16,6 +16,10 @@ export async function deliverRunAnnouncement(runId: string): Promise<boolean> {
 }
 
 export async function sendAnnouncement(student: Student, a: Announcement): Promise<void> {
+  if (a.type === "messages") {
+    await sendHeldMessages(student.telegram_chat_id, a.items);
+    return;
+  }
   if (a.type === "sre_live") {
     await announceSreLive(student, student.telegram_chat_id, a.botUsername, a.day);
     return;

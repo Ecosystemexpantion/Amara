@@ -16,9 +16,14 @@ export type Report = (agent: string, state: AgentState, text: string) => Promise
 
 // A build the student is watching on the web holds its Telegram "done" message until the page's
 // animation ends (the page reports "shown") — or until the cron's fallback, a few minutes later.
+export type HeldMessage =
+  | { kind: "text"; text: string; parseMode: "HTML" | "Markdown" }
+  | { kind: "doc"; filename: string; b64: string; caption?: string };
+
 export type Announcement =
   | { type: "sre_live"; day: 1 | 3; botUsername: string }
-  | { type: "pages_live"; isRepair: boolean; normalUrl: string; premiumUrl: string };
+  | { type: "pages_live"; isRepair: boolean; normalUrl: string; premiumUrl: string }
+  | { type: "messages"; items: HeldMessage[] };
 
 export async function startRun(studentId: string, kind: RunKind, source: "telegram" | "web", title?: string): Promise<string | null> {
   try {

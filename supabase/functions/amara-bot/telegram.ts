@@ -1,14 +1,48 @@
 import type { DownloadedFile } from "./types.ts";
+import type { HeldMessage } from "../_shared/runs.ts";
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TG_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const TG_FILE_BASE = `https://api.telegram.org/file/bot${BOT_TOKEN}`;
+
+// While a chat is "held" (a web upload the student is watching), messages to that chat are
+// collected instead of sent, and released when the web animation ends.
+const held = new Map<string, HeldMessage[]>();
+
+export function startHolding(chatId: number | string): void {
+  held.set(String(chatId), []);
+}
+
+export function stopHolding(chatId: number | string): HeldMessage[] {
+  const items = held.get(String(chatId)) ?? [];
+  held.delete(String(chatId));
+  return items;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return btoa(bin);
+}
+
+export async function sendHeldMessages(chatId: number | string, items: HeldMessage[]): Promise<void> {
+  for (const m of items) {
+    if (m.kind === "text") await sendMessage(chatId, m.text, m.parseMode);
+    else await sendDocument(chatId, m.filename, Uint8Array.from(atob(m.b64), (c) => c.charCodeAt(0)), m.caption);
+    await new Promise((r) => setTimeout(r, 700));
+  }
+}
 
 export async function sendMessage(
   chatId: number | string,
   text: string,
   parseMode: "HTML" | "Markdown" = "HTML"
 ): Promise<boolean> {
+  const hold = held.get(String(chatId));
+  if (hold) {
+    hold.push({ kind: "text", text, parseMode });
+    return true;
+  }
   try {
     const res = await fetch(`${TG_BASE}/sendMessage`, {
       method: "POST",
@@ -51,6 +85,7 @@ export async function sendChatAction(
   chatId: number | string,
   action: string
 ): Promise<void> {
+  if (held.has(String(chatId))) return;
   try {
     await fetch(`${TG_BASE}/sendChatAction`, {
       method: "POST",
@@ -65,6 +100,10 @@ export async function typeMessage(
   text: string,
   parseMode: "HTML" | "Markdown" = "HTML"
 ): Promise<void> {
+  if (held.has(String(chatId))) {
+    await sendMessage(chatId, text, parseMode);
+    return;
+  }
   const plainLength = text.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().length;
   const delayMs = Math.min(Math.max(plainLength * 28, 600), 4200);
   await sendChatAction(chatId, "typing");
@@ -78,6 +117,11 @@ export async function sendDocument(
   content: Uint8Array,
   caption?: string
 ): Promise<void> {
+  const hold = held.get(String(chatId));
+  if (hold) {
+    hold.push({ kind: "doc", filename, b64: toBase64(content), caption });
+    return;
+  }
   try {
     const form = new FormData();
     form.append("chat_id", String(chatId));

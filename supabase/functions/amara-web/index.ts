@@ -7,6 +7,8 @@ import { handleDay4 } from "../amara-bot/day4.ts";
 import { deliverRunAnnouncement } from "../amara-bot/announce.ts";
 import { buildGitHubAuthUrl } from "../amara-bot/github.ts";
 import { saveConversation } from "../amara-bot/db.ts";
+import { startHolding, stopHolding, sendHeldMessages } from "../amara-bot/telegram.ts";
+import { holdAnnouncement } from "../_shared/runs.ts";
 import { SRE_STEP, GATE_STEP, BOTFATHER_LINK, TECH_STACK_URL, suggestedBotNames } from "../amara-bot/day1-content.ts";
 import type { Student, TelegramMessage } from "../amara-bot/types.ts";
 
@@ -100,6 +102,29 @@ function decodeImage(b64: unknown, mime: unknown): { bytes: Uint8Array; mimeType
   }
 }
 
+// Amara's Telegram replies to a web upload are held until the page finishes playing the check,
+// then released together (or by the cron's fallback if the page is closed early).
+async function checkUploadAndHoldReplies(student: Student, chatId: number, run: () => Promise<void>): Promise<void> {
+  const startedAt = new Date(Date.now() - 2_000).toISOString();
+  startHolding(chatId);
+  try {
+    await run();
+  } finally {
+    const items = stopHolding(chatId);
+    const { data } = await supabase
+      .from("sre_runs")
+      .select("id")
+      .eq("student_id", student.id)
+      .in("kind", ["check", "certificate"])
+      .gte("created_at", startedAt)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const runId = data?.[0]?.id as string | undefined;
+    if (runId && items.length) await holdAnnouncement(runId, { type: "messages", items });
+    else if (items.length) await sendHeldMessages(chatId, items);
+  }
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
@@ -157,7 +182,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         if (!photo) return json({ error: "That image couldn't be read. Please choose a JPG or PNG under 6 MB." }, 400);
         await saveConversation(student.id, "user", "[photo via web]", "photo");
         const handler = student.current_day === 3 ? handleDay3 : handleDay4;
-        background(handler({} as TelegramMessage, student, chatId, null, photo));
+        background(checkUploadAndHoldReplies(student, chatId, () => handler({} as TelegramMessage, student, chatId, null, photo)));
         return json({ ok: true });
       }
 
