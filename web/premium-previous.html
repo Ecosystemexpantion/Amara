@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tech Stack — EEM26 | Only 3 Slots Left</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Figtree:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --gold:#F5A623;--gold2:#FFD700;
+  --green:#22C55E;--green2:#16A34A;
+  --accent:#6C63FF;--accent2:#4F46E5;
+  --dark:#06060A;--card:#0E0E14;--card2:#12121A;
+  --border:#1E1E2E;--text:#fff;--muted:#7A7A9A;--red:#f87171;
+}
+html{scroll-behavior:smooth}
+body{background:var(--dark);color:var(--text);font-family:'Figtree',sans-serif;overflow-x:hidden}
+
+.ticker{background:#03030A;border-bottom:1px solid var(--border);padding:8px 0;overflow:hidden;white-space:nowrap}
+.ticker-inner{display:inline-block;animation:tick 22s linear infinite;font-size:.68rem;letter-spacing:3px;color:var(--red);font-weight:700}
+@keyframes tick{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
+
+nav{position:sticky;top:0;z-index:100;background:rgba(6,6,10,.98);backdrop-filter:blur(24px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:13px 20px}
+.nav-logo{font-family:'Bebas Neue',cursive;font-size:1.4rem;color:var(--gold);letter-spacing:3px}
+.nav-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:900;font-size:.72rem;letter-spacing:.5px;padding:11px 18px;border-radius:7px;text-decoration:none;transition:all .2s;border:none;cursor:pointer;font-family:'Figtree',sans-serif;box-shadow:0 4px 18px rgba(108,99,255,.35)}
+.nav-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(108,99,255,.5)}
+
+.top-timer{background:linear-gradient(135deg,rgba(248,113,113,.12),rgba(248,113,113,.06));border-bottom:2px solid rgba(248,113,113,.4);padding:14px 20px;text-align:center}
+.top-timer-label{font-size:.6rem;letter-spacing:4px;text-transform:uppercase;color:var(--red);font-weight:700;margin-bottom:8px}
+.top-timer-row{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
+.top-t-block{text-align:center}
+.top-t-num{font-family:'Bebas Neue',cursive;font-size:2.8rem;color:var(--red);line-height:1;text-shadow:0 0 24px rgba(248,113,113,.6)}
+.top-t-unit{font-size:.52rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.top-t-sep{font-family:'Bebas Neue',cursive;font-size:2.4rem;color:var(--red);opacity:.5;padding-bottom:10px}
+.top-timer-slots{font-size:.72rem;color:var(--red);font-weight:700;letter-spacing:1px;animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+
+.slot-tracker{background:linear-gradient(135deg,#0d0a2a,#0a0818);border-bottom:1px solid var(--border);padding:18px 20px}
+.slot-inner{max-width:500px;margin:0 auto;text-align:center}
+.slot-label{font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;font-weight:700}
+.slot-dots{display:flex;justify-content:center;gap:10px;margin-bottom:10px}
+.slot-dot{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',cursive;font-size:1.1rem;font-weight:900;border:2px solid}
+.slot-dot.taken{background:rgba(248,113,113,.15);border-color:var(--red);color:var(--red)}
+.slot-dot.taken::after{content:'✗'}
+.slot-dot.open{background:rgba(34,197,94,.1);border-color:var(--green);color:var(--green)}
+.slot-dot.open::after{content:'✓'}
+.slot-dot.you{background:rgba(245,166,35,.15);border-color:var(--gold);color:var(--gold);animation:goldPulse 2s infinite;font-size:.65rem}
+.slot-dot.you::after{content:'YOU'}
+@keyframes goldPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.4)}50%{box-shadow:0 0 0 8px rgba(245,166,35,0)}}
+.slot-caption{font-size:.78rem;color:var(--muted);line-height:1.5}
+.slot-caption strong{color:var(--red)}
+
+.hero{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 20px 50px;background:radial-gradient(ellipse 90% 60% at 50% 0%,#0d0a2a 0%,transparent 65%),var(--dark);position:relative;overflow:hidden}
+.hero-dots{position:absolute;inset:0;background-image:radial-gradient(circle,rgba(108,99,255,.07) 1px,transparent 1px);background-size:34px 34px;pointer-events:none}
+.hero-glow{position:absolute;top:-80px;left:50%;transform:translateX(-50%);width:600px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(108,99,255,.1) 0%,transparent 70%);pointer-events:none}
+
+.exclusive-badge{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,rgba(245,166,35,.15),rgba(245,166,35,.05));border:1px solid rgba(245,166,35,.4);color:var(--gold);font-size:.68rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:9px 22px;border-radius:4px;margin-bottom:26px}
+
+.hero h1{font-family:'Bebas Neue',cursive;font-size:clamp(3rem,16vw,8.5rem);line-height:.88;margin-bottom:10px}
+.line1{display:block;color:var(--text)}
+.line2{display:block;color:var(--gold)}
+.line3{display:block;color:var(--accent);font-size:clamp(1.3rem,4.5vw,3rem);letter-spacing:5px;margin-top:6px}
+
+.hero-sub{font-size:clamp(.9rem,2.2vw,1.02rem);color:var(--muted);max-width:480px;margin:20px auto 0;line-height:1.75;font-weight:500}
+.hero-sub strong{color:var(--text);font-weight:700}
+
+.stack-promise{background:linear-gradient(135deg,rgba(245,166,35,.1),rgba(245,166,35,.04));border:1px solid rgba(245,166,35,.3);border-left:4px solid var(--gold);border-radius:0 12px 12px 0;padding:22px;margin:28px 0;text-align:left;max-width:520px;width:100%}
+.vp-label{font-size:.6rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:8px}
+.vp-text{font-size:.95rem;line-height:1.7;color:var(--text);font-weight:600}
+.vp-text span{color:var(--gold)}
+
+.cta-stack{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:480px;margin-top:28px}
+.price-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+.old-price{font-size:1rem;color:var(--muted);text-decoration:line-through}
+.new-price{font-family:'Bebas Neue',cursive;font-size:3.5rem;color:var(--gold);line-height:1}
+.save-badge{background:var(--red);color:#fff;font-size:.65rem;font-weight:900;letter-spacing:1px;padding:5px 13px;border-radius:50px}
+.dl-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;font-weight:900;font-size:1.05rem;padding:20px 36px;border-radius:10px;text-decoration:none;border:none;cursor:pointer;font-family:'Figtree',sans-serif;transition:all .25s;box-shadow:0 0 50px rgba(34,197,94,.28);animation:btnPulse 2.8s ease-in-out infinite}
+.dl-btn:hover{transform:translateY(-3px);box-shadow:0 0 75px rgba(34,197,94,.55);animation:none}
+@keyframes btnPulse{0%,100%{box-shadow:0 0 50px rgba(34,197,94,.28)}50%{box-shadow:0 0 80px rgba(34,197,94,.55)}}
+.btn-note{font-size:.7rem;color:var(--muted);letter-spacing:.5px;text-align:center}
+
+.trust-bar{background:var(--card);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap}
+.trust-item{display:flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;color:var(--muted)}
+
+.what-section{padding:56px 20px;max-width:560px;margin:0 auto}
+.section-tag{font-size:.6rem;font-weight:700;letter-spacing:4px;color:var(--accent);text-transform:uppercase;margin-bottom:10px}
+.section-title{font-family:'Bebas Neue',cursive;font-size:clamp(2rem,7vw,3.5rem);line-height:.93;margin-bottom:8px}
+.section-title span{color:var(--gold)}
+.divider-line{width:40px;height:3px;background:linear-gradient(90deg,var(--accent),transparent);border-radius:2px;margin:14px 0 24px}
+
+.timeline{display:flex;flex-direction:column;gap:0;margin-top:28px}
+.tl-item{display:flex;gap:16px;position:relative}
+.tl-item:not(:last-child)::after{content:'';position:absolute;left:19px;top:44px;width:2px;height:calc(100% - 8px);background:linear-gradient(180deg,var(--accent),transparent)}
+.tl-day{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent));display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',cursive;font-size:1rem;color:#fff;flex-shrink:0;border:2px solid rgba(108,99,255,.4);margin-top:2px}
+.tl-day.gold{background:linear-gradient(135deg,#a07000,var(--gold));border-color:rgba(245,166,35,.5)}
+.tl-content{padding-bottom:28px;flex:1}
+.tl-title{font-weight:900;font-size:.92rem;color:var(--text);margin-bottom:4px}
+.tl-desc{font-size:.82rem;color:var(--muted);line-height:1.6}
+.tl-desc strong{color:var(--gold)}
+
+
+.vc-crown{font-size:2rem;margin-bottom:10px;display:block}
+.vc-role{font-size:.6rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:8px}
+.vc-name{font-family:'Bebas Neue',cursive;font-size:2.2rem;color:var(--text);letter-spacing:2px;margin-bottom:10px}
+.vc-promise{font-size:.92rem;line-height:1.75;color:#ccc}
+.vc-promise strong{color:var(--gold)}
+.vc-promise em{color:var(--green);font-style:normal;font-weight:700}
+
+.domain-card{background:var(--card);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;padding:22px;margin:16px 0;display:flex;align-items:flex-start;gap:14px}
+.dc-icon{font-size:1.8rem;flex-shrink:0}
+.dc-title{font-weight:900;font-size:.88rem;color:var(--text);margin-bottom:4px}
+.dc-desc{font-size:.8rem;color:var(--muted);line-height:1.6}
+.dc-desc strong{color:var(--accent)}
+
+.proof-strip{padding:50px 20px;background:linear-gradient(180deg,#040409,#07070F);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.proof-inner{max-width:560px;margin:0 auto}
+.proof-nums{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:24px}
+.pnum{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 14px;text-align:center}
+.pnum strong{font-family:'Bebas Neue',cursive;font-size:2rem;color:var(--gold);display:block;line-height:1}
+.pnum span{font-size:.58rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;display:block;margin-top:3px}
+
+.video-section{padding:50px 20px;max-width:560px;margin:0 auto}
+.video-card{background:var(--card);border:1px solid var(--border);border-top:2px solid var(--gold);border-radius:14px;overflow:hidden}
+.vc-top{padding:16px 20px 12px;border-bottom:1px solid var(--border)}
+.vc-label{font-size:.58rem;font-weight:700;letter-spacing:2.5px;color:var(--gold);text-transform:uppercase;margin-bottom:5px}
+.vc-title{font-size:.92rem;font-weight:700;line-height:1.4;color:var(--text)}
+.vc-sub{font-size:.78rem;color:var(--muted);margin-top:4px;line-height:1.5}
+.vf-wide{position:relative;padding-top:56.25%}
+.vf-wide iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none}
+
+.urgency-section{padding:40px 20px;background:rgba(248,113,113,.04);border-top:1px solid rgba(248,113,113,.2);border-bottom:1px solid rgba(248,113,113,.2)}
+.urgency-inner{max-width:520px;margin:0 auto;text-align:center}
+.urgency-title{font-family:'Bebas Neue',cursive;font-size:clamp(2rem,8vw,3.8rem);color:var(--red);margin-bottom:16px;letter-spacing:1px}
+.urgency-box{background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.18);border-radius:12px;padding:20px;text-align:left}
+.urgency-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid rgba(248,113,113,.08)}
+.urgency-item:last-child{border-bottom:none}
+.u-icon{flex-shrink:0;margin-top:2px}
+.u-text{font-size:.86rem;line-height:1.65;color:var(--text)}
+.u-text strong{color:var(--red)}
+
+.final-section{padding:80px 20px;text-align:center;background:radial-gradient(ellipse 80% 55% at 50% 100%,#0d0a2a 0%,transparent 65%),var(--dark)}
+.final-section h2{font-family:'Bebas Neue',cursive;font-size:clamp(2.5rem,10vw,6rem);line-height:.9;margin-bottom:18px}
+.final-section h2 span{color:var(--green)}
+.final-sub{color:var(--muted);max-width:420px;margin:0 auto 36px;font-size:.9rem;line-height:1.75}
+.timer-wrap{display:inline-block;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.25);border-radius:14px;padding:18px 32px;margin-bottom:24px}
+.timer-label{font-size:.6rem;letter-spacing:4px;text-transform:uppercase;color:var(--red);margin-bottom:10px;font-weight:700}
+.timer-row{display:flex;gap:16px;align-items:center;justify-content:center}
+.t-block{text-align:center}
+.t-num{font-family:'Bebas Neue',cursive;font-size:3.8rem;color:var(--red);line-height:1;text-shadow:0 0 30px rgba(248,113,113,.5)}
+.t-unit{font-size:.56rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted);margin-top:3px}
+.t-sep{font-family:'Bebas Neue',cursive;font-size:3.2rem;color:var(--red);opacity:.5;padding-bottom:12px}
+.slots-txt{font-size:.76rem;color:var(--red);font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:28px;animation:blink 1.2s infinite}
+
+.float-btn{position:fixed;bottom:20px;right:16px;z-index:200;background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;display:flex;align-items:center;gap:8px;padding:13px 20px;border-radius:50px;font-weight:900;font-size:.8rem;text-decoration:none;box-shadow:0 6px 32px rgba(34,197,94,.45);animation:floatPop 2.5s ease-in-out infinite;transition:transform .15s;border:none;cursor:pointer;font-family:'Figtree',sans-serif}
+.float-btn:hover{transform:scale(1.05);animation:none}
+@keyframes floatPop{0%,100%{box-shadow:0 6px 32px rgba(34,197,94,.45)}50%{box-shadow:0 6px 55px rgba(34,197,94,.75)}}
+
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .55s,transform .55s}
+.reveal.visible{opacity:1;transform:none}
+footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#2a2a3a;letter-spacing:2px;border-top:1px solid var(--border)}
+
+#pay-modal{display:none;position:fixed;inset:0;z-index:999;background:rgba(6,6,10,.93);backdrop-filter:blur(14px);align-items:center;justify-content:center;padding:20px}
+#pay-modal.active{display:flex}
+#pay-modal-box{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--gold);border-radius:16px;padding:36px 28px;max-width:430px;width:100%;position:relative}
+#pay-modal-close{position:absolute;top:14px;right:18px;background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;line-height:1}
+#pay-modal-close:hover{color:var(--text)}
+#pay-modal-tag{font-size:.58rem;letter-spacing:3px;color:var(--gold);font-weight:700;text-transform:uppercase;margin-bottom:8px}
+#pay-modal-title{font-family:'Bebas Neue',cursive;font-size:2.2rem;color:var(--text);letter-spacing:1px;margin-bottom:14px;line-height:1}
+#pay-modal-sub{font-size:.9rem;color:#ccc;line-height:1.78;margin-bottom:24px}
+#pay-email{width:100%;padding:14px 16px;background:var(--dark);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-family:'Figtree',sans-serif;font-size:.92rem;outline:none;transition:border-color .2s;margin-bottom:14px}
+#pay-email:focus{border-color:var(--gold)}
+#pay-email.error{border-color:var(--red)}
+#pay-submit{width:100%;background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;font-weight:900;font-size:.98rem;padding:18px 24px;border-radius:10px;border:none;cursor:pointer;font-family:'Figtree',sans-serif;transition:all .2s;box-shadow:0 0 40px rgba(34,197,94,.3)}
+#pay-submit:hover{transform:translateY(-2px);box-shadow:0 0 60px rgba(34,197,94,.55)}
+#pay-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
+#pay-modal-foot{text-align:center;font-size:.65rem;color:var(--muted);margin-top:12px;letter-spacing:.5px}
+
+.stack-code{display:inline-block;font-size:.58rem;font-weight:900;letter-spacing:2px;color:var(--gold2);background:rgba(245,166,35,.15);border:1px solid rgba(245,166,35,.45);border-radius:50px;padding:3px 10px;margin-bottom:6px}
+
+/* ===== LIQUID GLASS THEME ===== */
+:root{
+  --glass:rgba(255,255,255,.07);
+  --glass-strong:rgba(255,255,255,.12);
+  --glass-border:rgba(255,255,255,.22);
+  --glass-shine:inset 0 1.5px 0 rgba(255,255,255,.45),inset 0 -1px 0 rgba(255,255,255,.08),inset 0 0 22px rgba(255,255,255,.05);
+  --glass-shadow:0 10px 40px rgba(0,0,0,.45);
+  --muted:#B4B4D0;
+}
+body{background:#05050c;position:relative}
+/* vivid blobs behind the glass so the blur has something to refract */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(38% 32% at 12% 14%,rgba(108,99,255,.60),transparent 70%),
+    radial-gradient(34% 30% at 88% 22%,rgba(245,166,35,.42),transparent 70%),
+    radial-gradient(40% 34% at 18% 78%,rgba(34,197,94,.38),transparent 70%),
+    radial-gradient(36% 30% at 86% 86%,rgba(236,72,153,.38),transparent 70%),
+    radial-gradient(30% 26% at 52% 48%,rgba(56,189,248,.26),transparent 70%);
+  }
+@keyframes blobDrift{from{transform:translate3d(-2%,-1%,0) scale(1)}to{transform:translate3d(2%,2%,0) scale(1.08)}}
+
+/* let the blobs show through full-width sections */
+.hero,.final-section,.proof-strip,.urgency-section,.slot-tracker,.top-timer,.ticker,.trust-bar{background:transparent!important}
+.hero-dots,.hero-glow{display:none}
+
+/* glass surfaces */
+.stack-promise,.domain-card,.video-card,.pnum,.urgency-box,.timer-wrap,.slot-inner,.top-timer-row,#pay-modal-box,.exclusive-badge,.trust-item{
+  background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.04))!important;
+  -webkit-backdrop-filter:blur(26px) saturate(180%);backdrop-filter:blur(26px) saturate(180%);
+  border:1px solid var(--glass-border)!important;
+  box-shadow:var(--glass-shine),var(--glass-shadow);
+}
+.stack-promise{border-left:1px solid var(--glass-border)!important;border-radius:20px}
+.domain-card,.video-card,.urgency-box,.timer-wrap,#pay-modal-box{border-radius:24px}
+.pnum{border-radius:18px}
+.slot-inner{border-radius:24px;padding:18px 16px}
+.top-timer-row{border-radius:22px;padding:12px 18px;max-width:520px;margin:0 auto}
+.top-timer{border-bottom:none;padding:14px 16px}
+.slot-tracker{border-bottom:none;padding:10px 16px 18px}
+.trust-bar{border:none;gap:10px}
+.trust-item{border-radius:50px;padding:8px 14px;color:#E6E6F5}
+.exclusive-badge{border-radius:50px;color:var(--gold2)}
+.video-card{overflow:hidden}
+.vc-top{border-bottom:1px solid rgba(255,255,255,.14)}
+.urgency-item{border-bottom:1px solid rgba(255,255,255,.12)}
+.ticker{border-bottom:1px solid rgba(255,255,255,.12);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+
+/* nav as a floating glass bar */
+nav{background:rgba(255,255,255,.08)!important;-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);
+  border:1px solid var(--glass-border);border-radius:50px;margin:10px 12px;top:10px;box-shadow:var(--glass-shine),var(--glass-shadow)}
+
+/* glass buttons */
+.dl-btn,.float-btn,#pay-submit{
+  background:linear-gradient(180deg,rgba(74,222,128,.75),rgba(22,163,74,.62))!important;
+  -webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
+  border:1px solid rgba(255,255,255,.4)!important;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.55),inset 0 -8px 18px rgba(0,0,0,.12),0 12px 36px rgba(34,197,94,.35)!important;
+  text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.dl-btn{border-radius:50px}
+.nav-btn{background:linear-gradient(180deg,rgba(139,132,255,.8),rgba(79,70,229,.65))!important;border:1px solid rgba(255,255,255,.4);border-radius:50px;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.5),0 6px 22px rgba(108,99,255,.4);text-shadow:0 1px 2px rgba(0,0,0,.35)}
+
+/* timeline bubbles + badges */
+.tl-day{background:linear-gradient(180deg,rgba(139,132,255,.85),rgba(79,70,229,.7));border:1px solid rgba(255,255,255,.4);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5)}
+.tl-day.gold{background:linear-gradient(180deg,rgba(255,200,90,.9),rgba(190,120,10,.75))}
+.save-badge{background:rgba(248,113,113,.75);border:1px solid rgba(255,255,255,.35);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.45)}
+.slot-dot{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+
+/* modal */
+#pay-modal{background:rgba(5,5,12,.55);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+#pay-email{background:rgba(255,255,255,.08);border:1px solid var(--glass-border);border-radius:14px;box-shadow:inset 0 2px 6px rgba(0,0,0,.25);color:#fff}
+#pay-email::placeholder{color:#C4C4DC}
+#pay-submit{border-radius:50px}
+
+/* keep every text crisp & readable on glass */
+.top-timer-slots,.top-t-num,.t-num{color:#FF9B9B}
+.ticker-inner{color:#FFB4B4}
+.nav-btn{font-size:.64rem;padding:10px 14px;white-space:nowrap}
+.nav-logo{color:var(--gold2)}
+.hero-sub,.tl-desc,.vc-promise,.final-sub,.u-text,.btn-note,.slot-caption,#pay-modal-sub,#pay-modal-foot,.vc-sub,.pnum span,.top-t-unit,.t-unit{color:#D8D8EC}
+.hero-sub strong,.vp-text,.u-text,.vc-title,.vc-name,.tl-title,.dc-title{color:#fff}
+.hero h1,.section-title,.final-section h2{text-shadow:0 2px 24px rgba(0,0,0,.45)}
+.old-price{color:#C4C4DC}
+footer{background:rgba(255,255,255,.04);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);color:#8E8EAA;border-top:1px solid rgba(255,255,255,.12)}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .stack-promise,.domain-card,.video-card,.pnum,.urgency-box,.timer-wrap,.slot-inner,.top-timer-row,#pay-modal-box,nav{background:rgba(24,24,40,.92)!important}
+}
+</style>
+</head>
+<body>
+
+<a href="#" class="float-btn buy-trigger">⚡ Download the Premium Version Now</a>
+
+<div class="ticker"><div class="ticker-inner">🔴 ONLY 3 SLOTS REMAINING &nbsp;•&nbsp; 2 OF 5 ALREADY TAKEN &nbsp;•&nbsp; 5 AI-POWERED SYSTEMS IN ONE STACK &nbsp;•&nbsp; 4 DAYS — SETUP COMPLETE &nbsp;•&nbsp; START SELLING IMMEDIATELY AFTER &nbsp;&nbsp;&nbsp;&nbsp;🔴 ONLY 3 SLOTS REMAINING &nbsp;•&nbsp; 2 OF 5 ALREADY TAKEN &nbsp;•&nbsp; 5 AI-POWERED SYSTEMS IN ONE STACK &nbsp;•&nbsp; 4 DAYS — SETUP COMPLETE &nbsp;•&nbsp; START SELLING IMMEDIATELY AFTER &nbsp;&nbsp;&nbsp;&nbsp;</div></div>
+
+<nav>
+  <div class="nav-logo">EEM26</div>
+  <a href="#" class="nav-btn buy-trigger">⚡ Download the Premium Version Now</a>
+</nav>
+
+<!-- TOP TIMER -->
+<div class="top-timer">
+  <div class="top-timer-label">⏳ This Slot Closes In</div>
+  <div class="top-timer-row">
+    <div class="top-t-block"><div class="top-t-num" id="top-mins">05</div><div class="top-t-unit">Minutes</div></div>
+    <div class="top-t-sep">:</div>
+    <div class="top-t-block"><div class="top-t-num" id="top-secs">00</div><div class="top-t-unit">Seconds</div></div>
+    <div class="top-timer-slots">🔴 3 Slots Left — 2 Taken</div>
+  </div>
+</div>
+
+<!-- SLOT TRACKER -->
+<div class="slot-tracker">
+  <div class="slot-inner">
+    <div class="slot-label">5 Exclusive Slots — Live Status</div>
+    <div class="slot-dots">
+      <div class="slot-dot taken"></div>
+      <div class="slot-dot taken"></div>
+      <div class="slot-dot you"></div>
+      <div class="slot-dot open"></div>
+      <div class="slot-dot open"></div>
+    </div>
+    <div class="slot-caption"><strong>2 slots are gone.</strong> The one marked YOU is yours — but only if you act right now.</div>
+  </div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-dots"></div>
+  <div class="hero-glow"></div>
+  <div class="exclusive-badge reveal">◆ Exclusive — 5 Slots Only ◆</div>
+  <h1 class="reveal">
+    <span class="line1">TECH</span>
+    <span class="line2">STACK</span>
+    <span class="line3">Premium Setup</span>
+  </h1>
+  <p class="hero-sub reveal">A complete pack of <strong>5 AI-powered software systems</strong> that answers your customers, attracts buyers, builds your sales pages and gives you products to sell — set up with you in <strong>4 days</strong>.</p>
+
+  <div class="stack-promise reveal">
+    <div class="vp-label">◆ What You Get</div>
+    <div class="vp-text"><span>5 systems. One stack.</span> SRE · AAM · DPS · DRS · PCA — configured for your business and ready to sell.</div>
+  </div>
+
+  <div class="cta-stack reveal">
+    <div class="price-row">
+      <span class="old-price">₦70,000</span>
+      <span class="new-price">₦46,820</span>
+      <span class="save-badge">3 LEFT</span>
+    </div>
+    <a href="#" class="dl-btn buy-trigger">⚡ Download the Premium Version Now</a>
+    <div class="btn-note">🔒 Secure Checkout · Paystack & Flutterwave · Instant Access</div>
+  </div>
+</section>
+
+<div class="trust-bar">
+  <div class="trust-item">✅ Instant Access</div>
+  <div class="trust-item">🤖 5 Systems Included</div>
+  <div class="trust-item">⚡ 4-Day Setup</div>
+  <div class="trust-item">💰 Start Selling After</div>
+</div>
+
+<!-- THE STACK -->
+<div class="what-section">
+  <div class="section-tag reveal">What's Inside</div>
+  <div class="divider-line reveal"></div>
+  <h2 class="section-title reveal">The <span>5 Systems</span> In Your Stack</h2>
+
+  <div class="domain-card reveal">
+    <div class="dc-icon">🤖</div>
+    <div>
+      <div class="stack-code">SRE</div>
+      <div class="dc-title">Smart Reply Engine</div>
+      <div class="dc-desc">An AI-powered sales assistant configured to understand your products, answer customer questions, handle objections, recommend offers, and guide prospects toward completing a purchase.</div>
+    </div>
+  </div>
+
+  <div class="domain-card reveal">
+    <div class="dc-icon">🧲</div>
+    <div>
+      <div class="stack-code">AAM</div>
+      <div class="dc-title">Automated Audience Magnet</div>
+      <div class="dc-desc">An automated lead-generation system designed to attract potential buyers and direct them into your DM or sales funnel without depending entirely on paid advertising.</div>
+    </div>
+  </div>
+
+  <div class="domain-card reveal">
+    <div class="dc-icon">🌐</div>
+    <div>
+      <div class="stack-code">DPS</div>
+      <div class="dc-title">Dynamic Page System</div>
+      <div class="dc-desc">A system for creating and deploying conversion-focused sales pages that present your offer, explain the benefits, answer common questions, and direct visitors toward purchase.</div>
+    </div>
+  </div>
+
+  <div class="domain-card reveal">
+    <div class="dc-icon">📦</div>
+    <div>
+      <div class="stack-code">DRS</div>
+      <div class="dc-title">Digital Resale Stack</div>
+      <div class="dc-desc">A collection of ready-to-sell digital products and resources that you can offer to customers, giving you products to start selling without creating everything from scratch.</div>
+    </div>
+  </div>
+
+  <div class="domain-card reveal">
+    <div class="dc-icon">🧭</div>
+    <div>
+      <div class="stack-code">PCA</div>
+      <div class="dc-title">Personal Coaching Architecture</div>
+      <div class="dc-desc">The support structure behind the system, giving you access to coaches who help with setup, implementation, troubleshooting, and the process of getting your first results.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PROOF NUMBERS -->
+<div class="proof-strip">
+  <div class="proof-inner">
+    <div class="section-tag reveal">The Numbers</div>
+    <div class="divider-line reveal"></div>
+    <h2 class="section-title reveal">What <span>Students Have Done</span></h2>
+    <div class="proof-nums reveal">
+      <div class="pnum"><strong>₦51M+</strong><span>Student Sales</span></div>
+      <div class="pnum"><strong>8+</strong><span>Currencies Earned</span></div>
+      <div class="pnum"><strong>4 Days</strong><span>Setup Time</span></div>
+      <div class="pnum"><strong>5</strong><span>Systems Included</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- UNDER THE HOOD -->
+<div class="what-section">
+  <div class="section-tag reveal">The Technology</div>
+  <div class="divider-line reveal"></div>
+  <h2 class="section-title reveal">Under <span>The Hood</span></h2>
+  <p class="reveal" style="color:var(--muted);font-size:.88rem;line-height:1.7">The technology that powers your Smart Reply Engine.</p>
+
+  <div class="timeline">
+    <div class="tl-item reveal">
+      <div class="tl-day">1</div>
+      <div class="tl-content">
+        <div class="tl-title">AI Intelligence Layer</div>
+        <div class="tl-desc">The AI system that understands customer messages, interprets their intent, and generates relevant replies.</div>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-day">2</div>
+      <div class="tl-content">
+        <div class="tl-title">Knowledge Base Architecture</div>
+        <div class="tl-desc">The system that organizes your product information, prices, FAQs, policies, and other business details so the AI can respond accurately.</div>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-day">3</div>
+      <div class="tl-content">
+        <div class="tl-title">Omnichannel API Integration</div>
+        <div class="tl-desc">The technology that connects the reply engine to platforms like WhatsApp, Instagram, Facebook, or your website so it can receive and respond to messages.</div>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-day">4</div>
+      <div class="tl-content">
+        <div class="tl-title">Conversational Automation Framework</div>
+        <div class="tl-desc">The logic behind automated conversations, including lead qualification, product recommendations, follow-ups, FAQs, and transferring complex conversations to a human.</div>
+      </div>
+    </div>
+    <div class="tl-item reveal">
+      <div class="tl-day">5</div>
+      <div class="tl-content">
+        <div class="tl-title">Cloud Infrastructure &amp; Usage</div>
+        <div class="tl-desc">The servers, databases, AI processing, storage, and computing resources required to keep the system running and handle customer conversations.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:8px" class="reveal">
+    <a href="#" class="dl-btn buy-trigger" style="max-width:480px;margin:0 auto;display:flex">⚡ Download the Premium Version Now</a>
+    <p style="font-size:.7rem;color:var(--muted);margin-top:10px;letter-spacing:.5px">Only 3 slots left · ₦46,820 · 5 systems included</p>
+  </div>
+</div>
+
+<!-- URGENCY -->
+<div class="urgency-section">
+  <div class="urgency-inner">
+    <div class="urgency-title reveal">⚠ 3 Slots. That's It.</div>
+    <div class="urgency-box reveal">
+      <div class="urgency-item"><div class="u-icon">🚫</div><div class="u-text"><strong>Only 5 slots exist.</strong> 2 are already taken. Once the last 3 go, this batch closes. No waitlist. No second batch.</div></div>
+      <div class="urgency-item"><div class="u-icon">🧭</div><div class="u-text">Every buyer gets hands-on setup support from the coaching team. <strong>To keep that support personal, each batch is capped at 5.</strong></div></div>
+      <div class="urgency-item"><div class="u-icon">💸</div><div class="u-text">Every second you wait, someone else gets closer to taking your slot. <strong>The slot marked YOU disappears the moment someone else clicks first.</strong></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- FINAL CTA -->
+<section class="final-section">
+  <div class="exclusive-badge" style="margin-bottom:24px">◆ 3 Slots Remaining ◆</div>
+  <h2 class="reveal">YOUR SLOT IS<br><span>WAITING.</span></h2>
+  <p class="final-sub reveal">5 systems. 4 days of guided setup. Your AI replying to customers, your audience growing, your sales pages live and products ready to sell. This is not a course — it's a complete software stack, set up with you.</p>
+
+  <div class="timer-wrap reveal">
+    <div class="timer-label">⏳ Slot Closes In</div>
+    <div class="timer-row">
+      <div class="t-block"><div class="t-num" id="mins">05</div><div class="t-unit">Minutes</div></div>
+      <div class="t-sep">:</div>
+      <div class="t-block"><div class="t-num" id="secs">00</div><div class="t-unit">Seconds</div></div>
+    </div>
+  </div>
+
+  <div class="slots-txt reveal">🔴 2 TAKEN — 3 LEFT — INCLUDING YOURS</div>
+
+  <div class="cta-stack reveal" style="margin:0 auto;max-width:480px">
+    <div class="price-row">
+      <span class="old-price">₦70,000</span>
+      <span class="new-price">₦46,820</span>
+      <span class="save-badge">TODAY ONLY</span>
+    </div>
+    <a href="#" class="dl-btn buy-trigger">⚡ Download the Premium Version Now</a>
+    <div class="btn-note">🔒 Paystack & Flutterwave &nbsp;·&nbsp; ✅ Instant Access &nbsp;·&nbsp; 🧭 Coaching Support Included</div>
+  </div>
+</section>
+
+<footer>© 2025 ECOSYSTEM EXPANSION MODEL (EEM26) &nbsp;·&nbsp; ALL RIGHTS RESERVED &nbsp;·&nbsp; EXCLUSIVE — 5 SLOTS ONLY</footer>
+
+<!-- PAYMENT MODAL -->
+<div id="pay-modal" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title">
+  <div id="pay-modal-box">
+    <button id="pay-modal-close" onclick="closePayModal()" aria-label="Close">✕</button>
+    <div id="pay-modal-tag">◆ EEM26 Tech Stack — Premium</div>
+    <div id="pay-modal-title">SECURE YOUR SLOT</div>
+    <p id="pay-modal-sub">This is the last decision you make manually. After this, your AI handles everything. Enter your email — your access arrives instantly.</p>
+    <input type="email" id="pay-email" placeholder="Enter your email address" autocomplete="email" required>
+    <button id="pay-submit" onclick="initiatePaystack()">🔒 Pay ₦46,820 Securely</button>
+    <div id="pay-modal-foot">Powered by Paystack &nbsp;·&nbsp; 256-bit Encrypted &nbsp;·&nbsp; Instant Access</div>
+  </div>
+</div>
+
+<script>
+// Intercept createElement so every iframe gets clipboard-write BEFORE src is set
+(function(){
+  var _orig = document.createElement.bind(document);
+  document.createElement = function(tag){
+    var el = _orig(tag);
+    if(typeof tag === 'string' && tag.toLowerCase() === 'iframe'){
+      el.allow = 'clipboard-read; clipboard-write';
+    }
+    return el;
+  };
+})();
+
+let total = 5 * 60;
+const minsEl = document.getElementById('mins');
+const secsEl = document.getElementById('secs');
+const topMins = document.getElementById('top-mins');
+const topSecs = document.getElementById('top-secs');
+const tick = setInterval(() => {
+  if (total <= 0) {
+    clearInterval(tick);
+    [minsEl, secsEl, topMins, topSecs].forEach(el => { if(el) el.textContent = '00'; });
+    return;
+  }
+  total--;
+  const m = String(Math.floor(total/60)).padStart(2,'0');
+  const s = String(total%60).padStart(2,'0');
+  minsEl.textContent = m; secsEl.textContent = s;
+  topMins.textContent = m; topSecs.textContent = s;
+}, 1000);
+
+emailjs.init('P6vjGqbInRNLni8GS');
+
+// Capture affiliate ref from URL (?ref=oguji) and persist for the session
+(function(){
+  var ref = new URLSearchParams(window.location.search).get('ref');
+  if(ref) sessionStorage.setItem('_aff', ref.toLowerCase());
+})();
+
+function openPayModal() {
+  document.getElementById('pay-modal').classList.add('active');
+  document.getElementById('pay-email').focus();
+  document.body.style.overflow = 'hidden';
+}
+function closePayModal() {
+  document.getElementById('pay-modal').classList.remove('active');
+  document.body.style.overflow = '';
+}
+document.getElementById('pay-modal').addEventListener('click', function(e) {
+  if (e.target === this) closePayModal();
+});
+
+function initiatePaystack() {
+  const emailInput = document.getElementById('pay-email');
+  const submitBtn = document.getElementById('pay-submit');
+  const email = emailInput.value.trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    emailInput.classList.add('error');
+    emailInput.focus();
+    return;
+  }
+  emailInput.classList.remove('error');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Opening Secure Checkout…';
+
+  var handler = PaystackPop.setup({
+    key: 'pk_live_d4b401792b62d34e6664a0180eb4e0eb036ebe16',
+    email: email,
+    amount: 4682000,
+    currency: 'NGN',
+    ref: 'EEM26_' + Date.now() + '_' + Math.floor(Math.random() * 1e6),
+    label: 'EEM26 Tech Stack Premium',
+    metadata: {
+      custom_fields: [
+        { display_name: 'Product', variable_name: 'product', value: 'EEM26 Tech Stack' }
+      ]
+    },
+    callback: function(response) {
+      closePayModal();
+      var affRef = sessionStorage.getItem('_aff') || 'direct';
+      var saleTime = new Date().toLocaleString('en-NG', {timeZone:'Africa/Lagos'});
+      var notifyPayload = {
+        product_name: 'EEM26 Tech Stack',
+        buyer_email: email,
+        payment_ref: response.reference,
+        sale_source: affRef,
+        sale_time: saleTime
+      };
+      var sends = [
+        // Buyer: product access email
+        emailjs.send('service_ab7fo9g', 'template_fnqmdxw', {
+          to_email: email,
+          product_name: 'EEM26 Tech Stack',
+          product_link: 'https://ecosystemexpantion.github.io/Product_page/',
+          payment_ref: response.reference
+        }),
+        // Owner: sale notification
+        emailjs.send('service_ab7fo9g', 'template_sale_notify', Object.assign({to_email:'excel8109@gmail.com'}, notifyPayload))
+      ];
+      // Affiliate: sale notification (only if purchase came via affiliate link)
+      if(affRef === 'oguji') {
+        sends.push(emailjs.send('service_ab7fo9g', 'template_sale_notify', Object.assign({to_email:'ogujiexcellent@gmail.com'}, notifyPayload)));
+      }
+      Promise.allSettled(sends).finally(function(){
+        window.location.href = 'https://ecosystemexpantion.github.io/Product_page/';
+      });
+    },
+    onClose: function() {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '🔒 Pay ₦46,820 Securely';
+    }
+  });
+  handler.openIframe();
+}
+
+document.querySelectorAll('.buy-trigger').forEach(el => {
+  el.addEventListener('click', function(e) {
+    e.preventDefault();
+    openPayModal();
+  });
+});
+
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting){ e.target.classList.add('visible'); obs.unobserve(e.target); }
+  });
+}, { threshold: 0.07 });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>

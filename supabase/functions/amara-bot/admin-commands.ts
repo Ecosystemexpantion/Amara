@@ -10,7 +10,8 @@ import { GATE_STEP } from "./day1-content.ts";
 import { buildGitHubAuthUrl } from "./github.ts";
 import { PAGES_VERSION, publishPage } from "../_shared/pages.ts";
 import { AMARA_WEB_HTML } from "../_shared/web-page.ts";
-import { WEB_APP_URL, webLink } from "./sre-pipeline.ts";
+import { PREMIUM_PAGE_HTML } from "../_shared/premium-page.ts";
+import { webLink } from "./sre-pipeline.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const supabase = createClient(
@@ -56,6 +57,21 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
 
   if (/^web\s+publish$/i.test(t)) {
     await publishWebApp(chatId);
+    return;
+  }
+
+  // premium preview → publish the new Premium Tech Stack page to a preview address
+  // premium live    → replace the live Premium Tech Stack page (previous version stays in GitHub history)
+  const premiumMatch = t.match(/^premium\s+(preview|live)$/i);
+  if (premiumMatch) {
+    const live = premiumMatch[1].toLowerCase() === "live";
+    await publishToAdminPages(
+      chatId,
+      live ? PREMIUM_LIVE_REPO : PREMIUM_PREVIEW_REPO,
+      live ? "EEM26 Tech Stack Premium" : "EEM26 Tech Stack Premium — preview",
+      PREMIUM_PAGE_HTML,
+      live ? "✅ The new Premium Tech Stack page is LIVE" : "👀 Premium page preview published"
+    );
     return;
   }
 
@@ -243,7 +259,9 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>pages notify</code> → Message students whose pages can't be fixed automatically, with the exact step they need to take.\n\n` +
     `<b>Amara on the web</b>\n` +
     `<code>web [ID]</code> → That student's private link to watch their AI agents build live.\n` +
-    `<code>web publish</code> → Re-publish the web page after it changes.\n\n` +
+    `<code>web publish</code> → Re-publish the web page after it changes.\n` +
+    `<code>premium preview</code> → Publish the new Premium Tech Stack sales page to a preview link.\n` +
+    `<code>premium live</code> → Put the new Premium Tech Stack page on the live link.\n\n` +
     `<b>Other</b>\n` +
     `<code>announce saturday</code> → Blast "training is TONIGHT at 8:30 PM" to all graduates + Day 4 students.\nCustom time: <code>announce saturday 9:30</code> (PM Nigeria time)\nOnly recent graduates: <code>announce saturday 8:30 last 6 days</code>\n\n` +
     `<b>Create pages:</b> Send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
@@ -410,8 +428,11 @@ function timeAgo(iso: string): string {
 
 // ── Amara on the web ──────────────────────────────────────────────────────────
 
-// The page is hosted on the admin's own GitHub Pages (the account Amara already has access to).
-async function publishWebApp(adminChatId: number): Promise<void> {
+const PREMIUM_LIVE_REPO = "Tech_stack-premium-";
+const PREMIUM_PREVIEW_REPO = "tech-stack-premium-preview";
+
+// Pages Amara hosts on the admin's own GitHub account (the one Amara already has access to).
+async function publishToAdminPages(adminChatId: number, repo: string, description: string, html: string, doneLabel: string): Promise<void> {
   const owner = Deno.env.get("ADMIN_GITHUB_USERNAME") ?? "Ecosystemexpantion";
   const { data } = await supabase
     .from("amara_students")
@@ -426,11 +447,15 @@ async function publishWebApp(adminChatId: number): Promise<void> {
     return;
   }
   try {
-    await publishPage(token, owner, "amara-live", "Amara — live AI setup", AMARA_WEB_HTML);
-    await sendMessage(adminChatId, `✅ Amara on the web is published:\n${WEB_APP_URL}\n\n<i>GitHub takes about a minute to update it.</i>`);
+    await publishPage(token, owner, repo, description, html);
+    await sendMessage(adminChatId, `${doneLabel}:\nhttps://${owner.toLowerCase()}.github.io/${repo}/\n\n<i>GitHub takes about a minute to update it.</i>`);
   } catch (e) {
     await sendMessage(adminChatId, `❌ Publishing failed: <code>${escapeHtml(String(e).slice(0, 300))}</code>`);
   }
+}
+
+async function publishWebApp(adminChatId: number): Promise<void> {
+  await publishToAdminPages(adminChatId, "amara-live", "Amara — live AI setup", AMARA_WEB_HTML, "✅ Amara on the web is published");
 }
 
 async function sendWebLink(adminChatId: number, studentChatId: string): Promise<void> {
