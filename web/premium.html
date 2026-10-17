@@ -389,7 +389,7 @@ footer{padding:40px 0 24px;color:var(--label3);font-size:.8rem;line-height:1.6;t
     </ul>
     <div class="total"><span>Regular price</span><s>₦70,000</s></div>
     <div class="now"><span style="color:var(--label2)">Today</span><b>₦46,820</b></div>
-    <div class="session"><span class="ic" data-icon="calendar-clock" data-size="22" data-color="#FF9F0A"></span><span>Coach Victor runs the live Final Stage Setup every Saturday at 8:30 PM. <b id="nextSession">Next session: this Saturday</b>. Personal setup is capped at 5 students per batch.</span></div>
+    <div class="session"><span class="ic" data-icon="calendar-clock" data-size="22" data-color="#FF9F0A"></span><span>Coach Victor runs the live Final Stage Setup every week at 8:30 PM. <b id="nextSession">Next session: this Saturday</b>. Personal setup is capped at 5 students per batch.</span></div>
     <a href="#" class="btn block buy-trigger"><span class="ic" data-icon="zap" data-size="20"></span>Get the Premium Tech Stack — ₦46,820</a>
     <div class="trust" style="justify-content:center">
       <span><span class="ic" data-icon="shield-check" data-size="15"></span>Paystack secure checkout</span>
@@ -526,7 +526,13 @@ document.addEventListener("click", function (e) {
 });
 
 // Real urgency: the next Saturday 8:30 PM (Nigeria time) Final Stage session.
+// One-off reschedules go here (shown until the session has ended).
+var SESSION_OVERRIDE = { endsAt: "2026-10-18T23:00:00+01:00", label: "Rescheduled: Sunday 18 October, 8:30 PM" };
 (function () {
+  if (SESSION_OVERRIDE && new Date() < new Date(SESSION_OVERRIDE.endsAt)) {
+    document.getElementById("nextSession").textContent = SESSION_OVERRIDE.label;
+    return;
+  }
   var now = new Date(), lagos = new Date(now.getTime() + (now.getTimezoneOffset() + 60) * 60000);
   var d = new Date(lagos); d.setHours(20, 30, 0, 0);
   var add = (6 - d.getDay() + 7) % 7; if (add === 0 && lagos > d) add = 7;
