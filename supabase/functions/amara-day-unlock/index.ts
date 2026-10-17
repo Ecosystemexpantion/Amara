@@ -9,7 +9,8 @@ import {
 } from "../amara-bot/day1-content.ts";
 import { aiHealthCheck } from "../_shared/ai.ts";
 import { webLink } from "../_shared/runs.ts";
-import { deliverRunAnnouncement } from "../amara-bot/announce.ts";
+import { deliverRunAnnouncement, sendAnnouncement } from "../amara-bot/announce.ts";
+import { getStudentById } from "../amara-bot/db.ts";
 import { PAGES_VERSION, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
 
 // Amara Day Unlock — Cron Job Function
@@ -158,6 +159,14 @@ async function markProactiveSent(studentId: string): Promise<void> {
     .from("amara_students")
     .update({ last_proactive_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq("id", studentId);
+}
+
+// 8AM Nigeria time tomorrow, as UTC.
+function computeNextUnlockAt(): string {
+  const nigeria = new Date(Date.now() + 3600_000);
+  nigeria.setUTCDate(nigeria.getUTCDate() + 1);
+  nigeria.setUTCHours(8, 0, 0, 0);
+  return new Date(nigeria.getTime() - 3600_000).toISOString();
 }
 
 // ── Main cron handler ─────────────────────────────────────────────────────────
@@ -443,9 +452,11 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     {
       const PAGES_PER_RUN = 10;
       const RETRY_AFTER_MS = 6 * 3600_000;
+      // A student still waiting on Day 2 gets retried within minutes, not hours.
+      const DAY2_RETRY_AFTER_MS = 8 * 60_000;
       const { data: withGithub } = await supabase
         .from("amara_students")
-        .select("id, payhip_link, github_access_token")
+        .select("id, payhip_link, github_access_token, current_day, day2_completed_at")
         .not("github_access_token", "is", null);
       const { data: synced } = await supabase.from("student_pages").select("student_id, version, status, synced_at");
       const byId = new Map((synced ?? []).map((r) => [r.student_id, r]));
@@ -455,7 +466,8 @@ Deno.serve(async (_req: Request): Promise<Response> => {
           const r = byId.get(s.id);
           if (!r) return true;
           if (r.status === "ok") return r.version < PAGES_VERSION;
-          return !r.synced_at || now.getTime() - new Date(r.synced_at).getTime() > RETRY_AFTER_MS;
+          const waitingOnDay2 = s.current_day === 2 && !s.day2_completed_at;
+          return !r.synced_at || now.getTime() - new Date(r.synced_at).getTime() > (waitingOnDay2 ? DAY2_RETRY_AFTER_MS : RETRY_AFTER_MS);
         })
         .sort((a, b) => Number(byId.has(a.id)) - Number(byId.has(b.id)))
         .slice(0, PAGES_PER_RUN);
@@ -477,6 +489,21 @@ Deno.serve(async (_req: Request): Promise<Response> => {
                 updated_at: new Date().toISOString(),
               })
               .eq("id", s.id);
+
+            // The web build for this student didn't finish — complete Day 2 now and tell them.
+            if (s.current_day === 2 && !s.day2_completed_at) {
+              const { data: moved } = await supabase
+                .from("amara_students")
+                .update({ day2_completed_at: nowIso, next_day_unlocks_at: computeNextUnlockAt(), current_step: 0, updated_at: nowIso })
+                .eq("id", s.id)
+                .eq("current_day", 2)
+                .is("day2_completed_at", null)
+                .select("id");
+              const student = moved?.length ? await getStudentById(s.id) : null;
+              if (student) {
+                await sendAnnouncement(student, { type: "pages_live", isRepair: false, normalUrl: result.normalUrl!, premiumUrl: result.premiumUrl! });
+              }
+            }
           }
         } catch (err) {
           console.error(`Page sync error for ${s.id}:`, err);

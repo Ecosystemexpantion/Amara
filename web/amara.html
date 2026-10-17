@@ -724,12 +724,12 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
         rowState(i, "done", "Done", res.ev.text, a.tools);
         log('<span class="ok">' + esc(a.name.toUpperCase()) + " ✓</span> " + esc(res.ev.text));
       } else {
-        rowState(i, "failed", goOn ? "Not passed" : "Stopped", res.ev ? res.ev.text : "This step didn't run.", goOn ? a.tools : null);
+        rowState(i, "failed", goOn ? "Not passed" : "Paused", res.ev ? res.ev.text : "This step didn't run.", goOn ? a.tools : null);
         log('<span class="bad">' + esc(a.name.toUpperCase()) + " ✗</span> " + esc(res.ev ? res.ev.text : "Stopped"));
         if (!goOn) {
-          for (var k = i + 1; k < roster.length; k++) { rowState(k, "skipped", "Skipped", "Not needed after the stop above"); scene.setStatus(k, "idle"); }
-          progress(i, roster.length, "Stopped at " + a.name);
-          hud(a, "Stopped — see the details below.");
+          for (var k = i + 1; k < roster.length; k++) { rowState(k, "skipped", "Waiting", "Standing by"); scene.setStatus(k, "idle"); }
+          progress(i, roster.length, "Paused at " + a.name);
+          hud(a, "Paused — see below for what happens next.");
           shown(run);
           return finale(run, false);
         }
@@ -756,18 +756,18 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     var lines = [], states = [], doneCount = 0, stopped = false;
     roster.forEach(function (a, i) {
       var ev = latestOf(run, a.id);
-      if (stopped) { rowState(i, "skipped", "Skipped", "Not needed after the stop above"); states.push("idle"); return; }
+      if (stopped) { rowState(i, "skipped", "Waiting", "Standing by"); states.push("idle"); return; }
       if (ev && ev.state === "done") { rowState(i, "done", "Done", ev.text, a.tools); states.push("done"); doneCount++; lines.push('<span class="ok">' + esc(a.name.toUpperCase()) + " ✓</span> " + esc(ev.text)); }
       else if (ev && ev.state === "failed") {
         var goOn = laterWork(run, roster, i);
-        rowState(i, "failed", goOn ? "Not passed" : "Stopped", ev.text, goOn ? a.tools : null); states.push("failed"); if (!goOn) stopped = true;
+        rowState(i, "failed", goOn ? "Not passed" : "Paused", ev.text, goOn ? a.tools : null); states.push("failed"); if (!goOn) stopped = true;
         lines.push('<span class="bad">' + esc(a.name.toUpperCase()) + " ✗</span> " + esc(ev.text));
       } else states.push("idle");
     });
     scene.markAll(states);
     $("log").dataset.fresh = "1";
     $("log").innerHTML = lines.join("\n") || '<span class="t">No activity yet.</span>';
-    progress(doneCount, roster.length, run.status === "done" ? "Completed" : run.status === "failed" ? "Stopped" : "");
+    progress(doneCount, roster.length, run.status === "done" ? "Completed" : run.status === "failed" ? "Paused" : "");
     hud(null, run.status === "done" ? "Last mission complete — all agents docked." : "Agents are docked and ready.");
     finale(run, run.status === "done", true);
   }
@@ -783,9 +783,37 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     var last = latestOf(run, "amara");
     vis("finBtn", false); vis("finBtn2", false);
     if (!ok) {
-      $("finIcon").textContent = "🛠️";
-      $("finTitle").textContent = run.kind === "check" ? "Not quite yet" : "We hit a snag";
-      $("finText").textContent = run.kind === "check" ? "Amara has sent you exactly what to fix in Telegram." : "Nothing is lost — fix the issue above and try again, or ask Amara on Telegram.";
+      var why = "";
+      (run.events || []).forEach(function (e) { if (e.state === "failed") why = e.text; });
+      $("finIcon").textContent = "⏳";
+      if (run.kind === "check") {
+        $("finIcon").textContent = "📸";
+        $("finTitle").textContent = "Not quite yet";
+        $("finText").textContent = "Amara has sent you exactly what to fix in Telegram — then upload a new screenshot here.";
+      } else if (run.kind === "pages" && /verify your email/i.test(why)) {
+        $("finIcon").textContent = "📧";
+        $("finTitle").textContent = "One quick step left";
+        $("finText").textContent = "GitHub needs you to verify your email. Open the email from GitHub, tap Verify, then tap Connect GitHub again — your agents pick up from there.";
+        $("finBtn").href = "https://github.com/settings/emails"; $("finBtn").textContent = "Open my GitHub email settings"; vis("finBtn", true);
+      } else if (run.kind === "pages" && /Connect GitHub again|access was removed/i.test(why)) {
+        $("finIcon").textContent = "🔗";
+        $("finTitle").textContent = "Reconnect GitHub";
+        $("finText").textContent = "GitHub disconnected before your pages were finished. Tap Connect GitHub again and your agents will pick up where they left off.";
+      } else if (run.kind === "pages") {
+        $("finTitle").textContent = "Almost there";
+        $("finText").textContent = "GitHub is taking a little longer to publish your pages. They're being finished automatically — Amara will message you on Telegram the moment they're live. Nothing for you to do.";
+      } else if (run.kind === "sre") {
+        $("finIcon").textContent = "🔑";
+        $("finTitle").textContent = "Let's try that again";
+        $("finText").textContent = (why ? why + " " : "") + "Paste your token again below and your agents will start over.";
+      } else if (run.kind === "certificate") {
+        $("finIcon").textContent = "✍️";
+        $("finTitle").textContent = "Let's try that again";
+        $("finText").textContent = "Upload a clear photo of your signature on paper and your agents will make your certificate.";
+      } else {
+        $("finTitle").textContent = "Almost there";
+        $("finText").textContent = "Amara is finishing this for you and will message you on Telegram.";
+      }
     } else if (run.kind === "sre") {
       $("finIcon").textContent = "🤖";
       $("finTitle").textContent = "@" + run.bot_username + " is live";
@@ -845,6 +873,10 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       buildList(ROSTERS[kind]); scene.setRoster(ROSTERS[kind], kind); progress(0, 1, "Standing by");
     }
 
+    if (run && run.kind === "pages" && run.status === "failed" && d.phase !== "build_pages" && d.pages && show.finished) {
+      run.status = "done"; run.events = (run.events || []).concat([{ agent: "amara", state: "done", text: "Both sales pages are LIVE 🚀 " + d.pages.normal, at: new Date().toISOString() }]);
+      finale(run, true, true);
+    }
     var busy = show.playing || (run && run.status === "running");
     if (pendingSince && (busy || Date.now() - pendingSince > 30000)) pendingSince = 0;
     var waiting = !!pendingSince;

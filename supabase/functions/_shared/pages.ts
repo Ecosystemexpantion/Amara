@@ -138,16 +138,37 @@ async function ensurePages(token: string, owner: string, repo: string, branch: s
   await build.body?.cancel();
 }
 
-// Only a failure of a build started by this sync counts; an older failed build is just history.
-async function lastBuildError(token: string, owner: string, repo: string, since: number): Promise<string | null> {
-  const res = await gh(token, `/repos/${owner}/${repo}/pages/builds/latest`);
-  if (!res.ok) {
-    await res.body?.cancel();
-    return null;
+// Waits for GitHub Pages to finish publishing. Several builds can overlap right after a push and
+// GitHub sometimes reports a superseded one as "failed", so an error only counts if it survives
+// a fresh rebuild. A build still running when time is up is fine — GitHub finishes it shortly.
+async function settleBuild(token: string, owner: string, repo: string, since: number, onRetry: () => Promise<void>): Promise<string | null> {
+  let from = since;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const deadline = Date.now() + 35_000;
+    let errored: string | null = null;
+    while (Date.now() < deadline) {
+      const res = await gh(token, `/repos/${owner}/${repo}/pages/builds/latest`);
+      if (!res.ok) {
+        await res.body?.cancel();
+        return null;
+      }
+      const build = await res.json();
+      const fresh = new Date(build.created_at).getTime() >= from;
+      if (fresh && build.status === "built") return null;
+      if (fresh && build.status === "errored") {
+        errored = build.error?.message ?? "Pages build failed";
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 4_000));
+    }
+    if (!errored) return null;
+    if (attempt === 1) return errored;
+    await onRetry();
+    from = Date.now() - 2_000;
+    const rebuild = await gh(token, `/repos/${owner}/${repo}/pages/builds`, { method: "POST" });
+    await rebuild.body?.cancel();
   }
-  const build = await res.json();
-  if (build.status !== "errored" || new Date(build.created_at).getTime() < since) return null;
-  return build.error?.message ?? "Pages build failed";
+  return null;
 }
 
 export async function publishPage(token: string, owner: string, repo: string, description: string, html: string): Promise<void> {
@@ -240,12 +261,17 @@ export async function syncStudentPages(token: string, payhipLink: string | null,
     await report("relay", "done", `Premium page published: https://${username.toLowerCase()}.github.io/${PAGE_REPOS.premium}/`);
 
     stage = "scout";
-    await report("scout", "working", "Inspecting both pages for build errors…");
-    for (const repo of Object.values(PAGE_REPOS)) {
-      const err = await lastBuildError(token, username, repo, startedAt);
+    await report("scout", "working", "Watching GitHub publish both pages and inspecting them…");
+    const errors = await Promise.all(
+      Object.values(PAGE_REPOS).map((repo) =>
+        settleBuild(token, username, repo, startedAt, () => report("scout", "working", "GitHub's first build stumbled — Scout is rebuilding it…"))
+      )
+    );
+    for (const [i, err] of errors.entries()) {
+      const repo = Object.values(PAGE_REPOS)[i];
       if (err) {
         const unverified = /verif/i.test(err) && /email/i.test(err);
-        await report("scout", "failed", unverified ? "GitHub needs you to verify your email first — check your inbox." : `GitHub reported a problem: ${err}`);
+        await report("scout", "failed", unverified ? "GitHub needs you to verify your email first — check your inbox." : "GitHub needs a little more time — your pages will be finished automatically.");
         return { status: unverified ? "email_unverified" : "error", detail: `${repo}: ${err}`, username };
       }
     }
@@ -253,7 +279,7 @@ export async function syncStudentPages(token: string, payhipLink: string | null,
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const unverified = /verif/i.test(msg) && /email/i.test(msg);
-    await report(stage, "failed", unverified ? "GitHub needs you to verify your email first — check your inbox." : "GitHub hit a problem — Amara has been alerted.");
+    await report(stage, "failed", unverified ? "GitHub needs you to verify your email first — check your inbox." : "GitHub needs a little more time — your pages will be finished automatically.");
     return { status: unverified ? "email_unverified" : "error", detail: msg.slice(0, 400), username };
   }
 

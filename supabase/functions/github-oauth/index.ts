@@ -362,11 +362,14 @@ async function buildPages(student: any, githubToken: string, runId: string | nul
     await finishRun(runId, "failed");
     console.error("Page setup failed:", result.detail);
     await sendTg(adminChatId, `⚠️ <b>Sales page setup failed</b> for <b>${student.full_name ?? "unknown"}</b> (🆔 <code>${state}</code>)\n\n<code>${result.detail.replace(/</g, "&lt;").slice(0, 400)}</code>`);
+    const room = webLink(student.web_key);
     await sendTg(
       state,
       result.status === "email_unverified"
-        ? "Almost there! 📧 GitHub needs you to <b>verify your email</b> before your pages can go live.\n\nOpen the email GitHub sent you, tap <b>Verify</b>, then tap the GitHub link I sent you again 🙏"
-        : "Small hiccup setting up your pages — tap the GitHub link again and it should go through! 😅"
+        ? `Almost there! 📧 GitHub needs you to <b>verify your email</b> before your pages can go live.\n\nOpen the email GitHub sent you, tap <b>Verify</b>, then tap <b>Connect GitHub</b> again${room ? ` in your <a href="${room}">build room</a>` : ""} 🙏`
+        : result.status === "token_revoked"
+        ? `GitHub disconnected before your pages were done. Tap <b>Connect GitHub</b> again${room ? ` in your <a href="${room}">build room</a>` : ""} and your agents will pick up where they left off 🙏`
+        : "⏳ GitHub is taking a little longer to publish your pages. I'll finish them automatically and message you here the moment they're live — nothing for you to do 🙏"
     );
     return;
   }
