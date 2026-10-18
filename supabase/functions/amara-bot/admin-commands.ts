@@ -105,6 +105,13 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
   // announce saturday — blast "training is TODAY" to graduates + Day 4 students.
   // Optional time (Nigeria, PM assumed): "announce saturday 9:30"
   // Optional audience: "last 6 days" = only students who got their certificate in that window.
+  // "announce live <link> [last N days [and day 4]]" — the session has started; join now.
+  const liveMatch = t.match(/^announce\s+live\s+(https?:\/\/\S+)(?:\s+last\s+(\d{1,3})\s*days?(\s+(?:and|plus|\+)\s*day\s*4)?)?$/i);
+  if (liveMatch) {
+    await announceSaturday(chatId, 8, 30, liveMatch[2] ? parseInt(liveMatch[2], 10) : undefined, !!liveMatch[3], undefined, liveMatch[1]);
+    return;
+  }
+
   // "announce saturday|today [h:mm] [last N days [and day 4]]" — the session is TODAY.
   // "announce reschedule <weekday> [h:mm] [last N days [and day 4]]" — the session has moved.
   const announceMatch = t.match(
@@ -269,7 +276,8 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>premium live</code> → Put the new Premium Tech Stack page on the live link.\n\n` +
     `<b>Other</b>\n` +
     `<code>announce saturday</code> → Blast "training is TONIGHT at 8:30 PM" to all graduates + Day 4 students.\nCustom time: <code>announce saturday 9:30</code> (PM Nigeria time)\nOnly recent graduates: <code>announce saturday 8:30 last 6 days</code> (add <code>and day 4</code> to include Day 4 students)\n` +
-    `Moved session: <code>announce reschedule sunday 8:30 last 7 days and day 4</code>\n\n` +
+    `Moved session: <code>announce reschedule sunday 8:30 last 7 days and day 4</code>\n` +
+    `Session started: <code>announce live [call link] last 8 days and day 4</code>\n\n` +
     `<b>Create pages:</b> Send a message with a Payhip link — I'll ask to confirm, then send a GitHub authorization link.\n\n` +
     `<code>list</code> → Active students with their 🆔 and current day.`
   );
@@ -580,7 +588,8 @@ async function announceSaturday(
   minute = 30,
   certifiedWithinDays?: number,
   withDay4 = false,
-  movedTo?: string
+  movedTo?: string,
+  liveLink?: string
 ): Promise<void> {
   const timeLabel = `${pmHour}:${String(minute).padStart(2, "0")} PM`;
   const allChatIds = new Set<string>();
@@ -622,7 +631,12 @@ async function announceSaturday(
     return;
   }
 
-  const announcement = movedTo
+  const announcement = liveLink
+    ? `🔴 <b>WE'RE LIVE NOW!</b>\n\n` +
+      `Coach Victor's <b>Final Stage Setup training has started</b> 🎯\n\n` +
+      `👉 <a href="${escapeHtml(liveLink)}">Tap here to join the call now</a>\n\n` +
+      `Join right away — this is where your business goes live! 🔥`
+    : movedTo
     ? `📢 <b>Change of plan</b>\n\n` +
       `Coach Victor's <b>Final Stage Setup session</b> has moved to <b>${movedTo} at ${timeLabel} Nigeria time</b> — we had technical issues with Telegram Live. Sorry for the change 🙏\n\n` +
       `Same group, same link 👇\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n` +
@@ -645,7 +659,7 @@ async function announceSaturday(
   const audience = certifiedWithinDays !== undefined
     ? `students who got their certificate in the last ${certifiedWithinDays} days${withDay4 ? " + Day 4 students" : ""}`
     : "graduates + Day 4 students";
-  await sendMessage(adminChatId, `✅ ${movedTo ? `Reschedule notice (${movedTo} ${timeLabel})` : `Session announcement (${timeLabel})`} sent to <b>${sent}</b> ${audience}.`);
+  await sendMessage(adminChatId, `✅ ${liveLink ? "\"We're live\" notice" : movedTo ? `Reschedule notice (${movedTo} ${timeLabel})` : `Session announcement (${timeLabel})`} sent to <b>${sent}</b> ${audience}.`);
 }
 
 // ── List students ─────────────────────────────────────────────────────────────
