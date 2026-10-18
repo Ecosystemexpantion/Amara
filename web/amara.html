@@ -86,7 +86,9 @@ a.link{color:var(--blue);text-decoration:none;font-weight:600}
 .stage-top small{color:var(--label3);font-size:.76rem;white-space:nowrap}
 .bar{height:4px;margin:0 16px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
 .bar i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--teal),var(--blue),var(--purple));transition:width .9s ease}
-canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
+canvas#scene{display:block;width:100%;height:440px;margin-top:6px;touch-action:pan-y;cursor:grab}
+.stage{position:relative}
+.hint3d{position:absolute;right:14px;top:58px;z-index:2;font-size:.68rem;font-weight:600;letter-spacing:.04em;color:var(--label3);padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.07);pointer-events:none}
 .hud{display:flex;gap:12px;align-items:center;padding:12px 16px 16px;border-top:1px solid rgba(255,255,255,.08)}
 .hud .av{flex:0 0 40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:1.25rem;background:color-mix(in srgb,var(--c,var(--blue)) 22%,transparent);border:1px solid color-mix(in srgb,var(--c,var(--blue)) 50%,transparent)}
 .hud .who{font-size:.86rem;font-weight:600}
@@ -217,6 +219,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
   <section class="stage glass">
     <div class="stage-top"><h2 id="stageTitle">Your AI agents</h2><small id="stageNote">Standing by</small></div>
     <div class="bar"><i id="bar"></i></div>
+    <div class="hint3d hidden" id="hint3d">3D · drag to rotate</div>
     <canvas id="scene"></canvas>
     <div class="hud" id="hud"><div class="av" id="hudAv"></div><div><div class="who" id="hudWho">Amara Core<span>online</span></div><div class="what" id="hudWhat">Agents are docked and ready.</div></div></div>
   </section>
@@ -434,7 +437,8 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
         burst(a.x, a.y, ok ? C.green : C.red, 18, 2);
         return fly(a, a.hx, a.hy, 900, 40).then(function () { tools = []; core.progress = 0; core.color = C.blue; });
       },
-      markAll: function (states) { states.forEach(function (st, i) { if (agents[i]) agents[i].status = st; }); }
+      markAll: function (states) { states.forEach(function (st, i) { if (agents[i]) agents[i].status = st; }); },
+      celebrate: function (ok) { if (ok) { core.progress = 1; core.color = C.green; burst(core.x, core.y, C.green, 40, 3); } }
     };
 
     // ── drawing ──
@@ -649,7 +653,373 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     return api;
   }
 
-  var scene = Scene($("scene"));
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3D scene (Three.js): a crystal reactor core with orbiting rings, a crown of
+  // tool pucks above it and a hangar ring of agents below. Same API as Scene(),
+  // so the show drives either one. Used on phones that can handle WebGL.
+  // ══════════════════════════════════════════════════════════════════════════
+  var THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.min.js";
+
+  function want3D() {
+    var v = params.get("view");
+    if (v === "2d") return false;
+    if (v === "3d") return true;
+    try {
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
+      var c = document.createElement("canvas");
+      if (!(c.getContext("webgl2") || c.getContext("webgl"))) return false;
+    } catch (e) { return false; }
+    if (navigator.deviceMemory && navigator.deviceMemory < 3) return false;
+    if (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) return false;
+    return true;
+  }
+
+  function Scene3D(canvas, THREE) {
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
+    var pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(pixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    var world = new THREE.Scene();
+    world.fog = new THREE.FogExp2(0x000000, 0.03);
+    var camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
+    var CY = 0.5;
+    var cam = { yaw: 0.5, pitch: 0.34, dist: 11, v: 0 };
+    var clock = 0, last = performance.now(), tweens = [];
+    var agents = [], tools = [], beams = [], packets = [];
+    var target = new THREE.Color(C.blue), celebrating = false;
+
+    world.add(new THREE.AmbientLight(0x8899ff, 0.6));
+    var sun = new THREE.DirectionalLight(0xffffff, 1.2); sun.position.set(4, 8, 6); world.add(sun);
+    var coreLight = new THREE.PointLight(0x0a84ff, 40, 14, 2); coreLight.position.set(0, CY, 0); world.add(coreLight);
+
+    // ── textures and sprites ──
+    function tex(c) { var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+    var GLOW = (function () {
+      var c = document.createElement("canvas"); c.width = c.height = 128;
+      var g = c.getContext("2d"), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+      gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.22, "rgba(255,255,255,.5)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return tex(c);
+    })();
+    function glow(color, size, opacity) {
+      var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(color), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: opacity == null ? 1 : opacity }));
+      s.scale.setScalar(size); return s;
+    }
+    function label(text, o) {
+      o = o || {};
+      var c = document.createElement("canvas"); c.width = 512; c.height = 128;
+      var g = c.getContext("2d");
+      g.font = (o.weight || 700) + " " + (o.px || 46) + "px " + (o.font || "JetBrains Mono, monospace");
+      g.textAlign = "center"; g.textBaseline = "middle";
+      if (o.glow) { g.shadowColor = o.glow; g.shadowBlur = 16; }
+      g.fillStyle = o.color || "#fff"; g.fillText(text, 256, 66);
+      var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(c), transparent: true, depthWrite: false, opacity: o.opacity == null ? 1 : o.opacity }));
+      var w = o.w || 2; s.scale.set(w, w / 4, 1); return s;
+    }
+    function icon(name, size) {
+      var c = document.createElement("canvas"); c.width = c.height = 128;
+      var t = tex(c), img = new Image();
+      img.onload = function () { c.getContext("2d").drawImage(img, 22, 22, 84, 84); t.needsUpdate = true; };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg(name, "#ffffff", 96, 2.2));
+      var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }));
+      s.scale.setScalar(size); return s;
+    }
+    function dispose(obj) {
+      obj.traverse(function (o) {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) { if (o.material.map && o.material.map !== GLOW) o.material.map.dispose(); o.material.dispose(); }
+      });
+    }
+
+    // ── stars and floor ──
+    (function () {
+      var n = 700, pos = new Float32Array(n * 3);
+      for (var i = 0; i < n; i++) {
+        var r = 22 + Math.random() * 30, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+        pos[i * 3] = r * Math.sin(ph) * Math.cos(th); pos[i * 3 + 1] = r * Math.cos(ph); pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+      }
+      var g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      world.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xcfd8ff, size: 0.08, transparent: true, opacity: .85, depthWrite: false, fog: false })));
+    })();
+    var grid = new THREE.PolarGridHelper(6, 16, 6, 64, 0x2c4a88, 0x16224a);
+    grid.position.y = -1.95; grid.material.transparent = true; grid.material.opacity = .55; world.add(grid);
+
+    // ── core ──
+    var core = new THREE.Group(); core.position.y = CY; world.add(core);
+    var coreMat = new THREE.MeshStandardMaterial({ color: 0x0a84ff, emissive: 0x0a84ff, emissiveIntensity: .85, metalness: .35, roughness: .2, flatShading: true });
+    var coreMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 1), coreMat); core.add(coreMesh);
+    var shell = new THREE.Mesh(new THREE.IcosahedronGeometry(0.86, 1), new THREE.MeshBasicMaterial({ color: 0xbfe3ff, wireframe: true, transparent: true, opacity: .3 }));
+    core.add(shell);
+    var coreGlow = glow(C.blue, 4.4, .85); core.add(coreGlow);
+    var rings = [1.3, 1.62, 1.95].map(function (r, i) {
+      var m = new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 8, 160), new THREE.MeshBasicMaterial({ color: 0x64d2ff, transparent: true, opacity: .4 }));
+      m.rotation.x = Math.PI / 2 + (i - 1) * 0.55; m.rotation.y = i * 0.8; core.add(m); return m;
+    });
+    var coreName = label("AMARA CORE", { font: "Inter, sans-serif", px: 34, weight: 600, color: "rgba(235,235,245,.6)", w: 2.2 });
+    coreName.position.y = -1.25; core.add(coreName);
+    var prog = { mesh: null, value: -1, pct: null };
+    function setProgress(p) {
+      if (Math.abs(p - prog.value) < 1e-3) return;
+      prog.value = p;
+      if (prog.mesh) { core.remove(prog.mesh); dispose(prog.mesh); prog.mesh = null; }
+      if (prog.pct) { core.remove(prog.pct); dispose(prog.pct); prog.pct = null; }
+      if (p > 0) {
+        prog.mesh = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.05, 10, 120, Math.PI * 2 * Math.min(1, p)), new THREE.MeshBasicMaterial({ color: target.clone() }));
+        prog.mesh.rotation.x = Math.PI / 2; core.add(prog.mesh);
+      }
+      prog.pct = label(Math.round(p * 100) + "%", { px: 40, w: 1.2 }); prog.pct.position.y = 1.05; core.add(prog.pct);
+    }
+
+    // ── destination beacon ──
+    var BEACON_Y = 3.75;
+    var beacon = new THREE.Group(); beacon.position.set(0, BEACON_Y, 0); world.add(beacon);
+    var beaconGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x64d2ff, emissiveIntensity: 1 }));
+    beacon.add(beaconGem);
+    var beaconGlow = glow(C.teal, 1.3, .7); beacon.add(beaconGlow);
+    var beaconLabel = null, beaconFlash = 0;
+    var LINK_LEN = BEACON_Y - (CY + 0.9);
+    var link = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, LINK_LEN, 6), new THREE.MeshBasicMaterial({ color: 0x64d2ff, transparent: true, opacity: .25 }));
+    link.position.y = CY + 0.9 + LINK_LEN / 2; world.add(link);
+    var ringLabel = null;
+
+    // ── particles (trails and bursts) ──
+    var MAXP = 700, ppos = new Float32Array(MAXP * 3), pcol = new Float32Array(MAXP * 3), plist = [];
+    var pgeo = new THREE.BufferGeometry();
+    pgeo.setAttribute("position", new THREE.BufferAttribute(ppos, 3));
+    pgeo.setAttribute("color", new THREE.BufferAttribute(pcol, 3));
+    var points = new THREE.Points(pgeo, new THREE.PointsMaterial({ size: 0.12, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+    points.frustumCulled = false; world.add(points);
+    function emit(p, color, n, speed, life) {
+      var col = new THREE.Color(color);
+      for (var i = 0; i < n && plist.length < MAXP; i++) {
+        var v = new THREE.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize().multiplyScalar((0.3 + Math.random()) * (speed || 0));
+        plist.push({ p: p.clone(), v: v, c: col, l: life || 1, max: life || 1 });
+      }
+    }
+
+    // ── layout ──
+    function dockPos(i, n) { var a = i / n * Math.PI * 2 + 0.3; return new THREE.Vector3(Math.sin(a) * 2.95, -1.35, Math.cos(a) * 2.95); }
+    function toolPos(j, n) { var a = j / n * Math.PI * 2 + 0.6; return new THREE.Vector3(Math.sin(a) * 2.75, CY + 1.3 + (j % 2) * 0.28, Math.cos(a) * 2.75); }
+    function resize() {
+      var w = canvas.clientWidth || 360, h = canvas.clientHeight || 440;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+      cam.dist = camera.aspect < 0.8 ? 13.6 : camera.aspect < 1.2 ? 11.8 : 10.4;
+    }
+
+    // ── tweens ──
+    function ease(x) { return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
+    function tween(dur, step) { return new Promise(function (res) { tweens.push({ t0: clock, dur: dur * SPEED * tempo, step: step, done: res }); }); }
+    function fly(a, to, dur, lift) {
+      var from = a.g.position.clone(), mid = from.clone().add(to).multiplyScalar(.5); mid.y += lift == null ? 1 : lift;
+      var curve = new THREE.QuadraticBezierCurve3(from, mid, to.clone());
+      a.flying = true;
+      return tween(dur, function (k) { a.g.position.copy(curve.getPoint(ease(k))); }).then(function () { a.flying = false; });
+    }
+
+    // ── agents and tools ──
+    function makeAgent(r, i, n) {
+      var g = new THREE.Group(), color = new THREE.Color(r.color);
+      var mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: .35, metalness: .3, roughness: .12, transparent: true, opacity: .62, depthWrite: false });
+      var ball = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 20), mat); g.add(ball);
+      var halo = glow(r.color, 1.15, .55); g.add(halo);
+      var ic = icon(r.icon, 0.36); g.add(ic);
+      var ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 48), new THREE.MeshBasicMaterial({ color: 0x30d158, transparent: true, opacity: 0 }));
+      g.add(ring);
+      var home = dockPos(i, n); g.position.copy(home); world.add(g);
+      return { id: r.id, g: g, mat: mat, halo: halo, ring: ring, color: r.color, home: home, status: "idle", flying: false, carry: null, bob: Math.random() * 6, orbit: i / n * Math.PI * 2 };
+    }
+    function makeTool(code, color, j, n) {
+      var g = new THREE.Group(), col = new THREE.Color(color);
+      var puck = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.14, 6), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: .45, metalness: .65, roughness: .18 }));
+      g.add(puck);
+      var gl = glow(color, 1.1, .45); g.add(gl);
+      var lb = label(code, { px: 50, w: 1.3, glow: color }); lb.position.y = 0.42; g.add(lb);
+      var home = toolPos(j, n); g.position.copy(home); g.scale.setScalar(0.001); world.add(g);
+      return { g: g, puck: puck, home: home, state: "rack", color: color };
+    }
+    function clearTools() { tools.forEach(function (t) { world.remove(t.g); dispose(t.g); }); tools = []; }
+
+    var api = {
+      setRoster: function (roster, kind) {
+        agents.forEach(function (a) { world.remove(a.g); dispose(a.g); }); clearTools();
+        beams.forEach(function (b) { world.remove(b.m); dispose(b.m); }); beams = []; packets.forEach(function (p) { world.remove(p.s); }); packets = [];
+        agents = roster.map(function (r, i) { return makeAgent(r, i, roster.length); });
+        celebrating = false; target.set(C.blue); prog.value = -1; setProgress(0);
+        if (beaconLabel) { beacon.remove(beaconLabel); dispose(beaconLabel); }
+        beaconLabel = label("➜ " + (DEST[kind] || "TELEGRAM"), { font: "Inter, sans-serif", px: 40, w: 2.3 }); beaconLabel.position.y = .42; beacon.add(beaconLabel);
+        if (ringLabel) { world.remove(ringLabel); dispose(ringLabel); }
+        ringLabel = label(kind === "pages" ? "YOUR TECH STACK" : kind === "sre" ? "TECH STACK TOOLS" : "AGENT TOOLS", { font: "Inter, sans-serif", px: 32, weight: 600, color: "rgba(235,235,245,.55)", w: 2.6 });
+        ringLabel.position.set(0, -2.35, 0); world.add(ringLabel);
+      },
+      setStatus: function (i, st) { if (agents[i]) agents[i].status = st; },
+      markAll: function (states) { states.forEach(function (st, i) { if (agents[i]) agents[i].status = st; }); },
+      loadTools: function (i, list) {
+        clearTools(); target.set(agents[i].color); setProgress(0);
+        tools = list.map(function (tl, j) { return makeTool(tl.t, agents[i].color, j, list.length); });
+        return Promise.all(tools.map(function (t, j) {
+          return wait(j * 130).then(function () { return tween(500, function (k) { t.g.scale.setScalar(Math.max(0.001, ease(k))); }); });
+        }));
+      },
+      enter: function (i) {
+        var a = agents[i]; a.status = "active"; emit(a.g.position, a.color, 24, 0.05, 0.9);
+        var toCam = new THREE.Vector3(camera.position.x, 0, camera.position.z).normalize().multiplyScalar(1.6);
+        return fly(a, new THREE.Vector3(toCam.x, CY - 0.75, toCam.z), 950, 0.8);
+      },
+      pick: function (i, j) {
+        var a = agents[i], t = tools[j];
+        var under = t.home.clone(); under.y -= 0.5;
+        return fly(a, under, 760, 0.7)
+          .then(function () {
+            var beam = { a: a, t: t, m: new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1, 8, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(a.color), transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false })) };
+            world.add(beam.m); beams.push(beam);
+            return tween(420, function (k) { t.g.position.y = t.home.y + 0.18 * Math.sin(k * Math.PI); t.g.rotation.y += 0.25; })
+              .then(function () { world.remove(beam.m); dispose(beam.m); beams.splice(beams.indexOf(beam), 1); });
+          })
+          .then(function () {
+            t.state = "carried"; a.carry = t; emit(t.g.position, a.color, 14, 0.04, 0.7);
+            var dir = t.home.clone().sub(new THREE.Vector3(0, CY, 0)); dir.y = 0; dir.normalize().multiplyScalar(1.25);
+            return fly(a, new THREE.Vector3(dir.x, CY - 0.35, dir.z), 800, 0.5);
+          })
+          .then(function () {
+            a.carry = null; t.state = "absorb";
+            var start = t.g.position.clone();
+            return tween(520, function (k) {
+              var e = ease(k), ang = e * Math.PI * 3;
+              t.g.position.set(start.x * (1 - e) + Math.cos(ang) * .25 * (1 - e), start.y * (1 - e) + CY * e, start.z * (1 - e) + Math.sin(ang) * .25 * (1 - e));
+              t.g.scale.setScalar(Math.max(0.001, 1 - e * .9));
+            });
+          })
+          .then(function () {
+            t.state = "done"; t.g.visible = false; core.userData.pulse = 1;
+            setProgress((j + 1) / tools.length);
+            emit(core.position, a.color, 40, 0.07, 1);
+            var s = glow(a.color, .55, 1); world.add(s); packets.push({ s: s, t: 0 });
+            return wait(320);
+          });
+      },
+      exit: function (i, ok) {
+        var a = agents[i]; a.status = ok ? "done" : "failed";
+        emit(a.g.position, ok ? C.green : C.red, 26, 0.05, 0.9);
+        return fly(a, a.home, 950, 0.8).then(function () { clearTools(); setProgress(0); target.set(C.blue); });
+      },
+      celebrate: function (ok) {
+        if (!ok) return;
+        celebrating = true; target.set(C.green); setProgress(1);
+        emit(core.position, C.green, 80, 0.09, 1.4);
+        agents.forEach(function (a) { if (a.status !== "failed") a.status = "done"; });
+      }
+    };
+
+    // ── pointer: drag to spin ──
+    var drag = null;
+    canvas.addEventListener("pointerdown", function (e) { drag = { x: e.clientX, y: e.clientY }; });
+    window.addEventListener("pointerup", function () { drag = null; });
+    canvas.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag = { x: e.clientX, y: e.clientY };
+      cam.v = dx * 0.006; cam.yaw += cam.v; cam.pitch = Math.max(0.08, Math.min(0.8, cam.pitch + dy * 0.004));
+    });
+
+    // ── frame loop ──
+    var frames = 0, slowSum = 0, tmp = new THREE.Vector3();
+    function frame(now) {
+      requestAnimationFrame(frame);
+      var dt = Math.min(64, now - last); last = now;
+      if (document.hidden) return;
+      clock += dt;
+      if (frames < 240) { frames++; slowSum += dt; if (frames === 120 || frames === 240) { if (slowSum / frames > 34 && pixelRatio > 1) { pixelRatio = 1; renderer.setPixelRatio(1); resize(); } slowSum = 0; frames = frames === 240 ? 240 : frames; } }
+
+      tweens = tweens.filter(function (tw) { var k = Math.min(1, (clock - tw.t0) / Math.max(1, tw.dur)); tw.step(k); if (k >= 1) { tw.done(); return false; } return true; });
+
+      // camera
+      if (!drag) { cam.v *= 0.95; cam.yaw += cam.v + dt * 0.00007; }
+      camera.position.set(Math.sin(cam.yaw) * Math.cos(cam.pitch) * cam.dist, CY + Math.sin(cam.pitch) * cam.dist, Math.cos(cam.yaw) * Math.cos(cam.pitch) * cam.dist);
+      camera.lookAt(0, CY + 0.45, 0);
+
+      // core
+      var pulse = core.userData.pulse || 0; core.userData.pulse = pulse * 0.93;
+      coreMesh.rotation.y += dt * 0.0006; coreMesh.rotation.x += dt * 0.0003; shell.rotation.y -= dt * 0.0004;
+      rings.forEach(function (r, i) { r.rotation.z += dt * 0.0003 * (i % 2 ? -1 : 1) * (1 + i * .4); });
+      coreMesh.scale.setScalar(1 + pulse * 0.22);
+      coreMat.color.lerp(target, 0.05); coreMat.emissive.lerp(target, 0.05);
+      coreLight.color.copy(coreMat.color); coreGlow.material.color.copy(coreMat.color);
+      coreGlow.material.opacity = .75 + pulse * .25 + Math.sin(clock / 500) * .05;
+      if (prog.mesh) prog.mesh.material.color.copy(coreMat.color);
+      beaconFlash *= 0.92; beaconGlow.scale.setScalar(1.3 + beaconFlash * 1.2); beaconGem.rotation.y += dt * 0.002;
+
+      // agents
+      agents.forEach(function (a, i) {
+        var active = a.status === "active";
+        if (celebrating) {
+          a.orbit += dt * 0.0005;
+          tmp.set(Math.sin(a.orbit) * 2.35, CY + Math.sin(clock / 700 + i) * 0.35, Math.cos(a.orbit) * 2.35);
+          a.g.position.lerp(tmp, 0.04);
+        } else if (!a.flying && !active) {
+          a.g.position.y = a.home.y + Math.sin(clock / 650 + a.bob) * 0.06;
+        }
+        if (a.flying && Math.random() < 0.9) emit(a.g.position, a.color, 1, 0.003, 0.55);
+        a.halo.material.opacity = active ? .95 : .5;
+        a.halo.scale.setScalar(active ? 1.55 + Math.sin(clock / 160) * 0.1 : 1.1);
+        a.mat.emissiveIntensity = active ? .8 : .35;
+        var ringOn = a.status === "done" || a.status === "failed";
+        a.ring.material.opacity += ((ringOn ? .95 : 0) - a.ring.material.opacity) * 0.1;
+        a.ring.material.color.set(a.status === "failed" ? C.red : C.green);
+        a.ring.lookAt(camera.position);
+        if (a.carry) { a.carry.g.position.copy(a.g.position).add(tmp.set(0.32, 0.5, 0)); a.carry.g.rotation.y += dt * 0.004; }
+      });
+      tools.forEach(function (t) { if (t.state === "rack") t.g.rotation.y += dt * 0.0012; });
+
+      // beams
+      beams.forEach(function (b) {
+        var from = b.a.g.position, to = b.t.g.position, len = from.distanceTo(to);
+        b.m.position.copy(from).add(to).multiplyScalar(.5);
+        b.m.scale.set(1, Math.max(0.01, len), 1);
+        b.m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tmp.copy(to).sub(from).normalize());
+        b.m.material.opacity = .55 + Math.random() * .4;
+      });
+
+      // packets: core → beacon
+      packets = packets.filter(function (p) {
+        p.t += dt / (900 * SPEED);
+        var e = Math.min(1, p.t);
+        p.s.position.set(Math.sin(e * 6) * 0.25 * (1 - e), CY + (beacon.position.y - CY) * e, Math.cos(e * 6) * 0.25 * (1 - e));
+        if (e >= 1) { world.remove(p.s); p.s.material.dispose(); beaconFlash = 1; return false; }
+        return true;
+      });
+
+      // particles
+      var n = 0;
+      plist = plist.filter(function (q) { q.l -= dt / 1000; return q.l > 0; });
+      plist.forEach(function (q) {
+        q.p.add(q.v); q.v.multiplyScalar(0.96);
+        var k = Math.max(0, q.l / q.max);
+        ppos[n * 3] = q.p.x; ppos[n * 3 + 1] = q.p.y; ppos[n * 3 + 2] = q.p.z;
+        pcol[n * 3] = q.c.r * k; pcol[n * 3 + 1] = q.c.g * k; pcol[n * 3 + 2] = q.c.b * k; n++;
+      });
+      pgeo.setDrawRange(0, n);
+      pgeo.attributes.position.needsUpdate = true; pgeo.attributes.color.needsUpdate = true;
+
+      renderer.render(world, camera);
+    }
+    window.addEventListener("resize", resize);
+    resize(); requestAnimationFrame(frame);
+    return api;
+  }
+
+  var scene = null;
+
+  // A canvas that already has a WebGL context can't switch to 2D, so a failed 3D start gets a fresh one.
+  function freshCanvas() {
+    var old = $("scene"), c = document.createElement("canvas");
+    c.id = "scene"; c.setAttribute("aria-label", old.getAttribute("aria-label") || "");
+    old.parentNode.replaceChild(c, old); return c;
+  }
+  function startScene() {
+    if (!want3D()) return Promise.resolve(Scene($("scene")));
+    return Promise.race([import(THREE_URL), new Promise(function (_, no) { setTimeout(function () { no(new Error("3D load timed out")); }, 9000); })])
+      .then(function (THREE) { var s = Scene3D($("scene"), THREE); vis("hint3d", true); return s; })
+      .catch(function (e) { console.warn("Using the 2D scene:", e); return Scene(freshCanvas()); });
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // The show: real server events drive the scene; each agent's result is only
@@ -762,6 +1132,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
     progress(roster.length, roster.length, "All " + roster.length + " agents finished");
     hud(null, passed ? "All agents finished — mission complete." : "Finished — this step needs another try.");
     log(passed ? '<span class="ok">Mission complete ✓</span>' : '<span class="bad">Finished — this step needs another try</span>');
+    scene.celebrate(passed);
     shown(run);
     finale(run, passed);
   }
@@ -787,6 +1158,7 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
       } else states.push("idle");
     });
     scene.markAll(states);
+    scene.celebrate(run.status === "done");
     $("log").dataset.fresh = "1";
     $("log").innerHTML = lines.join("\n") || '<span class="t">No activity yet.</span>';
     progress(doneCount, roster.length, run.status === "done" ? "Completed" : run.status === "failed" ? "Paused" : "");
@@ -1053,9 +1425,12 @@ canvas#scene{display:block;width:100%;height:440px;margin-top:6px}
   $("upName").innerHTML = svg("camera", "currentColor", 20) + " Tap to choose your screenshot";
   hud(null, "Agents are docked and ready.");
   renderJourney("build_bot", 1);
-  buildList(ROSTERS.sre); scene.setRoster(ROSTERS.sre, "sre");
-  if (!KEY) fatal("This page needs your personal link from Amara.");
-  else load();
+  buildList(ROSTERS.sre);
+  startScene().then(function (s) {
+    scene = s; scene.setRoster(ROSTERS.sre, "sre");
+    if (!KEY) fatal("This page needs your personal link from Amara.");
+    else load();
+  });
 })();
 </script>
 </body>
