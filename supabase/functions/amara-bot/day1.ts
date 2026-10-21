@@ -1,9 +1,9 @@
-import { sendMessage, sendChatAction, typeMessage, copyMessage, sendWithKeyboard, escapeHtml } from "./telegram.ts";
+import { sendMessage, sendChatAction, typeMessage, copyMessage, sendWithKeyboard, escapeHtml, sendLinkButton } from "./telegram.ts";
 import { advanceStep, advanceIfAt, recordStepCompletion, getRecentConversation, computeNextUnlockAt, saveConversation, countStudentMessagesToday, getStudentById } from "./db.ts";
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin, studentLabel, describePosition } from "./admin.ts";
 import { sendGitHubIntro } from "./day2.ts";
-import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, sreIntroMessages, suggestedBotNames, legacyUpgradeMessage } from "./day1-content.ts";
+import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, BUILD_ROOM_BUTTON, WATCH_BUILD_BUTTON, sreIntroMessages, suggestedBotNames, legacyUpgradeMessage } from "./day1-content.ts";
 import { startSreRun, runSreBuild, webLink } from "./sre-pipeline.ts";
 import { holdAnnouncement } from "../_shared/runs.ts";
 import type { Student, TelegramMessage } from "./types.ts";
@@ -27,7 +27,10 @@ export async function handleDay1(
 }
 
 export async function sendSreIntro(chatId: number | string, fullName: string | null, webKey?: string | null): Promise<void> {
-  for (const m of sreIntroMessages(fullName, chatId, webLink(webKey))) await typeMessage(chatId, m);
+  const room = webLink(webKey);
+  const messages = sreIntroMessages(fullName, chatId, room);
+  for (const m of room ? messages.slice(0, -1) : messages) await typeMessage(chatId, m);
+  if (room) await sendLinkButton(chatId, messages[messages.length - 1], BUILD_ROOM_BUTTON, room, { pin: true, typing: true });
 }
 
 async function sendGatePitch(chatId: number | string): Promise<void> {
@@ -149,12 +152,11 @@ function misplacedBotFatherInput(text: string, username: string, displayName: st
 async function setupStudentBot(student: Student, chatId: number, token: string, day: 1 | 3): Promise<void> {
   const link = webLink(student.web_key);
   const runId = await startSreRun(student.id, "telegram");
-  await typeMessage(
-    chatId,
-    link
-      ? `Got your token! 🔧 My AI team is building your bot right now.\n\n👀 <a href="${link}">Watch them work live here</a>`
-      : `Got your token! Let me verify it and set up your bot... 🔧`
-  );
+  if (link) {
+    await sendLinkButton(chatId, `Got your token! 🔧 <b>My AI team is building your bot right now.</b>\n\nTap below to watch all 7 agents work live 👇`, WATCH_BUILD_BUTTON, link);
+  } else {
+    await typeMessage(chatId, `Got your token! Let me verify it and set up your bot... 🔧`);
+  }
 
   const outcome = await runSreBuild(runId, student, token, (botUsername, webhookUrl) => saveSreResult(student, token, botUsername, webhookUrl, day));
   if (!outcome.ok) {

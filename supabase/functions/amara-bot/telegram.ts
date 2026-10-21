@@ -61,6 +61,48 @@ export async function sendMessage(
   }
 }
 
+// A message with one big tappable link button. Pinned messages stay at the top of the chat.
+export async function sendLinkButton(
+  chatId: number | string,
+  text: string,
+  buttonText: string,
+  url: string,
+  opts: { pin?: boolean; typing?: boolean } = {}
+): Promise<void> {
+  const hold = held.get(String(chatId));
+  if (hold) {
+    hold.push({ kind: "text", text: `${text}\n\n👉 <a href="${url}">${buttonText}</a>`, parseMode: "HTML" });
+    return;
+  }
+  if (opts.typing) {
+    await sendChatAction(chatId, "typing");
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  try {
+    const res = await fetch(`${TG_BASE}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        reply_markup: { inline_keyboard: [[{ text: buttonText, url }]] },
+      }),
+    });
+    const data = await res.json();
+    if (opts.pin && data?.result?.message_id) {
+      await fetch(`${TG_BASE}/pinChatMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, message_id: data.result.message_id, disable_notification: true }),
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.error("sendLinkButton error:", e);
+  }
+}
+
 export async function copyMessage(
   toChatId: number | string,
   fromChatId: number | string,

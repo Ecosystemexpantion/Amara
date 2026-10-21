@@ -5,6 +5,7 @@ import {
   GATE_PITCH,
   GATE_FOLLOWUPS,
   sreIntroMessages,
+  BUILD_ROOM_BUTTON,
   legacyUpgradeMessage,
 } from "../amara-bot/day1-content.ts";
 import { aiHealthCheck } from "../_shared/ai.ts";
@@ -137,7 +138,7 @@ Just checking in — your EEM26 program is waiting for you! Send me a message wh
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function sendTelegram(chatId: string, text: string): Promise<void> {
+async function sendTelegram(chatId: string, text: string, button?: { text: string; url: string }): Promise<void> {
   try {
     await fetch(`${TG_BASE}/sendMessage`, {
       method: "POST",
@@ -147,6 +148,7 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
         text,
         parse_mode: "HTML",
         disable_web_page_preview: true,
+        ...(button ? { reply_markup: { inline_keyboard: [[button]] } } : {}),
       }),
     });
   } catch (e) {
@@ -212,9 +214,12 @@ Deno.serve(async (_req: Request): Promise<Response> => {
         if (!updated || updated.length === 0) continue;
 
         await sendTelegram(s.telegram_chat_id, legacyUpgradeMessage(s.full_name));
-        for (const m of toGate ? GATE_PITCH : sreIntroMessages(s.full_name, s.telegram_chat_id, webLink(s.web_key))) {
+        const room = webLink(s.web_key);
+        const msgs = toGate ? GATE_PITCH : sreIntroMessages(s.full_name, s.telegram_chat_id, room);
+        for (const [k, m] of msgs.entries()) {
           await new Promise((r) => setTimeout(r, 400));
-          await sendTelegram(s.telegram_chat_id, m);
+          const last = !toGate && room && k === msgs.length - 1;
+          await sendTelegram(s.telegram_chat_id, m, last ? { text: BUILD_ROOM_BUTTON, url: room! } : undefined);
         }
         migratedCount++;
       } catch (err) {

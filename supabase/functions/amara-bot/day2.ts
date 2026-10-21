@@ -1,4 +1,4 @@
-import { sendMessage, sendChatAction, typeMessage } from "./telegram.ts";
+import { sendMessage, sendChatAction, typeMessage, sendLinkButton } from "./telegram.ts";
 import { advanceStep, getRecentConversation } from "./db.ts";
 import { geminiChat, geminiVisionGuide, AI_FALLBACK_REPLY } from "./gemini.ts";
 import { buildGitHubAuthUrl } from "./github.ts";
@@ -115,12 +115,17 @@ export async function sendGitHubIntro(chatId: number | string, webKey?: string |
     chatId,
     `Today your AI team builds your <b>TWO sales pages</b> — a normal and a premium version — using the landing page code and templates from your Tech Stack 📦\n\nOnce they're live, you'll have real shop links to share and start making sales 💰`
   );
-  await typeMessage(
-    chatId,
-    room
-      ? `Here's all you need to do:\n\n1️⃣ Make sure you have a free <b>GitHub</b> account — no account yet? Create one at <a href="https://github.com/signup">github.com/signup</a> (2 minutes)\n2️⃣ Open your build room and tap <b>Connect GitHub</b>\n3️⃣ On GitHub, scroll down and tap the green <b>Authorize</b> button\n\nYou'll land back in your build room and watch 11 AI agents build both pages live 🤖\n\n👉 <a href="${room}">Open your Day 2 build room</a>`
-      : `To create your pages I need to connect to a <b>GitHub account</b>.\n\nDo you already have a GitHub account, or do I need to help you create one first? 🙋`
-  );
+  if (room) {
+    await sendLinkButton(
+      chatId,
+      `Here's all you need to do:\n\n1️⃣ Make sure you have a free <b>GitHub</b> account — no account yet? Create one at <a href="https://github.com/signup">github.com/signup</a> (2 minutes)\n2️⃣ Tap the button below and tap <b>Connect GitHub</b>\n3️⃣ On GitHub, scroll down and tap the green <b>Authorize</b> button\n\nYou'll land back in your Build Room and <b>watch 11 AI agents build both pages live</b> 🤖`,
+      "🚀 Open my Day 2 Build Room",
+      room,
+      { pin: true, typing: true }
+    );
+    return;
+  }
+  await typeMessage(chatId, `To create your pages I need to connect to a <b>GitHub account</b>.\n\nDo you already have a GitHub account, or do I need to help you create one first? 🙋`);
 }
 
 function connectLink(student: Student, chatId: number): string {
