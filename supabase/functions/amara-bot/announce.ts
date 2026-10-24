@@ -21,7 +21,7 @@ export async function sendAnnouncement(student: Student, a: Announcement): Promi
     return;
   }
   if (a.type === "sre_live") {
-    await announceSreLive(student, student.telegram_chat_id, a.botUsername, a.day);
+    await announceSreLive(student, student.telegram_chat_id, a.botUsername, a.day, a.chatUrl);
     return;
   }
   const firstName = student.full_name ? student.full_name.split(" ")[0] : "there";

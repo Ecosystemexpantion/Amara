@@ -5,6 +5,7 @@ import { notifyAdmin } from "./admin.ts";
 import { createEscalation } from "./knowledge.ts";
 import { handleSreStep } from "./day1.ts";
 import { checkWithAgents } from "./agent-checks.ts";
+import { hasSre } from "./day1-content.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const READY_WORDS = /\b(ready|let'?s go|start|begin|ok|okay|yes|go|proceed|continue|oya|sure|done)\b/i;
@@ -20,7 +21,7 @@ export async function handleDay3(
   await sendChatAction(chatId, "typing");
 
   // Students who started on the old day order reach Day 3 without a bot — they build it here.
-  if (!student.bot_token) {
+  if (!hasSre(student)) {
     await handleSreStep(student, chatId, text, photo, 3);
     return;
   }

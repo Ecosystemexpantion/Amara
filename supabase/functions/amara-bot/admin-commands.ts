@@ -11,7 +11,11 @@ import { buildGitHubAuthUrl } from "./github.ts";
 import { PAGES_VERSION, publishPage } from "../_shared/pages.ts";
 import { AMARA_WEB_HTML } from "../_shared/web-page.ts";
 import { PREMIUM_PAGE_HTML } from "../_shared/premium-page.ts";
-import { webLink } from "./sre-pipeline.ts";
+import { webLink, WEB_APP_URL } from "./sre-pipeline.ts";
+import { WEB_APP_REPO, SRE_CHAT_REPO } from "../_shared/runs.ts";
+import { SRE_CHAT_HTML } from "../_shared/chat-page.ts";
+import { isWebVisitor } from "../_shared/web-inbox.ts";
+import { issueLoginCode, CODE_MINUTES } from "../_shared/web-auth.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const supabase = createClient(
@@ -25,26 +29,33 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
   const t = text.trim();
 
   // reply [id] [message] — talk to one student; the ID makes it impossible to mix replies
-  const replyMatch = t.match(/^reply\s+(\d{5,})\s+([\s\S]+)$/i);
+  const replyMatch = t.match(/^reply\s+(w?\d{5,})\s+([\s\S]+)$/i);
   if (replyMatch) {
     await replyToStudent(chatId, replyMatch[1], replyMatch[2].trim());
     return;
   }
 
   // Swipe-reply to any student card (it carries 🆔) = message that student
-  const swipedId = replyToText?.match(/🆔\s*(\d{5,})/)?.[1];
+  const swipedId = replyToText?.match(/🆔\s*(w?\d{5,})/)?.[1];
   if (swipedId && t) {
     await replyToStudent(chatId, swipedId, t);
     return;
   }
 
-  const lastMatch = t.match(/^(?:last|jump)\s+(\d{5,})$/i);
+  const lastMatch = t.match(/^(?:last|jump)\s+(w?\d{5,})$/i);
   if (lastMatch) {
     await showLastMessages(chatId, lastMatch[1]);
     return;
   }
 
-  const approveMatch = t.match(/^approve\s+(\d{5,})$/i);
+  // code [id] — a one-time login code for the web app (password reset / linking without Telegram)
+  const codeMatch = t.match(/^code\s+(w?\d{5,})$/i);
+  if (codeMatch) {
+    await sendLoginCode(chatId, codeMatch[1]);
+    return;
+  }
+
+  const approveMatch = t.match(/^approve\s+(w?\d{5,})$/i);
   if (approveMatch) {
     await approveById(chatId, approveMatch[1]);
     return;
@@ -75,7 +86,7 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
     return;
   }
 
-  const webMatch = t.match(/^web\s+(\d{5,})$/i);
+  const webMatch = t.match(/^web\s+(w?\d{5,})$/i);
   if (webMatch) {
     await sendWebLink(chatId, webMatch[1]);
     return;
@@ -271,7 +282,8 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>pages notify</code> → Message students whose pages can't be fixed automatically, with the exact step they need to take.\n\n` +
     `<b>Amara on the web</b>\n` +
     `<code>web [ID]</code> → That student's private link to watch their AI agents build live.\n` +
-    `<code>web publish</code> → Re-publish the web page after it changes.\n` +
+    `<code>web publish</code> → Re-publish the web app (${WEB_APP_URL}) and the AI assistant chat page.\n` +
+    `<code>code [ID]</code> → A one-time web login code to give a student (forgot password).\n` +
     `<code>premium preview</code> → Publish the new Premium Tech Stack sales page to a preview link.\n` +
     `<code>premium live</code> → Put the new Premium Tech Stack page on the live link.\n\n` +
     `<b>Other</b>\n` +
@@ -327,6 +339,19 @@ async function showLastMessages(adminChatId: number, studentChatId: string): Pro
   );
 }
 
+async function sendLoginCode(adminChatId: number, studentChatId: string): Promise<void> {
+  const student = await getStudentByChatId(studentChatId);
+  if (!student) {
+    await sendMessage(adminChatId, `❌ No student with 🆔 <code>${studentChatId}</code>.`);
+    return;
+  }
+  const code = await issueLoginCode(student.id);
+  await sendMessage(
+    adminChatId,
+    `🔐 Web login code for\n${studentLabel(student.full_name, studentChatId)}\n📧 ${escapeHtml(student.email ?? "no email")}\n\n<code>${code}</code>\n\nGive it to them — they type it on the web page under <b>Forgot password</b> with their email. It works once and expires in ${CODE_MINUTES} minutes.`
+  );
+}
+
 async function approveById(adminChatId: number, studentChatId: string): Promise<void> {
   const student = await getStudentByChatId(studentChatId);
   if (!student) {
@@ -372,17 +397,21 @@ async function decideLeadPayment(adminChatId: number, leadId: string, accept: bo
     .select("telegram_chat_id, full_name, bot_token")
     .eq("id", lead.student_id)
     .single();
-  if (!owner?.bot_token) {
+  // Web chat visitors read their replies from student_bot_conversations, so only Telegram leads need the bot.
+  const webLead = isWebVisitor(lead.chat_id);
+  if (!owner || (!webLead && !owner.bot_token)) {
     await sendMessage(adminChatId, "❌ That student's bot is no longer connected — reply to the lead isn't possible.");
     return;
   }
 
-  const sendViaBot = (text: string) =>
-    fetch(`https://api.telegram.org/bot${owner.bot_token}/sendMessage`, {
+  const sendViaBot = async (text: string) => {
+    if (webLead) return;
+    await fetch(`https://api.telegram.org/bot${owner.bot_token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: lead.chat_id, text, parse_mode: "HTML", disable_web_page_preview: true }),
     }).catch(() => {});
+  };
   const leadLabel = `<b>${escapeHtml(lead.name ?? "Unknown")}</b> (${escapeHtml(lead.country ?? "?")}) via ${escapeHtml(owner.full_name ?? "a student")}'s bot`;
 
   if (!accept) {
@@ -400,7 +429,9 @@ async function decideLeadPayment(adminChatId: number, leadId: string, accept: bo
 
   await supabase.from("student_bot_leads").update({ stage: "PURCHASED", updated_at: new Date().toISOString() }).eq("id", lead.id);
   const reply1 = `Congratulations 🎊\n\nClick the link to access the tech stack 👇\n\nhttps://ecosystemexpantion.github.io/Product_page/\n\nSet your password and read all the instructions there. You will know the next step`;
-  const reply2 = `Your personal setup coach is waiting for you here 👇\n\nhttps://t.me/Amara_EEM26bot`;
+  const reply2 = webLead
+    ? `Start your 4-day setup here — create your account with the same email 👇\n\n${WEB_APP_URL}`
+    : `Your personal setup coach is waiting for you here 👇\n\nhttps://t.me/Amara_EEM26bot`;
   await sendViaBot(reply1);
   await sendViaBot(reply2);
   await supabase.from("student_bot_conversations").insert({ student_id: lead.student_id, chat_id: lead.chat_id, role: "assistant", message: `${reply1}\n\n${reply2}` });
@@ -469,7 +500,10 @@ async function publishToAdminPages(adminChatId: number, repo: string, descriptio
 }
 
 async function publishWebApp(adminChatId: number): Promise<void> {
-  await publishToAdminPages(adminChatId, "amara-live", "Amara — live AI setup", AMARA_WEB_HTML, "✅ Amara on the web is published");
+  await publishToAdminPages(adminChatId, WEB_APP_REPO, "EEM26 — 4-day business setup on the web", AMARA_WEB_HTML, "✅ The EEM26 web app is published");
+  await publishToAdminPages(adminChatId, SRE_CHAT_REPO, "EEM26 — AI sales assistant chat", SRE_CHAT_HTML, "✅ The AI assistant chat page is published");
+  // Older private links (?k=…) still point here.
+  await publishToAdminPages(adminChatId, "amara-live", "EEM26 — live AI setup", AMARA_WEB_HTML, "✅ Old build-room links updated");
 }
 
 async function sendWebLink(adminChatId: number, studentChatId: string): Promise<void> {
@@ -650,7 +684,7 @@ async function announceSaturday(
   let sent = 0;
   for (const chatId of allChatIds) {
     try {
-      if (await sendMessage(Number(chatId), announcement)) sent++;
+      if (await sendMessage(chatId, announcement)) sent++;
     } catch (e) {
       console.error(`Failed to send Saturday announcement to ${chatId}:`, e);
     }

@@ -1,11 +1,13 @@
-import { sendMessage, sendChatAction, typeMessage, copyMessage, sendWithKeyboard, escapeHtml, sendLinkButton } from "./telegram.ts";
-import { advanceStep, advanceIfAt, recordStepCompletion, getRecentConversation, computeNextUnlockAt, saveConversation, countStudentMessagesToday, getStudentById } from "./db.ts";
+import { sendMessage, sendChatAction, typeMessage, copyMessage, sendWithKeyboard, sendPhoto, escapeHtml } from "./telegram.ts";
+import { advanceStep, advanceIfAt, recordStepCompletion, getRecentConversation, computeNextUnlockAt, saveConversation, countStudentMessagesToday } from "./db.ts";
 import { geminiVision, geminiChat, geminiVisionGuide, buildVerificationPrompt } from "./gemini.ts";
 import { notifyAdmin, studentLabel, describePosition } from "./admin.ts";
 import { sendGitHubIntro } from "./day2.ts";
-import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, BUILD_ROOM_BUTTON, WATCH_BUILD_BUTTON, sreIntroMessages, suggestedBotNames, legacyUpgradeMessage } from "./day1-content.ts";
-import { startSreRun, runSreBuild, webLink } from "./sre-pipeline.ts";
-import { holdAnnouncement } from "../_shared/runs.ts";
+import { SRE_STEP, GATE_STEP, GATE_PITCH, BOTFATHER_LINK, sreIntroMessages, suggestedBotNames, legacyUpgradeMessage } from "./day1-content.ts";
+import { startSreRun, runSreBuild, runWebSreBuild } from "./sre-pipeline.ts";
+import { holdAnnouncement, startRun } from "../_shared/runs.ts";
+import { isWebChat } from "../_shared/web-inbox.ts";
+import { updateStudent } from "./db.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
@@ -26,11 +28,8 @@ export async function handleDay1(
   await handleSreStep(student, chatId, text, photo, 1);
 }
 
-export async function sendSreIntro(chatId: number | string, fullName: string | null, webKey?: string | null): Promise<void> {
-  const room = webLink(webKey);
-  const messages = sreIntroMessages(fullName, chatId, room);
-  for (const m of room ? messages.slice(0, -1) : messages) await typeMessage(chatId, m);
-  if (room) await sendLinkButton(chatId, messages[messages.length - 1], BUILD_ROOM_BUTTON, room, { pin: true, typing: true });
+export async function sendSreIntro(chatId: number | string, fullName: string | null): Promise<void> {
+  for (const m of sreIntroMessages(fullName, chatId)) await typeMessage(chatId, m);
 }
 
 async function sendGatePitch(chatId: number | string): Promise<void> {
@@ -150,13 +149,8 @@ function misplacedBotFatherInput(text: string, username: string, displayName: st
 }
 
 async function setupStudentBot(student: Student, chatId: number, token: string, day: 1 | 3): Promise<void> {
-  const link = webLink(student.web_key);
   const runId = await startSreRun(student.id, "telegram");
-  if (link) {
-    await sendLinkButton(chatId, `Got your token! 🔧 <b>My AI team is building your bot right now.</b>\n\nTap below to watch all 7 agents work live 👇`, WATCH_BUILD_BUTTON, link);
-  } else {
-    await typeMessage(chatId, `Got your token! Let me verify it and set up your bot... 🔧`);
-  }
+  await typeMessage(chatId, `Got your token! Let me verify it and set up your bot... 🔧`);
 
   const outcome = await runSreBuild(runId, student, token, (botUsername, webhookUrl) => saveSreResult(student, token, botUsername, webhookUrl, day));
   if (!outcome.ok) {
@@ -183,17 +177,53 @@ export async function buildSreFromWeb(student: Student, token: string): Promise<
   return { runId, done };
 }
 
-async function saveSreResult(student: Student, token: string, botUsername: string, webhookUrl: string, day: 1 | 3): Promise<void> {
+// Web SRE: a chat page with the same sales brain. `slug` must already be unique.
+export async function buildWebSreFromWeb(student: Student, assistantName: string, slug: string): Promise<{ runId: string; done: Promise<void> }> {
+  const day: 1 | 3 = student.current_day === 3 ? 3 : 1;
+  const runId = await startRun(student.id, "sre", "web", "Building your AI sales assistant");
+  if (!runId) throw new Error("Couldn't start the build log");
+  const done = (async () => {
+    const outcome = await runWebSreBuild(
+      runId,
+      student,
+      assistantName,
+      slug,
+      async () => { await updateStudent(student.id, { sre_slug: slug, sre_name: assistantName }); },
+      () => saveSreResult(student, null, assistantName, `web chat ${slug}`, day)
+    );
+    if (outcome.ok) await holdAnnouncement(runId, { type: "sre_live", day, botUsername: outcome.name, chatUrl: outcome.chatUrl });
+  })();
+  return { runId, done };
+}
+
+// Optional: a student with a web SRE also connects a Telegram bot. Their day and step don't change.
+export async function attachTelegramFromWeb(student: Student, token: string): Promise<{ runId: string; done: Promise<void> }> {
+  const runId = await startRun(student.id, "sre", "web", "Connecting your Telegram bot");
+  if (!runId) throw new Error("Couldn't start the build log");
+  const done = (async () => {
+    const outcome = await runSreBuild(runId, student, token, async (botUsername, webhookUrl) => {
+      await updateStudent(student.id, { bot_token: token });
+      await recordStepCompletion(student.id, student.current_day, student.current_step, false, `Telegram bot added: @${botUsername} | Webhook: ${webhookUrl}`);
+    });
+    if (outcome.ok) {
+      await notifyAdmin(`🤖 <b>Telegram bot added</b>\n\n${studentLabel(student.full_name, student.telegram_chat_id)}\nBot: @${outcome.botUsername}`);
+    }
+  })();
+  return { runId, done };
+}
+
+async function saveSreResult(student: Student, token: string | null, botUsername: string, webhookUrl: string, day: 1 | 3): Promise<void> {
   const now = new Date().toISOString();
+  const withToken = token ? { bot_token: token } : {};
   const moved = day === 1
     ? await advanceIfAt(student.id, 1, SRE_STEP, 1, GATE_STEP, {
-        bot_token: token,
+        ...withToken,
         day1_completed_at: now,
         next_day_unlocks_at: null,
         last_proactive_at: now,
       })
     : await advanceIfAt(student.id, 3, student.current_step, 3, 0, {
-        bot_token: token,
+        ...withToken,
         day3_completed_at: now,
         next_day_unlocks_at: computeNextUnlockAt(),
       });
@@ -201,21 +231,33 @@ async function saveSreResult(student: Student, token: string, botUsername: strin
   await recordStepCompletion(student.id, day, day === 1 ? SRE_STEP : 1, false, `Bot: @${botUsername} | Webhook: ${webhookUrl}`);
 }
 
-export async function announceSreLive(student: Student, chatId: number | string, botUsername: string, day: 1 | 3): Promise<void> {
-  await typeMessage(
-    chatId,
-    `<b>YOUR BOT IS LIVE!! 🤖🔥</b>\n\n@${botUsername} is now running 24/7 — I set it all up automatically for you! No terminal, no Supabase account, no code. Done! 💪`
-  );
-  await typeMessage(
-    chatId,
-    `Your SRE — Smart Reply Engine from your Tech Stack 📦 — is now ACTIVE. Anyone who messages @${botUsername} will get an intelligent reply and be guided toward buying your EEM26 package automatically 💰`
-  );
+export async function announceSreLive(student: Student, chatId: number | string, botUsername: string, day: 1 | 3, chatUrl?: string): Promise<void> {
+  const who = chatUrl ? botUsername : `@${botUsername}`;
+  if (chatUrl) {
+    await typeMessage(
+      chatId,
+      `<b>YOUR AI SALES ASSISTANT IS LIVE!! 🤖🔥</b>\n\n${escapeHtml(botUsername)} is now running 24/7 on your own chat link — no Telegram, no BotFather, no code:\n\n👉 <a href="${chatUrl}">${chatUrl}</a>`
+    );
+    await typeMessage(
+      chatId,
+      `Your SRE — Smart Reply Engine from your Tech Stack 📦 — is now ACTIVE. Share that link in your status, bio and posts: anyone who opens it gets an intelligent reply and is guided toward buying your EEM26 package automatically 💰`
+    );
+  } else {
+    await typeMessage(
+      chatId,
+      `<b>YOUR BOT IS LIVE!! 🤖🔥</b>\n\n@${botUsername} is now running 24/7 — I set it all up automatically for you! No terminal, no Supabase account, no code. Done! 💪`
+    );
+    await typeMessage(
+      chatId,
+      `Your SRE — Smart Reply Engine from your Tech Stack 📦 — is now ACTIVE. Anyone who messages @${botUsername} will get an intelligent reply and be guided toward buying your EEM26 package automatically 💰`
+    );
+  }
 
   if (day === 1) {
     await typeMessage(chatId, `<b>Day 1 — COMPLETE ✅</b>`);
     await sendGatePitch(chatId);
     await notifyAdmin(
-      `✅ <b>DAY 1 COMPLETE (SRE)</b>\n\n${studentLabel(student.full_name, chatId)}\nCountry: ${student.country ?? "?"}\nBot: @${botUsername}\n\n🔒 Day 2 is locked until they send Tech Stack payment proof. Amara stays silent and forwards their messages to you.`
+      `✅ <b>DAY 1 COMPLETE (SRE)</b>\n\n${studentLabel(student.full_name, chatId)}\nCountry: ${student.country ?? "?"}\n${chatUrl ? `Web assistant: ${chatUrl}` : `Bot: ${who}`}\n\n🔒 Day 2 is locked until they send Tech Stack payment proof. Amara stays silent and forwards their messages to you.`
     );
     return;
   }
@@ -225,7 +267,7 @@ export async function announceSreLive(student: Student, chatId: number | string,
     `Rest up — <b>Day 4 unlocks at 8AM tomorrow!</b> 🌅\n\nTomorrow is your FINAL day. We test everything, confirm your bot is working, and issue your official <b>Certificate of Completion 🎓</b> — you're almost there!\n\nUntil then I'll stay quiet so you can rest 🤫 — no need to message me. I'll message you the moment it opens 🔔`
   );
   await notifyAdmin(
-    `✅ <b>DAY 3 COMPLETE (SRE)</b>\n\n${studentLabel(student.full_name, chatId)}\nCountry: ${student.country ?? "?"}\nBot: @${botUsername}\nSales page: ${student.sales_page_link ?? "N/A"}`
+    `✅ <b>DAY 3 COMPLETE (SRE)</b>\n\n${studentLabel(student.full_name, chatId)}\nCountry: ${student.country ?? "?"}\n${chatUrl ? `Web assistant: ${chatUrl}` : `Bot: ${who}`}\nSales page: ${student.sales_page_link ?? "N/A"}`
   );
 }
 
@@ -250,6 +292,22 @@ export async function handleGate(msg: TelegramMessage, student: Student, chatId:
   await sendMessage(chatId, `Got it! 📸 Coach is checking your payment now — I'll message you as soon as it's confirmed 🙏`);
 }
 
+// Payment proof uploaded on the web: the admin gets the photo itself with Accept / Reject.
+export async function webPaymentProof(student: Student, photo: { bytes: Uint8Array; mimeType: string }): Promise<void> {
+  const id = student.telegram_chat_id;
+  await saveConversation(student.id, "user", "[payment screenshot via web]", "photo");
+  await sendPhoto(
+    ADMIN_CHAT_ID,
+    photo.bytes,
+    `🧾 <b>Payment screenshot</b> (sent on the web) — check it and tap Accept or Reject\n\n${studentLabel(student.full_name, id)}\n📍 ${describePosition(student)}`,
+    [
+      [{ text: "✅ Accept", callback_data: `approve:${id}` }, { text: "❌ Reject", callback_data: `reject:${id}` }],
+      [{ text: "💬 Jump in", callback_data: `jump:${id}` }],
+    ]
+  );
+  await sendMessage(id, `Got it! 📸 Coach is checking your payment now — you'll see it here as soon as it's confirmed 🙏`);
+}
+
 export async function rejectPayment(chatId: number | string): Promise<void> {
   await sendMessage(
     chatId,
@@ -262,8 +320,7 @@ export async function unlockDay2(student: { id: string }, chatId: number | strin
   if (!moved) return false;
   await recordStepCompletion(student.id, 1, GATE_STEP, true, note);
   await typeMessage(chatId, `Payment confirmed! ✅ <b>Day 2 is UNLOCKED</b> 🔓\n\nWelcome back — let's build your sales pages! 🔥`);
-  const full = await getStudentById(student.id);
-  await sendGitHubIntro(chatId, full?.web_key);
+  await sendGitHubIntro(chatId);
   return true;
 }
 
@@ -292,7 +349,7 @@ async function forwardToAdmin(student: Student, msg: TelegramMessage, headline: 
     await sendWithKeyboard(ADMIN_CHAT_ID, `${card}\n\n💬 "${escapeHtml(msg.text.slice(0, 3000))}"`, buttons);
     return;
   }
-  await copyMessage(ADMIN_CHAT_ID, id, msg.message_id);
+  if (!isWebChat(id)) await copyMessage(ADMIN_CHAT_ID, id, msg.message_id);
   await sendWithKeyboard(ADMIN_CHAT_ID, card, buttons);
 }
 
@@ -333,5 +390,5 @@ export async function migrateLegacyToSre(student: Student, chatId: number): Prom
 
   await typeMessage(chatId, legacyUpgradeMessage(student.full_name));
   if (toGate) await sendGatePitch(chatId);
-  else await sendSreIntro(chatId, student.full_name, student.web_key);
+  else await sendSreIntro(chatId, student.full_name);
 }

@@ -5,7 +5,8 @@ import { generateCertificate } from "./certificate.ts";
 import { notifyAdmin } from "./admin.ts";
 import { createEscalation } from "./knowledge.ts";
 import { checkWithAgents } from "./agent-checks.ts";
-import { startRun, reporter, finishRun, webLink } from "../_shared/runs.ts";
+import { startRun, reporter, finishRun } from "../_shared/runs.ts";
+import { isWebChat } from "../_shared/web-inbox.ts";
 import type { Student, TelegramMessage } from "./types.ts";
 
 export async function handleDay4(
@@ -82,13 +83,7 @@ IMPORTANT guidance for confused students:
   }
 
   if (result.verified) {
-    await recordStepCompletion(student.id, 4, 1, true);
-    await advanceStep(student.id, 4, 3);
-
-    await typeMessage(chatId, `<b>YOUR BOT IS CONFIRMED LIVE! 🔥🔥🔥</b>\n\nI can see it responding perfectly! Your SRE — Smart Reply Engine from your Tech Stack 📦 — is RUNNING and making money for you 24/7!`);
-    await typeMessage(chatId, `✅ GitHub Pages — 2 live sales pages\n✅ Selar store — accepting orders\n✅ Payhip affiliate — earning commissions\n✅ AI sales bot — running 24/7\n\nNow there's just ONE last step... 👇`);
-    await new Promise((r) => setTimeout(r, 300));
-    await sendCertificateRequest(chatId);
+    await confirmBotLive(student, chatId);
   } else {
     await handleFailed(
       student, chatId, result.reason,
@@ -107,13 +102,58 @@ Be warm, patient, and specific. Never say "I can't see your screenshot" — you 
   }
 }
 
+async function confirmBotLive(student: Student, chatId: number | string): Promise<void> {
+  await recordStepCompletion(student.id, 4, 1, true);
+  await advanceStep(student.id, 4, 3);
+  await typeMessage(chatId, `<b>YOUR BOT IS CONFIRMED LIVE! 🔥🔥🔥</b>\n\nI can see it responding perfectly! Your SRE — Smart Reply Engine from your Tech Stack 📦 — is RUNNING and making money for you 24/7!`);
+  await typeMessage(chatId, `✅ GitHub Pages — 2 live sales pages\n✅ Selar store — accepting orders\n✅ Payhip affiliate — earning commissions\n✅ AI sales bot — running 24/7\n\nNow there's just ONE last step... 👇`);
+  await new Promise((r) => setTimeout(r, 300));
+  await sendCertificateRequest(chatId);
+}
+
+// Day 4 Step 1 for a web SRE: the agents send the student's chat page a real buyer message instead of a screenshot.
+export async function testWebSre(student: Student, chatId: number | string): Promise<boolean> {
+  const runId = await startRun(student.id, "check", "web", "Testing that your assistant replies");
+  const r = reporter(runId);
+  const api = `${Deno.env.get("SUPABASE_URL")}/functions/v1/student-bot/chat`;
+  const visitor = `test${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`;
+  await r("intake", "working", "Opening your assistant's chat link like a new buyer…");
+  const open = await fetch(`${api}?s=${student.sre_slug}`).then((x) => x.ok).catch(() => false);
+  await r("intake", open ? "done" : "failed", open ? "Chat page opened ✓" : "The chat page didn't open — please try again in a minute.");
+  if (!open) {
+    await finishRun(runId, "failed");
+    return false;
+  }
+  await r("iris", "working", `Sending "Hi" as a test buyer…`);
+  const res = await fetch(api, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ s: student.sre_slug, v: visitor, text: "Hi" }),
+  }).then((x) => x.json()).catch(() => null);
+  const reply = (res?.replies as string[] | undefined)?.[0];
+  await r("iris", reply ? "done" : "failed", reply ? `Your assistant replied: "${reply.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").slice(0, 200)}"` : "No reply yet — please try again in a minute.");
+  await r("judge", "working", "Checking the reply…");
+  await r("judge", reply ? "done" : "failed", reply ? "✓ Your assistant answers buyers." : "✗ Not quite yet.");
+  if (!reply) {
+    await finishRun(runId, "failed");
+    return false;
+  }
+  await r("coach", "working", "Preparing your next instruction…");
+  await r("coach", "done", "Next: your certificate 🎓");
+  await r("amara", "working", "Updating your progress…");
+  await confirmBotLive(student, chatId);
+  await r("amara", "done", "Progress saved ✓");
+  await finishRun(runId, "done");
+  return true;
+}
+
 // Step 2: Celebration bridge — auto-advances and requests signature
 async function handleStep2(student: Student, chatId: number, _text: string | null, _photo: { bytes: Uint8Array; mimeType: string } | null): Promise<void> {
   await advanceStep(student.id, 4, 3);
   await sendCertificateRequest(chatId);
 }
 
-async function sendCertificateRequest(chatId: number): Promise<void> {
+async function sendCertificateRequest(chatId: number | string): Promise<void> {
   await typeMessage(chatId, `<b>🎓 Your Certificate of Completion!</b>`);
   await typeMessage(
     chatId,
@@ -147,11 +187,7 @@ async function handleStep3(student: Student, chatId: number, text: string | null
 
   if (result.verified) {
     await sendChatAction(chatId, "upload_document");
-    const link = webLink(student.web_key);
-    await typeMessage(
-      chatId,
-      `Got your signature! ✍️ Generating your certificate now... 🎓${link ? `\n\n👀 <a href="${link}">Watch your certificate being made live</a>` : ""}`
-    );
+    await typeMessage(chatId, `Got your signature! ✍️ Generating your certificate now... 🎓`);
 
     try {
       await r("quill", "working", "Designing your A4 certificate with your name and signature…");
@@ -161,9 +197,10 @@ async function handleStep3(student: Student, chatId: number, text: string | null
       await r("seal", "done", `Sealed and dated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.`);
       const certFilename = `${(student.full_name ?? "Student").replace(/\s+/g, "_")}_EEM26_Certificate.pdf`;
 
-      await r("courier", "working", "Delivering your certificate to Telegram…");
+      const onWeb = isWebChat(chatId);
+      await r("courier", "working", onWeb ? "Delivering your certificate to this page…" : "Delivering your certificate to Telegram…");
       await sendDocument(chatId, certFilename, certBytes, `🎓 Your official EEM26 Certificate of Completion!`);
-      await r("courier", "done", "Delivered — check your Telegram chat with Amara 📄");
+      await r("courier", "done", onWeb ? "Delivered — download it from your messages below 📄" : "Delivered — check your Telegram chat with Amara 📄");
 
       await sendDocument(
         Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695",

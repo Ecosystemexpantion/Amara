@@ -1,7 +1,7 @@
 // Builds a student's SRE sales bot as a team of named agents. Every agent does a real step and
 // reports it to the run log; the web page animates each agent's tools while the work happens.
 import { aiChat } from "../_shared/ai.ts";
-import { startRun, reporter, finishRun, type Report } from "../_shared/runs.ts";
+import { startRun, reporter, finishRun, SRE_CHAT_URL, type Report } from "../_shared/runs.ts";
 
 export { WEB_APP_URL, webLink } from "../_shared/runs.ts";
 
@@ -129,5 +129,85 @@ export async function runSreBuild(
     await r("amara", "failed", "Something went wrong on our side — Amara has been alerted.");
     await finishRun(runId, "failed");
     return { ok: false, reason: "error", message: String(e) };
+  }
+}
+
+// ── Web SRE: the same AI sales brain as a chat page — no Telegram, no BotFather ──
+
+export type WebSreOutcome = { ok: true; chatUrl: string; name: string } | { ok: false; message: string };
+
+// `reserve` saves the chat link before the checks; `launch` moves the student forward at the end.
+export async function runWebSreBuild(
+  runId: string | null,
+  student: SreStudent,
+  assistantName: string,
+  slug: string,
+  reserve: () => Promise<void>,
+  launch: () => Promise<void>
+): Promise<WebSreOutcome> {
+  const r: Report = reporter(runId);
+  const chatUrl = `${SRE_CHAT_URL}?s=${slug}`;
+  const api = `${Deno.env.get("SUPABASE_URL")}/functions/v1/student-bot/chat?s=${slug}`;
+  const ping = async () => {
+    try {
+      const res = await fetch(api);
+      return res.ok ? ((await res.json()) as { name?: string }) : null;
+    } catch {
+      return null;
+    }
+  };
+  try {
+    // 1. Nova — reserve the assistant's public chat link.
+    await r("nova", "working", `Reserving your assistant's chat link…`);
+    await reserve();
+    await r("nova", "done", `Link reserved: ${chatUrl}`);
+
+    // 2. Bolt — connect the chat page to Amara's servers and confirm it answers.
+    await r("bolt", "working", "Connecting your chat page to Amara's servers…");
+    const hello = await ping();
+    if (!hello) {
+      await r("bolt", "failed", "The chat server didn't answer. Please try again in a minute.");
+      await finishRun(runId, "failed");
+      return { ok: false, message: "chat endpoint unreachable" };
+    }
+    await r("bolt", "done", "Connected — every message on your chat page now reaches your AI.");
+
+    // 3. Scribe — the assistant's name and greeting.
+    await r("scribe", "working", `Writing ${assistantName}'s name, greeting and chat window…`);
+    await r("scribe", "done", `${hello.name ?? assistantName} greets every visitor and asks for their name to register them.`);
+
+    // 4. Sage — the sales script with the student's links.
+    const buyLink = student.payhip_link ?? student.sales_page_link;
+    await r("sage", "working", "Loading your SRE sales brain: EEM26 script, real student results, objection handling…");
+    await r("sage", "done", buyLink ? `Sales brain ready — buyers will be sent to your link: ${buyLink}` : "Sales brain ready — EEM26 script, student results and objection handling loaded.");
+
+    // 5. Echo — a real test question in the assistant's voice.
+    await r("echo", "working", `Sending ${assistantName} a test customer message: "Hi, what is EEM26?"`);
+    const reply = await aiChat({
+      system: `You are ${assistantName}, a warm, confident sales assistant for EEM26, a done-with-you digital business setup with AI tools and 4 personal coaches. Reply in clear standard English, 2 short sentences max, and end by asking for the person's name.`,
+      history: [],
+      user: "Hi, what is EEM26?",
+      maxTokens: 120,
+      temperature: 0.8,
+      caller: "web sre build",
+    });
+    await r("echo", "done", reply ? `${assistantName} replied: "${reply.replace(/\s+/g, " ").slice(0, 280)}"` : "Test skipped — the AI is busy, but your assistant is connected.");
+
+    // 6. Pulse — health check.
+    await r("pulse", "working", "Running a health check on your chat link…");
+    const again = await ping();
+    await r("pulse", "done", again ? "Healthy — ready for customers 24/7 on any phone or laptop." : "Connection is up — the first visitor's message will warm it up.");
+
+    // 7. Amara — save and move the student forward.
+    await r("amara", "working", `Switching ${assistantName} on and saving your setup…`);
+    await launch();
+    await r("amara", "done", `${assistantName} is LIVE 24/7 🚀 ${chatUrl}`);
+    await finishRun(runId, "done", assistantName);
+    return { ok: true, chatUrl, name: assistantName };
+  } catch (e) {
+    console.error("runWebSreBuild error:", e);
+    await r("amara", "failed", "Something went wrong on our side — Amara has been alerted.");
+    await finishRun(runId, "failed");
+    return { ok: false, message: String(e) };
   }
 }

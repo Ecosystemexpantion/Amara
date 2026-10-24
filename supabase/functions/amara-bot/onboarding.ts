@@ -208,7 +208,7 @@ export async function handleOnboarding(
         }
 
         await new Promise((r) => setTimeout(r, 300));
-        await sendSreIntro(chatId, student.full_name, student.web_key);
+        await sendSreIntro(chatId, student.full_name);
       } else {
         const history = await getRecentConversation(student.id, 4);
         const reply = await geminiChat(history, t,

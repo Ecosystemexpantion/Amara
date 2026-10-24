@@ -8,6 +8,7 @@
 // 5. Future similar questions hit the knowledge base first — admin isn't bothered again.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isWebChat, isWebVisitor, pushInbox } from "../_shared/web-inbox.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -112,6 +113,7 @@ export async function createEscalation(
 /** Get the oldest unanswered escalation. */
 export async function getPendingEscalation(): Promise<{
   id: string;
+  student_id: string | null;
   student_chat_id: string;
   student_name: string | null;
   question: string;
@@ -122,7 +124,7 @@ export async function getPendingEscalation(): Promise<{
 } | null> {
   const { data } = await supabase
     .from("amara_escalations")
-    .select("id, student_chat_id, student_name, question, source, customer_chat_id, bot_token, bot_name")
+    .select("id, student_id, student_chat_id, student_name, question, source, customer_chat_id, bot_token, bot_name")
     .eq("status", "PENDING")
     .order("created_at", { ascending: true })
     .limit(1)
@@ -146,6 +148,7 @@ export async function hasStudentPendingEscalation(studentId: string): Promise<bo
 export async function answerEscalation(
   escalation: {
     id: string;
+    student_id?: string | null;
     student_chat_id: string;
     student_name: string | null;
     question: string;
@@ -163,9 +166,14 @@ export async function answerEscalation(
 
   await saveKnowledge(escalation.question, answer);
 
-  if (escalation.source === "student_bot" && escalation.customer_chat_id && escalation.bot_token) {
-    // Route answer to the customer via the student's own bot token
-    await sendTgWithToken(escalation.bot_token, escalation.customer_chat_id, answer);
+  const webVisitor = isWebVisitor(escalation.customer_chat_id) && !!escalation.student_id;
+  if (escalation.source === "student_bot" && escalation.customer_chat_id && (escalation.bot_token || webVisitor)) {
+    // Route answer to the customer: the web chat page reads it from the conversation, Telegram gets it via the bot
+    if (webVisitor) {
+      await supabase.from("student_bot_conversations").insert({ student_id: escalation.student_id, chat_id: escalation.customer_chat_id, role: "assistant", message: answer });
+    } else {
+      await sendTgWithToken(escalation.bot_token!, escalation.customer_chat_id, answer);
+    }
     // Notify the bot owner (EEM26 student) that their customer got an answer
     await sendTg(
       escalation.student_chat_id,
@@ -202,6 +210,10 @@ export async function pendingCount(): Promise<number> {
 // ── Telegram helper ───────────────────────────────────────────────────────────
 
 async function sendTg(chatId: string | number, text: string): Promise<void> {
+  if (isWebChat(chatId)) {
+    await pushInbox(chatId, { kind: "text", text });
+    return;
+  }
   await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -3,6 +3,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChat } from "../_shared/ai.ts";
+import { isWebChat, pushInbox } from "../_shared/web-inbox.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,8 +14,18 @@ interface Student {
   payhip_link: string | null;
   sales_page_link: string | null;
   bot_token: string | null;
+  sre_slug: string | null;
+  sre_name: string | null;
   status: string;
   current_day: number;
+}
+
+// Where a lead's replies go: the student's Telegram bot, or the web chat page (replies are returned to it).
+interface Channel {
+  send(text: string): Promise<void>;
+  video(fileId: string, caption: string): Promise<void>;
+  name(): Promise<string>;
+  photo(): Promise<{ bytes: Uint8Array; mimeType: string } | null>;
 }
 
 interface Lead {
@@ -371,6 +382,24 @@ async function sendPaymentForReview(student: Student, lead: Lead, photo: { bytes
 
 // ─── Telegram helpers ─────────────────────────────────────────────────────────
 
+// Lead alerts for the bot owner go to Amara on Telegram, or to the web app inbox for web-only students.
+async function notifyOwner(student: Student, text: string): Promise<void> {
+  if (isWebChat(student.telegram_chat_id)) {
+    await pushInbox(student.telegram_chat_id, { kind: "text", text });
+    return;
+  }
+  await sendMessage(BOT_TOKEN_AMARA, student.telegram_chat_id, text);
+}
+
+function telegramChannel(token: string, chatId: number, msg: TelegramMessage): Channel {
+  return {
+    send: (text) => sendMessage(token, chatId, text),
+    video: (fileId, caption) => sendVideo(token, chatId, fileId, caption),
+    name: () => getBotDisplayName(token),
+    photo: () => msg.photo?.length ? downloadPhoto(token, msg.photo[msg.photo.length - 1].file_id) : Promise.resolve(null),
+  };
+}
+
 async function sendMessage(token: string, chatId: number | string, text: string): Promise<void> {
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
@@ -485,6 +514,7 @@ async function upsertLead(supabase: SupabaseClient, studentId: string, chatId: s
 // ─── Credit limits (reset at midnight Nigeria time) ───────────────────────────
 
 const OWNER_AI_PER_DAY = 3;
+const STUDENT_COLUMNS = "id, telegram_chat_id, full_name, payhip_link, sales_page_link, bot_token, sre_slug, sre_name, status, current_day";
 const UNPAID_BOT_REPLIES_PER_DAY = 20;
 const UNPAID_HOLD_MSG = "Thanks for your message! 🙏 I'll get back to you tomorrow with everything you need.";
 
@@ -596,11 +626,11 @@ async function handleAdmin(student: Student, chatId: number, msg: TelegramMessag
 async function handleLead(
   student: Student,
   lead: Lead | null,
-  chatId: number,
+  chatId: number | string,
   msg: TelegramMessage,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  ch: Channel
 ): Promise<void> {
-  const token = student.bot_token!;
   const chatIdStr = String(chatId);
   const stage = lead?.stage ?? "NEW";
   const userText = (msg.text ?? msg.caption ?? "").trim();
@@ -608,9 +638,9 @@ async function handleLead(
 
   // Commands → opening hook
   if (userText.startsWith("/")) {
-    const botName = await getBotDisplayName(token);
+    const botName = await ch.name();
     const openingMsg = buildOpeningHook(botName);
-    await sendMessage(token, chatId, openingMsg);
+    await ch.send(openingMsg);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
     await saveConv(supabase, student.id, chatIdStr, userText, openingMsg);
     return;
@@ -641,7 +671,7 @@ async function handleLead(
   const reportedDownload = DOWNLOAD_KEYWORDS.some(w => userText.toLowerCase().includes(w));
   if (reportedDownload && (effectiveStage === "ATTENDED" || isBuyingIntent)) {
     const screenshotMsg = "Send me a quick screenshot of your payment and I'll confirm it with the coaches right now so your 4-day setup can begin. 📸";
-    await sendMessage(token, chatId, screenshotMsg);
+    await ch.send(screenshotMsg);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "ATTENDED" });
     await saveConv(supabase, student.id, chatIdStr, userText, screenshotMsg);
     return;
@@ -649,15 +679,14 @@ async function handleLead(
 
   // Payment screenshots are checked by the admin by hand — no AI, so this runs before any limit.
   if (msg.photo && msg.photo.length > 0 && lead && (effectiveStage === "ATTENDED" || isBuyingIntent)) {
-    const photo = msg.photo[msg.photo.length - 1];
-    const dl = await downloadPhoto(token, photo.file_id);
+    const dl = await ch.photo();
     if (!dl) {
-      await sendMessage(token, chatId, "I got your screenshot but couldn't open it 😕 Can you send it again? 📸");
+      await ch.send("I got your screenshot but couldn't open it 😕 Can you send it again? 📸");
       return;
     }
     await sendPaymentForReview(student, lead, dl);
     const reply = "Got it! 📸 I'm confirming your payment with the coaches now — I'll message you as soon as it's confirmed 🙏";
-    await sendMessage(token, chatId, reply);
+    await ch.send(reply);
     await saveConv(supabase, student.id, chatIdStr, "[payment screenshot]", reply);
     return;
   }
@@ -675,7 +704,7 @@ async function handleLead(
         .order("created_at", { ascending: false })
         .limit(1);
       if ((last as { message: string }[] | null)?.[0]?.message !== UNPAID_HOLD_MSG) {
-        await sendMessage(token, chatId, UNPAID_HOLD_MSG);
+        await ch.send(UNPAID_HOLD_MSG);
         await saveConv(supabase, student.id, chatIdStr, userText || "[photo]", UNPAID_HOLD_MSG);
       }
       return;
@@ -685,9 +714,9 @@ async function handleLead(
   // No text and not a new lead → ignore
   if (!userText) {
     if (!lead) {
-      const botName = await getBotDisplayName(token);
+      const botName = await ch.name();
       const openingMsg = buildOpeningHook(botName);
-      await sendMessage(token, chatId, openingMsg);
+      await ch.send(openingMsg);
       await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
       await saveConv(supabase, student.id, chatIdStr, "[started]", openingMsg);
     }
@@ -696,9 +725,9 @@ async function handleLead(
 
   // Brand new lead → send opening hook first
   if (!lead) {
-    const botName = await getBotDisplayName(token);
+    const botName = await ch.name();
     const openingMsg = buildOpeningHook(botName);
-    await sendMessage(token, chatId, openingMsg);
+    await ch.send(openingMsg);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
     await saveConv(supabase, student.id, chatIdStr, userText, openingMsg);
     return;
@@ -708,7 +737,7 @@ async function handleLead(
 
   // If this customer is already waiting on an escalation answer, stay quiet
   if (await hasCustomerPendingEscalation(supabase, student.id, chatIdStr)) {
-    await sendMessage(token, chatId, "I'll get back to you shortly — just confirming that for you 🙏");
+    await ch.send("I'll get back to you shortly — just confirming that for you 🙏");
     return;
   }
 
@@ -731,7 +760,7 @@ async function handleLead(
   if (shouldEscalate && userText) {
     await createBotEscalation(supabase, student, chatIdStr, userText);
     const holdMsg = "Great question! Let me confirm that for you — I'll get back to you shortly 🙏";
-    await sendMessage(token, chatId, holdMsg);
+    await ch.send(holdMsg);
     await saveConv(supabase, student.id, chatIdStr, userText, holdMsg);
     return;
   }
@@ -771,14 +800,14 @@ async function handleLead(
   }
 
   await upsertLead(supabase, student.id, chatIdStr, updates);
-  await sendMessage(token, chatId, reply);
+  await ch.send(reply);
   await saveConv(supabase, student.id, chatIdStr, userText, reply);
 
   // New registration: send testimony video to build excitement, then notify admin
   if (allDataNow && stage === "NEW") {
     const vid = pickVideo("testimony");
-    await sendVideo(token, chatId, vid.fileId, vid.caption);
-    await sendMessage(BOT_TOKEN_AMARA, student.telegram_chat_id,
+    await ch.video(vid.fileId, vid.caption);
+    await notifyOwner(student,
       `✅ <b>NEW LEAD REGISTERED!</b>\n<b>Name:</b> ${data.name ?? lead.name}\n<b>Country:</b> ${data.country ?? lead.country}\n<b>Struggle:</b> ${data.pain_point ?? lead.struggle}\n<b>Email:</b> ${data.email ?? lead.email}`
     );
   }
@@ -788,7 +817,7 @@ async function handleLead(
     const preview = history.slice(-5)
       .map(h => `${h.role === "user" ? "👤" : "🤖"} ${h.content.slice(0, 80)}`)
       .join("\n");
-    await sendMessage(BOT_TOKEN_AMARA, student.telegram_chat_id,
+    await notifyOwner(student,
       `🔥 <b>HOT LEAD!</b>\n<b>Name:</b> ${lead.name ?? "Unknown"}\n<b>Country:</b> ${lead.country ?? "Unknown"}\n<b>Stage:</b> ${effectiveStage}\n<b>Said:</b> "${userText.slice(0, 150)}"\n\n${preview.slice(0, 500)}`
     );
   }
@@ -797,19 +826,133 @@ async function handleLead(
   if (effectiveStage === "ATTENDED" && objection && objection.toLowerCase() !== "none") {
     const isScam = /scam|fake|trust|fraud|legit/.test(objection.toLowerCase());
     const vid = pickVideo(isScam ? "withdrawal" : "testimony");
-    await sendVideo(token, chatId, vid.fileId, vid.caption);
+    await ch.video(vid.fileId, vid.caption);
   }
 }
 
 // ─── Main entry ───────────────────────────────────────────────────────────────
 
+// ─── Web chat (a student's SRE as a web page — no Telegram, no BotFather) ─────
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "content-type",
+};
+const VISITOR_RE = /^[a-z0-9]{16,40}$/;
+const VISITOR_MESSAGES_PER_DAY = 60;
+const MAX_CHAT_IMAGE_BYTES = 6 * 1024 * 1024;
+
+function chatJson(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+}
+
+function decodeChatImage(b64: unknown, mime: unknown): { bytes: Uint8Array; mimeType: string } | null {
+  if (typeof b64 !== "string" || typeof mime !== "string" || !/^image\/(jpeg|png|webp)$/.test(mime)) return null;
+  try {
+    const bin = atob(b64.replace(/^data:[^,]+,/, ""));
+    if (bin.length === 0 || bin.length > MAX_CHAT_IMAGE_BYTES) return null;
+    return { bytes: Uint8Array.from(bin, (c) => c.charCodeAt(0)), mimeType: mime };
+  } catch {
+    return null;
+  }
+}
+
+async function webChatHistory(supabase: SupabaseClient, studentId: string, chatId: string) {
+  const { data } = await supabase
+    .from("student_bot_conversations")
+    .select("role, message, created_at")
+    .eq("student_id", studentId)
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: false })
+    .limit(40);
+  return ((data ?? []) as { role: string; message: string; created_at: string }[])
+    .reverse()
+    .filter((m) => !/^\[(started|opened)\]$/.test(m.message))
+    .map((m) => ({ role: m.role, text: m.message, at: m.created_at }));
+}
+
+async function handleWebChat(req: Request, supabase: SupabaseClient): Promise<Response> {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  const url = new URL(req.url);
+  const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+  const slug = String(body.s ?? url.searchParams.get("s") ?? "").toLowerCase();
+  const visitor = String(body.v ?? url.searchParams.get("v") ?? "");
+  if (!/^[a-z0-9-]{3,40}$/.test(slug)) return chatJson({ error: "This chat link isn't complete." }, 404);
+
+  const { data: sd } = await supabase.from("amara_students").select(STUDENT_COLUMNS).eq("sre_slug", slug).maybeSingle();
+  const student = sd as Student | null;
+  if (!student) return chatJson({ error: "This chat link isn't active." }, 404);
+  const name = student.sre_name ?? "Alex";
+  if (!VISITOR_RE.test(visitor)) return chatJson({ name, messages: [] });
+  const chatId = `web-${visitor}`;
+
+  if (req.method === "GET") return chatJson({ name, messages: await webChatHistory(supabase, student.id, chatId) });
+
+  const { count } = await supabase
+    .from("student_bot_conversations")
+    .select("id", { count: "exact", head: true })
+    .eq("student_id", student.id)
+    .eq("chat_id", chatId)
+    .eq("role", "user")
+    .gte("created_at", nigeriaDayStartIso());
+  if ((count ?? 0) >= VISITOR_MESSAGES_PER_DAY) {
+    return chatJson({ replies: ["Thanks for all your messages! 🙏 I'll get back to you tomorrow."] });
+  }
+
+  const text = typeof body.text === "string" ? body.text.slice(0, 2000) : "";
+  const image = body.image ? decodeChatImage(body.image, body.mime) : null;
+  if (body.image && !image) return chatJson({ error: "That image couldn't be read. Please choose a JPG or PNG under 6 MB." }, 400);
+
+  const replies: string[] = [];
+  const ch: Channel = {
+    send: async (t) => { replies.push(t); },
+    video: async () => {},
+    name: async () => name,
+    photo: async () => image,
+  };
+  const msg: TelegramMessage = {
+    message_id: 0,
+    chat: { id: 0, type: "private" },
+    date: Math.floor(Date.now() / 1000),
+    ...(text ? { text } : {}),
+    ...(image ? { photo: [{ file_id: "web", file_unique_id: "web", file_size: image.bytes.length, width: 0, height: 0 }] } : {}),
+  };
+  const { data: leadData } = await supabase
+    .from("student_bot_leads")
+    .select("*")
+    .eq("student_id", student.id)
+    .eq("chat_id", chatId)
+    .maybeSingle();
+  try {
+    await handleLead(student, leadData as Lead | null, chatId, msg, supabase, ch);
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.error("web chat error:", errMsg);
+    await alertAdmin(`🚨 <b>web chat crash</b>\nError: <code>${errMsg.slice(0, 300)}</code>`);
+    replies.push("Sorry about that — please send your message again 😊");
+  }
+  return chatJson({ replies });
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
+  const url = new URL(req.url);
+  const segments = url.pathname.split("/").filter(Boolean);
+
+  if (segments[segments.length - 1] === "chat") {
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    try {
+      return await handleWebChat(req, supabase);
+    } catch (e) {
+      console.error("web chat outer error:", e);
+      return chatJson({ error: "Something went wrong. Please try again." }, 500);
+    }
+  }
+
   if (req.method !== "POST") {
     return new Response("Student Bot is running ✅", { status: 200 });
   }
 
-  const url = new URL(req.url);
-  const segments = url.pathname.split("/").filter(Boolean);
   const studentId = segments[segments.length - 1];
 
   if (!studentId || studentId === "student-bot") {
@@ -832,7 +975,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try {
       const { data: sd, error } = await supabase
         .from("amara_students")
-        .select("id, telegram_chat_id, full_name, payhip_link, sales_page_link, bot_token, status, current_day")
+        .select(STUDENT_COLUMNS)
         .eq("id", studentId)
         .single();
 
@@ -858,7 +1001,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .single();
 
       try {
-        await handleLead(student, leadData as Lead | null, chatId, msg, supabase);
+        await handleLead(student, leadData as Lead | null, chatId, msg, supabase, telegramChannel(student.bot_token, chatId, msg));
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : String(e);
         console.error("handleLead error:", errMsg);

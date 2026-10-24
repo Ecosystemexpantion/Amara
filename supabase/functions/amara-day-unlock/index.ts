@@ -5,11 +5,11 @@ import {
   GATE_PITCH,
   GATE_FOLLOWUPS,
   sreIntroMessages,
-  BUILD_ROOM_BUTTON,
   legacyUpgradeMessage,
+  hasSre,
 } from "../amara-bot/day1-content.ts";
 import { aiHealthCheck } from "../_shared/ai.ts";
-import { webLink } from "../_shared/runs.ts";
+import { isWebChat, pushInbox } from "../_shared/web-inbox.ts";
 import { deliverRunAnnouncement, sendAnnouncement } from "../amara-bot/announce.ts";
 import { getStudentById } from "../amara-bot/db.ts";
 import { PAGES_VERSION, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
@@ -139,6 +139,10 @@ Just checking in — your EEM26 program is waiting for you! Send me a message wh
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function sendTelegram(chatId: string, text: string, button?: { text: string; url: string }): Promise<void> {
+  if (isWebChat(chatId)) {
+    await pushInbox(chatId, { kind: "text", text });
+    return;
+  }
   try {
     await fetch(`${TG_BASE}/sendMessage`, {
       method: "POST",
@@ -187,14 +191,14 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     // None of them have paid, so they start on the SRE bot (or the Day 2 lock if they already have one).
     const { data: legacyStudents } = await supabase
       .from("amara_students")
-      .select("id, telegram_chat_id, full_name, current_day, current_step, bot_token, web_key")
+      .select("id, telegram_chat_id, full_name, current_day, current_step, bot_token, sre_slug")
       .eq("status", "ACTIVE")
       .or(`and(current_day.eq.1,current_step.lt.${SRE_STEP}),and(current_day.eq.2,current_step.eq.1)`);
 
     let migratedCount = 0;
     for (const s of legacyStudents ?? []) {
       try {
-        const toGate = !!s.bot_token;
+        const toGate = hasSre(s);
         const { data: updated } = await supabase
           .from("amara_students")
           .update({
@@ -214,12 +218,10 @@ Deno.serve(async (_req: Request): Promise<Response> => {
         if (!updated || updated.length === 0) continue;
 
         await sendTelegram(s.telegram_chat_id, legacyUpgradeMessage(s.full_name));
-        const room = webLink(s.web_key);
-        const msgs = toGate ? GATE_PITCH : sreIntroMessages(s.full_name, s.telegram_chat_id, room);
-        for (const [k, m] of msgs.entries()) {
+        const msgs = toGate ? GATE_PITCH : sreIntroMessages(s.full_name, s.telegram_chat_id);
+        for (const m of msgs) {
           await new Promise((r) => setTimeout(r, 400));
-          const last = !toGate && room && k === msgs.length - 1;
-          await sendTelegram(s.telegram_chat_id, m, last ? { text: BUILD_ROOM_BUTTON, url: room! } : undefined);
+          await sendTelegram(s.telegram_chat_id, m);
         }
         migratedCount++;
       } catch (err) {
@@ -261,9 +263,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
 
         if (updateError || count === 0) continue;
 
-        const base = nextDay === 3 && !student.bot_token ? LEGACY_DAY3_SRE.unlock : DAY_UNLOCK_MESSAGES[nextDay];
-        const live = webLink(student.web_key);
-        const message = base && live ? `${base}\n\n👀 <a href="${live}">Watch your AI agents work on each step live</a>` : base;
+        const message = nextDay === 3 && !hasSre(student) ? LEGACY_DAY3_SRE.unlock : DAY_UNLOCK_MESSAGES[nextDay];
         if (message) await sendTelegram(student.telegram_chat_id, message);
         unlockCount++;
       } catch (err) {
@@ -311,7 +311,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
 
       const { data: checkinStudents } = await supabase
         .from("amara_students")
-        .select("id, telegram_chat_id, current_day, current_step, bot_token")
+        .select("id, telegram_chat_id, current_day, current_step, bot_token, sre_slug")
         .eq("status", "ACTIVE")
         .gt("current_step", 0)
         .gte("current_day", 1)
@@ -321,7 +321,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       let checkinCount = 0;
       for (const s of checkinStudents ?? []) {
         if (s.current_day === 1 && s.current_step === GATE_STEP) continue;
-        const msg = s.current_day === 3 && !s.bot_token
+        const msg = s.current_day === 3 && !hasSre(s)
           ? LEGACY_DAY3_SRE.evening
           : EVENING_MESSAGES[s.current_day] ?? EVENING_DEFAULT;
         await sendTelegram(s.telegram_chat_id, msg);
@@ -336,7 +336,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
 
     const { data: silentStudents } = await supabase
       .from("amara_students")
-      .select("id, telegram_chat_id, current_day, current_step, last_activity_at, bot_token")
+      .select("id, telegram_chat_id, current_day, current_step, last_activity_at, bot_token, sre_slug")
       .eq("status", "ACTIVE")
       .gt("current_step", 0)
       .gte("current_day", 1)
@@ -348,7 +348,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     let nudgeCount = 0;
     for (const s of silentStudents ?? []) {
       if (s.current_day === 1 && s.current_step === GATE_STEP) continue;
-      const msg = s.current_day === 3 && !s.bot_token
+      const msg = s.current_day === 3 && !hasSre(s)
         ? LEGACY_DAY3_SRE.nudge
         : NUDGE_MESSAGES[s.current_day] ?? NUDGE_DEFAULT;
       await sendTelegram(s.telegram_chat_id, msg);

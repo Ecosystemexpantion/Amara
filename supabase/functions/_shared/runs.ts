@@ -4,7 +4,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-export const WEB_APP_URL = "https://ecosystemexpantion.github.io/amara-live/";
+// The general link of the standalone web app (students sign in with email + password).
+export const WEB_APP_URL = "https://ecosystemexpantion.github.io/eem26-setup/";
+export const WEB_APP_REPO = "eem26-setup";
+// Each web-only student's AI sales assistant: <SRE_CHAT_URL>?s=<sre_slug>
+export const SRE_CHAT_URL = "https://ecosystemexpantion.github.io/eem26-chat/";
+export const SRE_CHAT_REPO = "eem26-chat";
 
 export function webLink(webKey: string | null | undefined): string | null {
   return webKey ? `${WEB_APP_URL}?k=${webKey}` : null;
@@ -21,7 +26,7 @@ export type HeldMessage =
   | { kind: "doc"; filename: string; b64: string; caption?: string };
 
 export type Announcement =
-  | { type: "sre_live"; day: 1 | 3; botUsername: string }
+  | { type: "sre_live"; day: 1 | 3; botUsername: string; chatUrl?: string }
   | { type: "pages_live"; isRepair: boolean; normalUrl: string; premiumUrl: string }
   | { type: "messages"; items: HeldMessage[] };
 

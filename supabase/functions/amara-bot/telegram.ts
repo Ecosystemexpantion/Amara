@@ -1,5 +1,6 @@
 import type { DownloadedFile } from "./types.ts";
 import type { HeldMessage } from "../_shared/runs.ts";
+import { isWebChat, pushInbox } from "../_shared/web-inbox.ts";
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TG_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
@@ -43,6 +44,7 @@ export async function sendMessage(
     hold.push({ kind: "text", text, parseMode });
     return true;
   }
+  if (isWebChat(chatId)) return await pushInbox(chatId, { kind: "text", text });
   try {
     const res = await fetch(`${TG_BASE}/sendMessage`, {
       method: "POST",
@@ -72,6 +74,10 @@ export async function sendLinkButton(
   const hold = held.get(String(chatId));
   if (hold) {
     hold.push({ kind: "text", text: `${text}\n\n👉 <a href="${url}">${buttonText}</a>`, parseMode: "HTML" });
+    return;
+  }
+  if (isWebChat(chatId)) {
+    await pushInbox(chatId, { kind: "text", text: `${text}\n\n👉 <a href="${url}">${buttonText}</a>` });
     return;
   }
   if (opts.typing) {
@@ -127,7 +133,7 @@ export async function sendChatAction(
   chatId: number | string,
   action: string
 ): Promise<void> {
-  if (held.has(String(chatId))) return;
+  if (held.has(String(chatId)) || isWebChat(chatId)) return;
   try {
     await fetch(`${TG_BASE}/sendChatAction`, {
       method: "POST",
@@ -142,7 +148,7 @@ export async function typeMessage(
   text: string,
   parseMode: "HTML" | "Markdown" = "HTML"
 ): Promise<void> {
-  if (held.has(String(chatId))) {
+  if (held.has(String(chatId)) || isWebChat(chatId)) {
     await sendMessage(chatId, text, parseMode);
     return;
   }
@@ -164,6 +170,10 @@ export async function sendDocument(
     hold.push({ kind: "doc", filename, b64: toBase64(content), caption });
     return;
   }
+  if (isWebChat(chatId)) {
+    await pushInbox(chatId, { kind: "doc", filename, b64: toBase64(content), caption });
+    return;
+  }
   try {
     const form = new FormData();
     form.append("chat_id", String(chatId));
@@ -179,14 +189,20 @@ export async function sendDocument(
 export async function sendPhoto(
   chatId: number | string,
   photoBytes: Uint8Array,
-  caption?: string
+  caption?: string,
+  buttons?: { text: string; callback_data: string }[][]
 ): Promise<void> {
+  if (isWebChat(chatId)) return;
   try {
     const form = new FormData();
     form.append("chat_id", String(chatId));
     const blob = new Blob([photoBytes], { type: "image/jpeg" });
     form.append("photo", blob, "photo.jpg");
-    if (caption) form.append("caption", caption);
+    if (caption) {
+      form.append("caption", caption);
+      form.append("parse_mode", "HTML");
+    }
+    if (buttons) form.append("reply_markup", JSON.stringify({ inline_keyboard: buttons }));
     await fetch(`${TG_BASE}/sendPhoto`, { method: "POST", body: form });
   } catch (e) {
     console.error("sendPhoto error:", e);
@@ -198,6 +214,10 @@ export async function sendWithKeyboard(
   text: string,
   buttons: { text: string; callback_data: string }[][]
 ): Promise<void> {
+  if (isWebChat(chatId)) {
+    await pushInbox(chatId, { kind: "text", text });
+    return;
+  }
   try {
     await fetch(`${TG_BASE}/sendMessage`, {
       method: "POST",

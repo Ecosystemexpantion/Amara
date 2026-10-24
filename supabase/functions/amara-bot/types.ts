@@ -32,6 +32,9 @@ export interface Student {
   last_activity_at: string | null;
   last_proactive_at: string | null;
   web_key: string | null;
+  password_hash?: string | null;
+  sre_slug?: string | null;
+  sre_name?: string | null;
   created_at: string;
   updated_at: string;
 }

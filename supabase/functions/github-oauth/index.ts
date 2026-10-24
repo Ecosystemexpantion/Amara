@@ -2,7 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { NORMAL_TEMPLATE } from "./normal_template.ts";
 import { PREMIUM_TEMPLATE } from "./premium_template.ts";
 import { modifyForStudent, publishPage, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
-import { startRun, reporter, finishRun, webLink, holdAnnouncement, type Announcement } from "../_shared/runs.ts";
+import { startRun, reporter, finishRun, WEB_APP_URL, holdAnnouncement, type Announcement } from "../_shared/runs.ts";
+import { isWebChat, pushInbox } from "../_shared/web-inbox.ts";
 import { sendAnnouncement } from "../amara-bot/announce.ts";
 
 // ---------------------------------------------------------------------------
@@ -19,6 +20,10 @@ const supabase = createClient(
 
 /** Send a Telegram message to any chat ID (swallows errors). */
 async function sendTg(chatId: string | number, text: string): Promise<void> {
+  if (isWebChat(chatId)) {
+    await pushInbox(chatId, { kind: "text", text });
+    return;
+  }
   const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
   await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
@@ -30,6 +35,11 @@ async function sendTg(chatId: string | number, text: string): Promise<void> {
       disable_web_page_preview: true,
     }),
   }).catch(() => {});
+}
+
+function connectUrl(state: string): string {
+  const params = new URLSearchParams({ client_id: Deno.env.get("GITHUB_OAUTH_CLIENT_ID") ?? "", scope: "repo", state });
+  return `https://github.com/login/oauth/authorize?${params}`;
 }
 
 /** Compute tomorrow at 08:00 Nigeria time (UTC+1) expressed as UTC ISO string. */
@@ -203,7 +213,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const params = url.searchParams;
 
   const code = params.get("code");
-  const state = params.get("state"); // telegram_chat_id
+  // telegram_chat_id — prefixed "web." when the student connected from the web app.
+  const rawState = params.get("state");
+  const fromWeb = !!rawState?.startsWith("web.");
+  const state = fromWeb ? rawState!.slice(4) : rawState;
   const oauthError = params.get("error");
 
   // Must have at minimum a state param for anything useful
@@ -338,13 +351,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .update({ github_access_token: githubToken, github_username: githubUsername, updated_at: new Date().toISOString() })
     .eq("id", student.id);
 
-  // The student is sent to the live page to watch the Day 2 agents; the build runs in the background.
-  const live = webLink(student.web_key);
-  const runId = await startRun(student.id, "pages", "web", isRepair ? "Repairing your sales pages" : "Building your two sales pages");
-  const work = buildPages(student, githubToken, runId, isRepair, !!live).catch((e) => console.error("Page build error:", e));
-  if (live && typeof EdgeRuntime !== "undefined") {
+  // From the web app the student goes back to watch the Day 2 agents; the build runs in the background.
+  // Telegram students stay on Telegram: they get a success page and Amara's message when it's done.
+  const back = fromWeb ? `${WEB_APP_URL}${student.password_hash ? "" : `?k=${student.web_key}`}#pages` : null;
+  const runId = await startRun(student.id, "pages", fromWeb ? "web" : "telegram", isRepair ? "Repairing your sales pages" : "Building your two sales pages");
+  const work = buildPages(student, githubToken, runId, isRepair, fromWeb).catch((e) => console.error("Page build error:", e));
+  if (back && typeof EdgeRuntime !== "undefined") {
     (EdgeRuntime as unknown as { waitUntil: (p: Promise<unknown>) => void }).waitUntil(work);
-    return Response.redirect(live, 302);
+    return Response.redirect(back, 302);
   }
   await work;
   return htmlResponse(SUCCESS_HTML, 200);
@@ -362,13 +376,13 @@ async function buildPages(student: any, githubToken: string, runId: string | nul
     await finishRun(runId, "failed");
     console.error("Page setup failed:", result.detail);
     await sendTg(adminChatId, `⚠️ <b>Sales page setup failed</b> for <b>${student.full_name ?? "unknown"}</b> (🆔 <code>${state}</code>)\n\n<code>${result.detail.replace(/</g, "&lt;").slice(0, 400)}</code>`);
-    const room = webLink(student.web_key);
+    const again = isWebChat(state) ? "on this page" : `here 👉 <a href="${connectUrl(state)}">Connect GitHub</a>`;
     await sendTg(
       state,
       result.status === "email_unverified"
-        ? `Almost there! 📧 GitHub needs you to <b>verify your email</b> before your pages can go live.\n\nOpen the email GitHub sent you, tap <b>Verify</b>, then tap <b>Connect GitHub</b> again${room ? ` in your <a href="${room}">build room</a>` : ""} 🙏`
+        ? `Almost there! 📧 GitHub needs you to <b>verify your email</b> before your pages can go live.\n\nOpen the email GitHub sent you, tap <b>Verify</b>, then tap <b>Connect GitHub</b> again ${again} 🙏`
         : result.status === "token_revoked"
-        ? `GitHub disconnected before your pages were done. Tap <b>Connect GitHub</b> again${room ? ` in your <a href="${room}">build room</a>` : ""} and your agents will pick up where they left off 🙏`
+        ? `GitHub disconnected before your pages were done. Tap <b>Connect GitHub</b> again ${again} and your agents will pick up where they left off 🙏`
         : "⏳ GitHub is taking a little longer to publish your pages. I'll finish them automatically and message you here the moment they're live — nothing for you to do 🙏"
     );
     return;
