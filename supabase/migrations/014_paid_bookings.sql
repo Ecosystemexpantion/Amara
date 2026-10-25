@@ -5,9 +5,9 @@
 alter table public.booking_settings
   add column if not exists call_types jsonb not null default '[
     {"id":"intro","name":"Free intro call","minutes":15,"price":0,"blurb":"A quick hello: tell us where you are and we point you to your next step. Only on Wednesday mornings."},
-    {"id":"strategy","name":"Strategy call","minutes":30,"price":10000,"blurb":"A focused 1-on-1 on your business: your setup, your offer and your plan to your first sales."},
-    {"id":"setup","name":"Done-with-you session","minutes":60,"price":25000,"blurb":"We work on your setup with you, live on the call, until it is done."},
-    {"id":"now","name":"Talk now — priority call","minutes":30,"price":30000,"blurb":"Skip the calendar. Pay and the EEM26 team calls you on WhatsApp within 30 minutes."}
+    {"id":"strategy","name":"Strategy call","minutes":30,"price":5000,"blurb":"A focused 1-on-1 on your business: your setup, your offer and your plan to your first sales."},
+    {"id":"setup","name":"Done-with-you session","minutes":60,"price":12500,"blurb":"We work on your setup with you, live on the call, until it is done."},
+    {"id":"now","name":"Talk now — priority call","minutes":30,"price":15000,"blurb":"Skip the calendar. Pay and the EEM26 team calls you on WhatsApp within 30 minutes."}
   ]'::jsonb,
   add column if not exists free_days int[] not null default '{3}',
   add column if not exists free_start_hour int not null default 9,
