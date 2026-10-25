@@ -16,7 +16,8 @@ import { WEB_APP_REPO, SRE_CHAT_REPO } from "../_shared/runs.ts";
 import { SRE_CHAT_HTML } from "../_shared/chat-page.ts";
 import { isWebVisitor } from "../_shared/web-inbox.ts";
 import { issueLoginCode, CODE_MINUTES } from "../_shared/web-auth.ts";
-import { BOOKING_URL, BOOKING_REPO, cancelBooking, upcomingBookings, getSettings, updateSettings, formatNigeria, waLink } from "../_shared/booking.ts";
+import { BOOKING_URL, BOOKING_REPO, DAY_NAMES, cancelBooking, upcomingBookings, getSettings, updateSettings, formatNigeria, waLink, setStatus, callType, naira, earnings, nowOpen } from "../_shared/booking.ts";
+import { announceConfirmed } from "../_shared/booking-alerts.ts";
 import { BOOKING_HTML } from "../_shared/book-page.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -75,12 +76,33 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
   }
   const hoursMatch = t.match(/^hours\s+(\d{1,2})\s*(?:-|to|\s)\s*(\d{1,2})$/i);
   if (hoursMatch) {
-    await setBookingHours(chatId, Number(hoursMatch[1]), Number(hoursMatch[2]));
+    await setBookingHours(chatId, Number(hoursMatch[1]), Number(hoursMatch[2]), "paid");
     return;
   }
-  const daysMatch = t.match(/^booking\s+days\s+([a-z,\s-]+)$/i);
+  const daysMatch = t.match(/^(booking|free)\s+days\s+([a-z,\s-]+)$/i);
   if (daysMatch) {
-    await setBookingDays(chatId, daysMatch[1]);
+    await setBookingDays(chatId, daysMatch[2], daysMatch[1].toLowerCase() === "free");
+    return;
+  }
+  const freeHours = t.match(/^free\s+hours\s+(\d{1,2})\s*(?:-|to|\s)\s*(\d{1,2})$/i);
+  if (freeHours) {
+    await setBookingHours(chatId, Number(freeHours[1]), Number(freeHours[2]), "free");
+    return;
+  }
+  const urgentHours = t.match(/^urgent\s+hours\s+(\d{1,2})\s*(?:-|to|\s)\s*(\d{1,2})$/i);
+  if (urgentHours) {
+    await setBookingHours(chatId, Number(urgentHours[1]), Number(urgentHours[2]), "now");
+    return;
+  }
+  const urgentToggle = t.match(/^urgent\s+(on|off)$/i);
+  if (urgentToggle) {
+    await updateSettings({ now_enabled: urgentToggle[1].toLowerCase() === "on" });
+    await sendMessage(chatId, urgentToggle[1].toLowerCase() === "on" ? "✅ <b>Talk now</b> calls are switched ON." : "⏸ <b>Talk now</b> calls are switched OFF — the booking page only offers scheduled calls.");
+    return;
+  }
+  const priceMatch = t.match(/^price\s+(intro|strategy|setup|now)\s+₦?([\d,]+)$/i);
+  if (priceMatch) {
+    await setPrice(chatId, priceMatch[1].toLowerCase(), Number(priceMatch[2].replace(/,/g, "")));
     return;
   }
 
@@ -228,6 +250,12 @@ export async function handleAdminCallback(
     return;
   }
 
+  if (/^bk[ard]:/.test(data)) {
+    await decideCall(chatId, data.slice(0, 3), data.slice(4));
+    if (messageId) await removeButtons(chatId, messageId);
+    return;
+  }
+
   if (data.startsWith("bkc:")) {
     const b = await cancelBooking(data.slice(4));
     await sendMessage(
@@ -319,9 +347,12 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>web [ID]</code> → That student's private link to watch their AI agents build live.\n` +
     `<code>web publish</code> → Re-publish the web app (${WEB_APP_URL}) and the AI assistant chat page.\n` +
     `<code>code [ID]</code> → A one-time web login code to give a student (forgot password).\n` +
-    `<code>bookings</code> → Upcoming calls from the booking page (${BOOKING_URL}).\n` +
+    `<code>bookings</code> → Upcoming calls, prices, hours and call earnings (${BOOKING_URL}).\n` +
     `<code>block 2026-11-02</code> / <code>unblock 2026-11-02</code> → Close or reopen a day for bookings.\n` +
-    `<code>hours 10 18</code> → Booking hours (Nigeria time). <code>booking days mon-sat</code> → Booking days.\n` +
+    `<code>hours 10 18</code> / <code>booking days mon-sat</code> → Paid call hours and days (Nigeria time).\n` +
+    `<code>free hours 9 10</code> / <code>free days wed</code> → When free intro calls can be booked.\n` +
+    `<code>urgent on</code> / <code>urgent off</code> / <code>urgent hours 8 21</code> → "Talk now" priority calls.\n` +
+    `<code>price strategy 5000</code> → Change a price (intro, strategy, setup, now).\n` +
     `<code>premium preview</code> → Publish the new Premium Tech Stack sales page to a preview link.\n` +
     `<code>premium live</code> → Put the new Premium Tech Stack page on the live link.\n\n` +
     `<b>Other</b>\n` +
@@ -760,18 +791,54 @@ async function listStudents(chatId: number): Promise<void> {
 
 // ── Booking page (our replacement for Calendly) ──────────────────────────────
 
-const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const STATUS_LABEL: Record<string, string> = { booked: "", review: " · 🧾 payment to confirm" };
 
 async function listBookings(adminChatId: number): Promise<void> {
-  const [list, s] = await Promise.all([upcomingBookings(), getSettings()]);
-  const open = `🕘 Open ${s.days.map((d) => DAY_NAMES[d]).join(", ")} · ${s.start_hour}:00–${s.end_hour}:00 Nigeria time · ${s.slot_minutes}-min calls` +
-    (s.blocked_dates.length ? `\n🚫 Closed: ${s.blocked_dates.join(", ")}` : "");
+  const monthStart = new Date(Date.now() + 3600_000);
+  monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
+  const [list, s, month] = await Promise.all([upcomingBookings(), getSettings(), earnings(new Date(monthStart.getTime() - 3600_000).toISOString())]);
+  const days = (d: number[]) => d.map((x) => DAY_NAMES[x]).join(", ");
+  const prices = s.call_types.map((t) => `• ${escapeHtml(t.name)} (${t.minutes} min) — <b>${t.price ? naira(t.price) : "free"}</b> · <code>${t.id}</code>`).join("\n");
+  const setup =
+    `🆓 Free calls: ${days(s.free_days)} ${s.free_start_hour}:00–${s.free_end_hour}:00\n` +
+    `💳 Paid calls: ${days(s.days)} ${s.start_hour}:00–${s.end_hour}:00\n` +
+    `🚨 Talk now: ${s.now_enabled ? `${s.now_start_hour}:00–${s.now_end_hour}:00 on paid days${nowOpen(s) ? " (open now)" : ""}` : "OFF"}` +
+    (s.blocked_dates.length ? `\n🚫 Closed: ${s.blocked_dates.join(", ")}` : "") +
+    `\n\n${prices}\n\n💰 This month: <b>${naira(month.total)}</b> from ${month.count} paid call${month.count === 1 ? "" : "s"}\n🔗 ${BOOKING_URL}`;
   if (!list.length) {
-    await sendMessage(adminChatId, `📅 No upcoming calls.\n\n${open}\n\n🔗 ${BOOKING_URL}`);
+    await sendMessage(adminChatId, `📅 No upcoming calls.\n\n${setup}`);
     return;
   }
-  const lines = list.map((b) => `• <b>${formatNigeria(b.slot_start)}</b> — ${escapeHtml(b.name)} · <a href="${waLink(b.phone)}">${escapeHtml(b.phone)}</a>${b.topic ? `\n   <i>${escapeHtml(b.topic.slice(0, 120))}</i>` : ""}`);
-  await sendMessage(adminChatId, `📅 <b>Upcoming calls (${list.length})</b>\n\n${lines.join("\n")}\n\n${open}`);
+  const lines = list.map((b) => {
+    const t = callType(s, b.call_type);
+    return `• <b>${b.call_type === "now" ? "NOW" : formatNigeria(b.slot_start)}</b> — ${escapeHtml(b.name)} · ${escapeHtml(t?.name ?? b.call_type)}${b.amount_naira ? ` ${naira(b.amount_naira)}` : ""}${STATUS_LABEL[b.status] ?? ""}\n   <a href="${waLink(b.phone)}">${escapeHtml(b.phone)}</a>${b.topic ? ` · <i>${escapeHtml(b.topic.slice(0, 100))}</i>` : ""}`;
+  });
+  await sendMessage(adminChatId, `📅 <b>Upcoming calls (${list.length})</b>\n\n${lines.join("\n")}\n\n${setup}`);
+}
+
+// bka = accept a call payment, bkr = reject it, bkd = priority call done.
+async function decideCall(adminChatId: number, kind: string, id: string): Promise<void> {
+  if (kind === "bkd") {
+    const b = await setStatus(id, ["booked"], "booked", { done_at: new Date().toISOString() });
+    await sendMessage(adminChatId, b ? `✅ Marked as called: <b>${escapeHtml(b.name)}</b>. No more reminders for this one.` : "ℹ️ That call isn't active anymore.");
+    return;
+  }
+  if (kind === "bka") {
+    const b = await setStatus(id, ["review", "pending", "expired"], "booked", { paid_at: new Date().toISOString(), hold_until: null });
+    if (!b) {
+      await sendMessage(adminChatId, "ℹ️ That payment was already handled.");
+      return;
+    }
+    await announceConfirmed(b, `💰 <b>Paid call confirmed — ${naira(b.amount_naira)}</b>`);
+    return;
+  }
+  const b = await setStatus(id, ["review", "pending"], "rejected", { cancelled_at: new Date().toISOString() });
+  await sendMessage(
+    adminChatId,
+    b
+      ? `❌ Payment rejected for <b>${escapeHtml(b.name)}</b> — the time is free again. Their booking page now says the payment couldn't be confirmed.\n\n<a href="${waLink(b.phone, `Hi ${b.name}, this is the EEM26 team. We couldn't find your payment for the call you booked. Please send us your transfer receipt here.`)}">Message ${escapeHtml(b.name)} on WhatsApp</a>`
+      : "ℹ️ That payment was already handled."
+  );
 }
 
 async function blockDate(adminChatId: number, date: string, block: boolean): Promise<void> {
@@ -780,7 +847,7 @@ async function blockDate(adminChatId: number, date: string, block: boolean): Pro
   if (block) dates.add(date);
   else dates.delete(date);
   await updateSettings({ blocked_dates: [...dates].sort() });
-  const booked = (await upcomingBookings(100)).filter((b) => new Date(new Date(b.slot_start).getTime() + 3600_000).toISOString().slice(0, 10) === date);
+  const booked = (await upcomingBookings(100)).filter((b) => b.call_type !== "now" && new Date(new Date(b.slot_start).getTime() + 3600_000).toISOString().slice(0, 10) === date);
   await sendMessage(
     adminChatId,
     `${block ? "🚫 Closed" : "✅ Reopened"} <b>${date}</b> for bookings.` +
@@ -788,26 +855,41 @@ async function blockDate(adminChatId: number, date: string, block: boolean): Pro
   );
 }
 
-async function setBookingHours(adminChatId: number, start: number, end: number): Promise<void> {
+async function setBookingHours(adminChatId: number, start: number, end: number, which: "paid" | "free" | "now"): Promise<void> {
   if (start < 0 || end > 24 || start >= end) {
     await sendMessage(adminChatId, "❌ Use hours in 24-hour time, e.g. <code>hours 10 18</code> for 10 AM to 6 PM.");
     return;
   }
-  await updateSettings({ start_hour: start, end_hour: end });
-  await sendMessage(adminChatId, `✅ Booking hours are now <b>${start}:00 to ${end}:00</b> Nigeria time.`);
+  if (which === "free") await updateSettings({ free_start_hour: start, free_end_hour: end });
+  else if (which === "now") await updateSettings({ now_start_hour: start, now_end_hour: end });
+  else await updateSettings({ start_hour: start, end_hour: end });
+  const label = which === "free" ? "Free intro calls" : which === "now" ? "Talk now calls" : "Paid calls";
+  await sendMessage(adminChatId, `✅ ${label} are now <b>${start}:00 to ${end}:00</b> Nigeria time.`);
 }
 
-async function setBookingDays(adminChatId: number, spec: string): Promise<void> {
+async function setBookingDays(adminChatId: number, spec: string, free: boolean): Promise<void> {
   const days = new Set<number>();
   for (const part of spec.toLowerCase().split(/[\s,]+/).filter(Boolean)) {
     const [a, b] = part.split("-").map((x) => DAY_NAMES.indexOf(x.slice(0, 3)));
     if (a < 0 || (part.includes("-") && b < 0)) {
-      await sendMessage(adminChatId, "❌ Use day names, e.g. <code>booking days mon-sat</code> or <code>booking days mon,wed,fri</code>.");
+      await sendMessage(adminChatId, "❌ Use day names, e.g. <code>booking days mon-sat</code> or <code>free days wed</code>.");
       return;
     }
     if (part.includes("-")) for (let d = a; ; d = (d + 1) % 7) { days.add(d); if (d === b) break; }
     else days.add(a);
   }
-  await updateSettings({ days: [...days].sort() });
-  await sendMessage(adminChatId, `✅ Bookings are open on <b>${[...days].sort().map((d) => DAY_NAMES[d]).join(", ")}</b>.`);
+  const sorted = [...days].sort();
+  await updateSettings(free ? { free_days: sorted } : { days: sorted });
+  await sendMessage(adminChatId, `✅ ${free ? "Free intro calls" : "Paid calls"} are open on <b>${sorted.map((d) => DAY_NAMES[d]).join(", ")}</b>.`);
+}
+
+async function setPrice(adminChatId: number, id: string, price: number): Promise<void> {
+  const s = await getSettings();
+  const t = callType(s, id);
+  if (!t || price < 0 || price > 10_000_000) {
+    await sendMessage(adminChatId, "❌ Use <code>price strategy 5000</code> (types: intro, strategy, setup, now).");
+    return;
+  }
+  await updateSettings({ call_types: s.call_types.map((x) => (x.id === id ? { ...x, price } : x)) });
+  await sendMessage(adminChatId, `✅ <b>${escapeHtml(t.name)}</b> now costs <b>${price ? naira(price) : "nothing (free)"}</b>.`);
 }

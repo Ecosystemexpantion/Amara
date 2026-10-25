@@ -10,7 +10,7 @@ import {
 } from "../amara-bot/day1-content.ts";
 import { aiHealthCheck } from "../_shared/ai.ts";
 import { isWebChat, pushInbox } from "../_shared/web-inbox.ts";
-import { formatNigeria, waLink } from "../_shared/booking.ts";
+import { formatNigeria, waLink, expireHolds } from "../_shared/booking.ts";
 import { deliverRunAnnouncement, sendAnnouncement } from "../amara-bot/announce.ts";
 import { getStudentById } from "../amara-bot/db.ts";
 import { PAGES_VERSION, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
@@ -140,7 +140,7 @@ Just checking in — your EEM26 program is waiting for you! Send me a message wh
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function sendTelegram(chatId: string, text: string, button?: { text: string; url: string }): Promise<void> {
+async function sendTelegram(chatId: string, text: string, button?: { text: string; url: string } | { text: string; callback_data: string }): Promise<void> {
   if (isWebChat(chatId)) {
     await pushInbox(chatId, { kind: "text", text });
     return;
@@ -309,6 +309,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       .from("bookings")
       .select("id, slot_start, name, phone, topic")
       .eq("status", "booked")
+      .neq("call_type", "now")
       .is("reminded_at", null)
       .gte("slot_start", nowIso)
       .lte("slot_start", new Date(now.getTime() + 30 * 60_000).toISOString());
@@ -321,6 +322,31 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       );
     }
     results.callReminders = soonCalls?.length ?? 0;
+
+    // ── 1d. Paid "Talk now" calls: nudge the admin every 10 minutes (3 times) until ✅ Called ──
+    await expireHolds();
+    const { data: urgent } = await supabase
+      .from("bookings")
+      .select("id, name, phone, topic, amount_naira, paid_at, nudges")
+      .eq("status", "booked")
+      .eq("call_type", "now")
+      .is("done_at", null)
+      .not("paid_at", "is", null)
+      .lt("nudges", 3);
+    let nudged = 0;
+    for (const b of urgent ?? []) {
+      if (now.getTime() - new Date(b.paid_at).getTime() < (b.nudges + 1) * 10 * 60_000) continue;
+      const { data: claimed } = await supabase.from("bookings").update({ nudges: b.nudges + 1 }).eq("id", b.id).eq("nudges", b.nudges).select("id");
+      if (!claimed?.length) continue;
+      const waited = Math.round((now.getTime() - new Date(b.paid_at).getTime()) / 60_000);
+      await sendTelegram(
+        ADMIN_CHAT_ID,
+        `🚨 <b>Still waiting: paid priority call (${waited} min)</b>\n\n👤 ${b.name.replace(/[<>&]/g, "")} paid ₦${Number(b.amount_naira).toLocaleString("en-NG")} to talk now.\n📞 <a href="${waLink(b.phone)}">Call them on WhatsApp</a>`,
+        { text: "✅ Called", callback_data: `bkd:${b.id}` }
+      );
+      nudged++;
+    }
+    results.priorityNudges = nudged;
 
     // ── 2. Evening check-in (6PM Nigeria = 17:00 UTC) ─────────────────────────
 

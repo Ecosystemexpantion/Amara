@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book a call · EEM26</title>
-<meta name="description" content="Book a free 30-minute WhatsApp call with the EEM26 team.">
+<title>Talk to the EEM26 team</title>
+<meta name="description" content="Book a WhatsApp call with the EEM26 team — or talk right now.">
+<script src="https://js.paystack.co/v1/inline.js"></script>
 <meta name="theme-color" content="#000000">
 <style>
 :root{
@@ -77,6 +78,23 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
 @keyframes sh{to{background-position:-200% 0}}
 .foot{text-align:center;color:var(--label3);font-size:.76rem;margin-top:22px;line-height:1.6}
 .hidden{display:none!important}
+.types{display:grid;gap:10px}
+.type{position:relative;display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;width:100%;padding:14px;border-radius:18px;border:1px solid var(--edge);background:rgba(0,0,0,.35);color:var(--label);text-align:left;cursor:pointer;font-family:inherit}
+.type .ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 18%,transparent)}
+.type b{display:block;font-size:.98rem}
+.type small{display:block;color:var(--label2);font-size:.8rem;line-height:1.4;margin-top:3px}
+.type .price{font-weight:700;font-size:1rem;text-align:right;white-space:nowrap}
+.type .price span{display:block;font-size:.7rem;font-weight:600;color:var(--label3);margin-top:2px}
+.type.hot{border-color:rgba(255,159,10,.55);background:linear-gradient(135deg,rgba(255,159,10,.14),rgba(255,55,95,.08))}
+.type .badge{position:absolute;top:-9px;right:14px;font-size:.64rem;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:999px;background:var(--orange);color:#000}
+.type.off{opacity:.45;cursor:default}
+.type .left{color:var(--green);font-weight:600}
+.back{background:none;border:0;color:var(--teal);font:600 .86rem -apple-system,Inter,sans-serif;cursor:pointer;margin:-4px 0 10px;padding:0}
+.paybox{margin-top:14px;padding:14px;border-radius:14px;background:rgba(10,132,255,.1);border:1px solid rgba(10,132,255,.3);font-size:.9rem;line-height:1.5;color:var(--label2);text-align:left}
+.paybox b{color:var(--label)}
+.upsell{margin-top:16px;padding:14px;border-radius:16px;background:linear-gradient(135deg,rgba(255,159,10,.14),rgba(255,55,95,.08));border:1px solid rgba(255,159,10,.4);text-align:left}
+.upsell b{display:block;margin-bottom:4px}
+.upsell p{margin:0 0 4px;font-size:.88rem}
 </style>
 </head>
 <body>
@@ -84,18 +102,20 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
   <div class="brand"><div class="logo"></div>EEM26</div>
 
   <header id="intro">
-    <h1>Book a call with <span>the EEM26 team</span></h1>
-    <p class="sub">Pick a time that suits you. We'll call you on WhatsApp — no app or account needed.</p>
-    <div class="chips">
-      <span class="chip" id="chipTime"></span>
-      <span class="chip" id="chipWa"></span>
-      <span class="chip" id="chipFree"></span>
-    </div>
+    <h1>Talk to <span>the EEM26 team</span></h1>
+    <p class="sub">Get real answers about your business on a WhatsApp call — no app or account needed.</p>
   </header>
 
-  <section class="card glass" id="pickCard">
-    <h2><span class="n">1</span><span id="pickTitle">Choose a day and time</span></h2>
+  <section class="card glass" id="typeCard">
+    <h2><span class="n">1</span>Choose your call</h2>
     <div id="loading"><div class="skel"></div></div>
+    <div class="types" id="types"></div>
+    <div class="err hidden" id="typeErr"></div>
+  </section>
+
+  <section class="card glass hidden" id="pickCard">
+    <button class="back" id="backTypes">‹ All calls</button>
+    <h2><span class="n">2</span><span id="pickTitle">Choose a day and time</span></h2>
     <button class="quick hidden" id="quick"></button>
     <div class="days" id="days"></div>
     <div class="slots" id="slots"></div>
@@ -104,13 +124,15 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
   </section>
 
   <section class="card glass hidden" id="formCard">
-    <h2><span class="n">2</span>Your details</h2>
-    <div class="picked"><span id="pickedText"></span><button id="changeBtn">Change</button></div>
+    <button class="back" id="backPick">‹ Back</button>
+    <h2><span class="n" id="formNum">3</span>Your details</h2>
+    <div class="picked"><span id="pickedText"></span></div>
     <div class="field"><label for="fName">Your name</label><input id="fName" autocomplete="name" maxlength="80"></div>
     <div class="field"><label for="fPhone">WhatsApp number <em>(with country code)</em></label><input id="fPhone" type="tel" autocomplete="tel" placeholder="+234 801 234 5678" maxlength="25"></div>
-    <div class="field"><label for="fEmail">Email <em>(optional)</em></label><input id="fEmail" type="email" autocomplete="email" maxlength="120"></div>
+    <div class="field"><label for="fEmail">Email <em id="emailHint">(optional)</em></label><input id="fEmail" type="email" autocomplete="email" maxlength="120"></div>
     <div class="field"><label for="fTopic">What would you like to talk about? <em>(optional)</em></label><textarea id="fTopic" maxlength="600" placeholder="e.g. I want to start EEM26 but I have a few questions about the setup"></textarea></div>
     <button class="btn" id="bookBtn">Confirm my call</button>
+    <p class="tz" id="payNote"></p>
     <div class="err hidden" id="bookErr"></div>
   </section>
 
@@ -119,8 +141,13 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
     <h2 id="doneTitle"></h2>
     <div class="when" id="doneWhen"></div>
     <p id="doneText"></p>
+    <div id="payArea" class="hidden">
+      <button class="btn" id="payBtn"></button>
+      <button class="btn tinted" id="paidBtn">I've paid — check again</button>
+      <div class="paybox" id="payInfo"></div>
+    </div>
     <div id="doneActions">
-      <div class="row2">
+      <div class="row2" id="calRow">
         <a class="btn tinted" id="gcalBtn" target="_blank" rel="noopener">Google Calendar</a>
         <button class="btn tinted" id="icsBtn">Apple / Outlook</button>
       </div>
@@ -133,11 +160,12 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
         <button class="btn danger" id="cancelBtn">Cancel call</button>
       </div>
     </div>
-    <a class="btn hidden" id="againBtn">Book a new time</a>
+    <div class="upsell hidden" id="upsell"></div>
+    <a class="btn hidden" id="againBtn">Book a call</a>
     <div class="err hidden" id="doneErr"></div>
   </section>
 
-  <p class="foot">Times are shown in your phone's time zone.<br>EEM26 · Ecosystem Expansion Model</p>
+  <p class="foot">Times are shown in your phone's time zone. Payments are processed securely by Paystack.<br>EEM26 · Ecosystem Expansion Model</p>
 </div>
 <script>
 (function () {
@@ -149,26 +177,29 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
     gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
-    zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>'
+    zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>',
+    hourglass: '<path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>',
+    wallet: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>'
   };
+  var LOOK = { now: ["zap", "#FF9F0A"], strategy: ["target", "#0A84FF"], setup: ["wrench", "#BF5AF2"], intro: ["gift", "#30D158"] };
   function svg(name, color, size) {
     return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[name] + "</svg>";
   }
   var $ = function (id) { return document.getElementById(id); };
   function vis(id, on) { $(id).classList.toggle("hidden", !on); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function naira(n) { return "₦" + Number(n).toLocaleString("en-NG"); }
+  function show(only) { ["intro", "typeCard", "pickCard", "formCard", "doneCard"].forEach(function (id) { vis(id, only.indexOf(id) >= 0); }); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   var params = new URLSearchParams(location.search);
-  var VIA = params.get("via");
-  var TOKEN = params.get("m");
-  var MINUTES = 30, slots = [], days = [], dayIdx = 0, picked = null, mode = "book";
+  var VIA = params.get("via"), TOKEN = params.get("m");
+  var info = null, type = null, days = [], dayIdx = 0, picked = null, mode = "book", current = null, pay = null, poll = null;
   var LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  var DAY = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
-  $("chipTime").innerHTML = svg("clock", "#64D2FF", 15) + "<span id='mins'>30 min</span>";
-  $("chipWa").innerHTML = svg("phone", "#30D158", 15) + "WhatsApp call";
-  $("chipFree").innerHTML = svg("gift", "#FF9F0A", 15) + "Free";
-
-  function dayKey(d) { return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+  function hour(h) { return (h % 12 || 12) + (h < 12 ? " AM" : " PM"); }
   function fmtTime(iso, tz) { return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: tz }); }
   function fmtLong(iso) { return new Date(iso).toLocaleString([], { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }); }
   function relDay(d) {
@@ -178,37 +209,62 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
   }
   function wrap(r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); }
   function post(body) { return fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(wrap); }
+  function typeById(id) { return info && info.types.filter(function (t) { return t.id === id; })[0]; }
 
-  // ── Picking a time ──────────────────────────────────────────────────────────
-  function loadSlots() {
-    vis("loading", true); vis("pickErr", false);
+  // ── 1. Call types ───────────────────────────────────────────────────────────
+  function loadTypes() {
+    vis("loading", true); vis("typeErr", false);
     return fetch(API).then(wrap).then(function (res) {
       vis("loading", false);
-      if (!res.ok) { $("pickErr").textContent = res.j.error || "Couldn't load the calendar. Please refresh."; return vis("pickErr", true); }
-      MINUTES = res.j.minutes || 30; $("mins").textContent = MINUTES + " min";
-      slots = res.j.slots || [];
-      groupDays();
-      renderDays();
-    }).catch(function () { vis("loading", false); $("pickErr").textContent = "Couldn't connect. Check your internet and refresh."; vis("pickErr", true); });
+      if (!res.ok) { $("typeErr").textContent = res.j.error || "Couldn't load. Please refresh."; return vis("typeErr", true); }
+      info = res.j; renderTypes();
+      return info;
+    }).catch(function () { vis("loading", false); $("typeErr").textContent = "Couldn't connect. Check your internet and refresh."; vis("typeErr", true); });
   }
-  function groupDays() {
-    var map = {}; days = [];
+  function freeWhen() { var f = info.free; return f.days.map(function (d) { return DAY[d]; }).join(", ") + " " + hour(f.from) + "–" + hour(f.to); }
+  function renderTypes() {
+    var order = ["now", "strategy", "setup", "intro"];
+    var list = info.types.slice().sort(function (a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
+    $("types").innerHTML = list.map(function (t) {
+      var look = LOOK[t.id] || ["clock", "#64D2FF"], free = !t.price, now = t.id === "now";
+      if (now && !t.available) return "";
+      var note = now ? "We call you within 30 minutes"
+        : free ? (t.available ? '<span class="left">' + t.slots.length + " spot" + (t.slots.length === 1 ? "" : "s") + " left</span> · only " + esc(freeWhen()) : "Fully booked — new spots open every " + esc(freeWhen()))
+        : t.slots.length ? "Next: " + esc(relDay(new Date(t.slots[0])) + " " + fmtTime(t.slots[0])) : "No times left this period";
+      return '<button class="type' + (now ? " hot" : "") + (t.available ? "" : " off") + '" data-id="' + t.id + '"' + (t.available ? "" : " disabled") + ' style="--c:' + look[1] + '">' +
+        (now ? '<span class="badge">OPEN NOW</span>' : "") +
+        '<span class="ic">' + svg(look[0], look[1], 22) + "</span><span><b>" + esc(t.name) + "</b><small>" + esc(t.blurb) + "</small><small>" + note + "</small></span>" +
+        '<span class="price">' + (free ? "Free" : naira(t.price)) + "<span>" + t.minutes + " min</span></span></button>";
+    }).join("");
+  }
+  $("types").addEventListener("click", function (e) {
+    var b = e.target.closest(".type"); if (!b || b.disabled) return;
+    type = typeById(b.dataset.id); picked = null; mode = "book";
+    if (type.id === "now") { picked = null; return openForm(); }
+    groupDays(type.slots); renderDays();
+    $("pickTitle").textContent = type.name + " · choose a time";
+    show(["pickCard"]);
+  });
+  $("backTypes").addEventListener("click", function () { if (mode === "move") return showBooking(current); show(["intro", "typeCard"]); });
+
+  // ── 2. Day and time ─────────────────────────────────────────────────────────
+  function groupDays(slots) {
+    var map = {}; days = []; dayIdx = 0;
     slots.forEach(function (iso) {
-      var d = new Date(iso), k = dayKey(d);
+      var d = new Date(iso), k = d.toDateString();
       if (!map[k]) { map[k] = { date: new Date(d.getFullYear(), d.getMonth(), d.getDate()), slots: [] }; days.push(map[k]); }
       map[k].slots.push(iso);
     });
-    dayIdx = 0;
   }
   function renderDays() {
     if (!days.length) {
       $("days").innerHTML = ""; $("slots").innerHTML = ""; vis("quick", false);
-      $("tzNote").innerHTML = '<span class="empty">All times are booked right now — please check back tomorrow.</span>';
+      $("tzNote").textContent = "No times left for this call right now — please check back soon.";
       return;
     }
-    var first = slots[0];
+    var first = days[0].slots[0];
     $("quick").innerHTML = "<span><small>" + svg("zap", "#30D158", 12) + " NEXT AVAILABLE</small>" + esc(relDay(new Date(first)) + " at " + fmtTime(first)) + "</span><span>Pick ›</span>";
-    vis("quick", mode === "book" || mode === "move");
+    vis("quick", true);
     $("days").innerHTML = days.map(function (d, i) {
       return '<button class="day' + (i === dayIdx ? " on" : "") + '" data-i="' + i + '"><span>' + esc(d.date.toLocaleDateString([], { weekday: "short" }).toUpperCase()) +
         "</span><b>" + d.date.getDate() + "</b><span>" + esc(d.date.toLocaleDateString([], { month: "short" }).toUpperCase()) + "</span><i>" + d.slots.length + " free</i></button>";
@@ -218,73 +274,140 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
   function renderSlots() {
     var d = days[dayIdx];
     $("slots").innerHTML = d.slots.map(function (iso) {
-      return '<button class="slot' + (picked === iso ? " on" : "") + '" data-iso="' + iso + '">' + esc(fmtTime(iso)) +
+      return '<button class="slot" data-iso="' + iso + '">' + esc(fmtTime(iso)) +
         (fmtTime(iso) === fmtTime(iso, "Africa/Lagos") ? "" : "<small>" + esc(fmtTime(iso, "Africa/Lagos")) + " Nigeria</small>") + "</button>";
     }).join("");
     $("tzNote").textContent = relDay(d.date) + ", " + d.date.toLocaleDateString([], { day: "numeric", month: "long" }) + " · " + d.slots.length + " times free · shown in your time zone" + (LOCAL_TZ ? " (" + LOCAL_TZ.replace(/_/g, " ") + ")" : "");
   }
-  $("days").addEventListener("click", function (e) {
-    var b = e.target.closest(".day"); if (!b) return;
-    dayIdx = Number(b.dataset.i); renderDays();
-  });
-  $("slots").addEventListener("click", function (e) {
-    var b = e.target.closest(".slot"); if (!b) return;
-    choose(b.dataset.iso);
-  });
-  $("quick").addEventListener("click", function () { if (slots[0]) choose(slots[0]); });
-
+  $("days").addEventListener("click", function (e) { var b = e.target.closest(".day"); if (!b) return; dayIdx = Number(b.dataset.i); renderDays(); });
+  $("slots").addEventListener("click", function (e) { var b = e.target.closest(".slot"); if (b) choose(b.dataset.iso); });
+  $("quick").addEventListener("click", function () { if (days[0]) choose(days[0].slots[0]); });
   function choose(iso) {
     picked = iso;
     if (mode === "move") return moveTo(iso);
-    $("pickedText").textContent = fmtLong(iso);
-    vis("pickCard", false); vis("formCard", true); vis("intro", false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    openForm();
+  }
+
+  // ── 3. Details and booking ──────────────────────────────────────────────────
+  function openForm() {
+    var paid = type.price > 0;
+    $("formNum").textContent = type.id === "now" ? "2" : "3";
+    $("pickedText").textContent = type.name + (type.id === "now" ? " · within 30 minutes" : " · " + fmtLong(picked)) + " · " + (paid ? naira(type.price) : "Free");
+    $("emailHint").textContent = paid ? "(for your Paystack receipt)" : "(optional)";
+    $("bookBtn").textContent = paid ? "Continue to pay " + naira(type.price) : "Confirm my free call";
+    $("payNote").textContent = paid ? "You pay by bank transfer on the next screen. Your time is held for 30 minutes while you pay." : "";
+    show(["formCard"]);
     setTimeout(function () { $("fName").focus(); }, 300);
   }
-  $("changeBtn").addEventListener("click", function () {
-    vis("formCard", false); vis("pickCard", true); vis("intro", true); renderSlots();
-  });
+  $("backPick").addEventListener("click", function () { if (type.id === "now") show(["intro", "typeCard"]); else show(["pickCard"]); });
 
-  // ── Booking ─────────────────────────────────────────────────────────────────
   $("bookBtn").addEventListener("click", function () {
-    var btn = $("bookBtn"); vis("bookErr", false);
-    btn.disabled = true; btn.textContent = "Booking…";
-    post({ action: "book", start: picked, name: $("fName").value, phone: $("fPhone").value, email: $("fEmail").value, topic: $("fTopic").value, via: VIA })
+    var btn = $("bookBtn"), idle = btn.textContent; vis("bookErr", false);
+    btn.disabled = true; btn.textContent = "Please wait…";
+    post({ action: "book", type: type.id, start: picked, name: $("fName").value, phone: $("fPhone").value, email: $("fEmail").value, topic: $("fTopic").value, via: VIA })
       .then(function (res) {
-        btn.disabled = false; btn.textContent = "Confirm my call";
+        btn.disabled = false; btn.textContent = idle;
         if (!res.ok) {
           $("bookErr").textContent = res.j.error || "Something went wrong. Please try again."; vis("bookErr", true);
-          if (res.j.taken) { picked = null; loadSlots(); setTimeout(function () { $("changeBtn").click(); }, 1800); }
+          if (res.j.taken) loadTypes().then(function () { type = typeById(type.id); groupDays(type.slots); renderDays(); setTimeout(function () { show(["pickCard"]); }, 1800); });
+          if (res.j.freeUsed) setTimeout(function () { loadTypes(); show(["intro", "typeCard"]); }, 2500);
           return;
         }
         TOKEN = res.j.token;
-        try { localStorage.setItem("eem26-booking", TOKEN); } catch (e) {}
         history.replaceState(null, "", location.pathname + "?m=" + TOKEN);
+        pay = res.j.pay;
         showBooking(res.j.booking, true);
+        if (pay) startPay();
       })
-      .catch(function () { btn.disabled = false; btn.textContent = "Confirm my call"; $("bookErr").textContent = "Couldn't connect. Check your internet and try again."; vis("bookErr", true); });
+      .catch(function () { btn.disabled = false; btn.textContent = idle; $("bookErr").textContent = "Couldn't connect. Check your internet and try again."; vis("bookErr", true); });
   });
 
-  // ── A booking (just made, or opened from its private link) ─────────────────
-  var current = null;
+  // ── Paying by transfer (Paystack) ───────────────────────────────────────────
+  function startPay() {
+    if (!pay) return;
+    if (!window.PaystackPop) { $("doneErr").textContent = "The payment window couldn't load. Check your internet and tap Pay again."; return vis("doneErr", true); }
+    vis("doneErr", false);
+    PaystackPop.setup({
+      key: pay.key, email: pay.email, amount: pay.amountKobo, currency: "NGN", ref: pay.ref, channels: ["bank_transfer"],
+      label: "EEM26 call",
+      metadata: { custom_fields: [{ display_name: "Product", variable_name: "product", value: "EEM26 call" }] },
+      callback: function (r) { confirmPaid(r.reference); },
+      onClose: function () {}
+    }).openIframe();
+  }
+  function confirmPaid(reference) {
+    var btn = $("paidBtn"); btn.disabled = true; vis("doneErr", false);
+    post({ action: "paid", token: TOKEN, reference: reference || (pay && pay.ref) }).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { $("doneErr").textContent = res.j.error; return vis("doneErr", true); }
+      showBooking(res.j.booking, true);
+    }).catch(function () { btn.disabled = false; });
+  }
+  $("payBtn").addEventListener("click", function () {
+    // A new reference each time — Paystack never reuses one.
+    post({ action: "repay", token: TOKEN }).then(function (res) {
+      if (!res.ok) { $("doneErr").textContent = res.j.error; return vis("doneErr", true); }
+      if (!res.j.pay) return showBooking(res.j.booking, false);
+      pay = res.j.pay; showBooking(res.j.booking, false); startPay();
+    });
+  });
+  $("paidBtn").addEventListener("click", function () { confirmPaid(pay && pay.ref); });
+
+  // ── A booking ───────────────────────────────────────────────────────────────
+  var STATE = {
+    pending: ["wallet", "#0A84FF", "Complete your payment", function (b) { return "Your time is held until " + fmtTime(b.holdUntil) + ". Pay " + naira(b.amount) + " by bank transfer to confirm your call."; }],
+    review: ["hourglass", "#FF9F0A", "Payment received — confirming", function () { return "The EEM26 team is confirming your transfer. This page updates by itself — you can also come back to it later."; }],
+    booked: ["check", "#30D158", null, function (b) { return b.type === "now" ? "The EEM26 team will call you on WhatsApp at " + b.phone + " within 30 minutes. Keep your phone close." : "The EEM26 team will call you on WhatsApp at " + b.phone + ". Keep your phone close at that time."; }],
+    cancelled: ["x", "#FF453A", "This call was cancelled", function () { return "Want to talk to us? Book a new call below."; }],
+    expired: ["hourglass", "#FF453A", "Your time hold ran out", function () { return "We didn't receive a payment in time, so the time was released. If you paid, tap “I've paid” below — otherwise book again."; }],
+    rejected: ["x", "#FF453A", "We couldn't confirm your payment", function () { return "The EEM26 team will reach out on WhatsApp. You can also book again below."; }]
+  };
   function showBooking(b, fresh) {
     current = b; mode = "view";
-    vis("intro", false); vis("pickCard", false); vis("formCard", false); vis("doneCard", true);
-    var off = b.status !== "booked";
+    clearTimeout(poll);
+    var st = STATE[b.status] || STATE.booked, t = typeById(b.type), off = /cancelled|expired|rejected/.test(b.status);
+    show(["doneCard"]);
     $("doneCard").classList.toggle("off", off);
-    $("doneIcon").innerHTML = svg(off ? "x" : "check", off ? "#FF453A" : "#30D158", 32);
-    $("doneTitle").textContent = off ? "This call was cancelled" : fresh ? "You're booked, " + b.name.split(" ")[0] + "!" : "Your call with the EEM26 team";
-    $("doneWhen").textContent = fmtLong(b.start);
-    $("doneText").textContent = off
-      ? "Want to talk to us? Pick a new time below."
-      : "The EEM26 team will call you on WhatsApp at " + b.phone + ". Keep your phone close at that time.";
-    vis("doneActions", !off); vis("againBtn", off);
+    $("doneIcon").innerHTML = svg(st[0], st[1], 32);
+    $("doneTitle").textContent = st[2] || (fresh ? "You're booked, " + b.name.split(" ")[0] + "!" : "Your call with the EEM26 team");
+    $("doneWhen").textContent = (t ? t.name + " · " : "") + (b.type === "now" ? "within 30 minutes" : fmtLong(b.start));
+    $("doneText").textContent = st[3](b);
+    var pending = b.status === "pending", review = b.status === "review";
+    vis("payArea", pending || b.status === "expired");
+    vis("payBtn", pending);
+    $("payBtn").textContent = "Pay " + naira(b.amount) + " by transfer";
+    $("payInfo").innerHTML = "<b>How it works:</b> Paystack shows you an account number. Transfer exactly <b>" + naira(b.amount) + "</b> from your bank app, then come back here. " +
+      (info && info.autoConfirm ? "Your call is confirmed the moment Paystack receives it." : "The team confirms it and your call is locked in.");
+    vis("doneActions", b.status === "booked");
+    vis("calRow", b.status === "booked" && b.type !== "now");
+    vis("moveBtn", b.type !== "now");
+    vis("againBtn", off);
     $("againBtn").href = location.pathname + (VIA ? "?via=" + encodeURIComponent(VIA) : "");
     var link = location.origin + location.pathname + "?m=" + TOKEN;
     $("manageLink").innerHTML = esc(link) + "<em>Copy</em>"; $("manageLink").dataset.copy = link;
-    $("gcalBtn").href = gcalLink(b);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (b.status === "booked" && b.type !== "now") $("gcalBtn").href = gcalLink(b);
+    renderUpsell(b);
+    if (review || (pending && pay)) poll = setTimeout(refresh, review ? 15000 : 30000);
   }
+  function renderUpsell(b) {
+    var on = b.status === "booked" && b.type === "intro";
+    vis("upsell", on);
+    if (!on || !info) return;
+    var now = typeById("now"), strat = typeById("strategy");
+    $("upsell").innerHTML = "<b>" + svg("zap", "#FF9F0A", 15) + " Can't wait till then?</b>" +
+      (now && now.available ? "<p>Talk to the team today — we call you within 30 minutes for " + naira(now.price) + ".</p>" : "") +
+      (strat ? "<p>Or book a focused " + strat.minutes + "-minute strategy call any day except Sunday for " + naira(strat.price) + ".</p>" : "") +
+      '<a class="btn" href="' + location.pathname + (VIA ? "?via=" + encodeURIComponent(VIA) : "") + '">See paid calls</a>';
+  }
+  function refresh() {
+    fetch(API + "?m=" + encodeURIComponent(TOKEN)).then(wrap).then(function (res) {
+      if (!res.ok) return;
+      if (res.j.pay) pay = res.j.pay;
+      if (!current || res.j.booking.status !== current.status) showBooking(res.j.booking, res.j.booking.status === "booked");
+      else poll = setTimeout(refresh, 15000);
+    }).catch(function () { poll = setTimeout(refresh, 20000); });
+  }
+
   function stamp(iso) { return new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); }
   function details(b) { return "WhatsApp call with the EEM26 team. We'll call you on " + b.phone + "." + (b.topic ? "\n\nTopic: " + b.topic : "") + "\n\nManage your booking: " + location.origin + location.pathname + "?m=" + TOKEN; }
   function gcalLink(b) {
@@ -301,7 +424,8 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
   });
   $("cancelBtn").addEventListener("click", function () {
-    if (!confirm("Cancel your call with the EEM26 team?")) return;
+    var b = current;
+    if (!confirm(b && b.amount ? "Cancel your call? The team will contact you about your payment." : "Cancel your call with the EEM26 team?")) return;
     var btn = $("cancelBtn"); btn.disabled = true; vis("doneErr", false);
     post({ action: "cancel", token: TOKEN }).then(function (res) {
       btn.disabled = false;
@@ -310,17 +434,20 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
     }).catch(function () { btn.disabled = false; });
   });
   $("moveBtn").addEventListener("click", function () {
-    mode = "move"; picked = null;
-    $("pickTitle").textContent = "Choose your new time";
-    vis("doneCard", false); vis("pickCard", true);
-    loadSlots();
+    (info ? Promise.resolve(info) : loadTypes()).then(function () {
+      return loadTypes();
+    }).then(function () {
+      type = typeById(current.type); if (!type) return;
+      mode = "move"; groupDays(type.slots); renderDays();
+      $("pickTitle").textContent = "Choose your new time";
+      show(["pickCard"]);
+    });
   });
   function moveTo(iso) {
     vis("pickErr", false);
     $("tzNote").textContent = "Moving your call…";
     post({ action: "reschedule", token: TOKEN, start: iso }).then(function (res) {
-      if (!res.ok) { $("pickErr").textContent = res.j.error; vis("pickErr", true); if (res.j.taken) loadSlots(); return; }
-      $("pickTitle").textContent = "Choose a day and time";
+      if (!res.ok) { $("pickErr").textContent = res.j.error; vis("pickErr", true); return; }
       showBooking(res.j.booking, false);
       $("doneTitle").textContent = "Your call has been moved";
     }).catch(function () { $("pickErr").textContent = "Couldn't connect. Try again."; vis("pickErr", true); });
@@ -333,12 +460,13 @@ h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purpl
     });
   });
 
-  if (TOKEN) {
+  loadTypes().then(function () {
+    if (!TOKEN) return;
     fetch(API + "?m=" + encodeURIComponent(TOKEN)).then(wrap).then(function (res) {
-      if (res.ok) return showBooking(res.j.booking, false);
-      TOKEN = null; history.replaceState(null, "", location.pathname); loadSlots();
-    }).catch(loadSlots);
-  } else loadSlots();
+      if (!res.ok) { TOKEN = null; history.replaceState(null, "", location.pathname); return; }
+      pay = res.j.pay; showBooking(res.j.booking, false);
+    });
+  });
 })();
 </script>
 </body>
