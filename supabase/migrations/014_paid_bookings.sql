@@ -26,9 +26,8 @@ alter table public.bookings
   add column if not exists nudges int not null default 0;
 
 -- Calls have different lengths, so the rule is "no two scheduled calls overlap".
--- Priority "now" calls sit outside the calendar.
-drop index if exists public.bookings_one_per_slot;
-alter table public.bookings drop constraint if exists bookings_no_overlap;
+-- Priority "now" calls sit outside the calendar. (The older one-booking-per-start-time index
+-- from 013 stays: it never conflicts with this rule.)
 alter table public.bookings add constraint bookings_no_overlap
   exclude using gist (tstzrange(slot_start, slot_end) with &&)
   where (status in ('booked', 'pending', 'review') and call_type <> 'now');
