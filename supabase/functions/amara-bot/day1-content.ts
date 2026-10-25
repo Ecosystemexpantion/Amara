@@ -52,12 +52,12 @@ export const GATE_FOLLOWUPS: { afterHours: number; text: (firstName: string) => 
   {
     afterHours: 20,
     text: (n) =>
-      `☀️ <b>Good morning${n ? ` ${n}` : ""}!</b> Your Day 2 is still locked 🔒\n\nHere's what opens up the moment you get your Tech Stack:\n\n🤖 <b>SRE Setup</b> — your bot gets real products to sell and closes sales for you\n🎯 <b>AAM Setup</b> — buyers come to your DM without running ads\n🌐 <b>Two live sales pages</b> — built for you automatically\n📦 <b>Weekly Stacks</b> — ready-made products you resell and keep the money\n🏆 <b>4 personal coaches</b> — Coach Victor, Michael, Ego and Tochi — with you until you're earning\n\nStudents have made <b>₦51M+</b> with this exact system.\n\n${DOWNLOAD_LINE}\n\n${UNLOCK_LINE}`,
+      `☀️ <b>Good morning${n ? ` ${n}` : ""}!</b> Your Day 2 is still locked 🔒\n\nHere's what opens up the moment you get your Tech Stack:\n\n🤖 <b>SRE Setup</b> — your bot gets real products to sell and closes sales for you\n🎯 <b>AAM Setup</b> — buyers come to your DM without running ads\n🌐 <b>Two live sales pages</b> — built for you automatically\n📦 <b>Weekly Stacks</b> — ready-made products you resell and keep the money\n🏆 <b>4 personal coaches</b> — Coach Michael, Ego, Tochi and the EEM26 team — with you until you're earning\n\nStudents have made <b>₦51M+</b> with this exact system.\n\n${DOWNLOAD_LINE}\n\n${UNLOCK_LINE}`,
   },
   {
     afterHours: 30,
     text: (n) =>
-      `⏳ <b>${n ? `${n}, slots` : "Slots"} are closing.</b>\n\nDownload slots are limited for each batch — once they're gone, the link closes and you wait for the next batch. Coach Victor personally handles the Day 4 setup for only <b>5 people per batch</b>.\n\nThe students who are earning now weren't special. They just acted.\n\n${DOWNLOAD_LINE}\n\n${UNLOCK_LINE}`,
+      `⏳ <b>${n ? `${n}, slots` : "Slots"} are closing.</b>\n\nDownload slots are limited for each batch — once they're gone, the link closes and you wait for the next batch. The EEM26 team personally handles the Day 4 setup for only <b>5 people per batch</b>.\n\nThe students who are earning now weren't special. They just acted.\n\n${DOWNLOAD_LINE}\n\n${UNLOCK_LINE}`,
   },
   {
     afterHours: 48,

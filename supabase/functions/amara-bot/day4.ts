@@ -60,7 +60,7 @@ IMPORTANT guidance for confused students:
       );
       await typeMessage(
         chatId,
-        `⚠️ <b>IMPORTANT — Final Stage Setup with Coach Victor!</b>\n\nCoach Victor holds a <b>live group session every Saturday at 8:30 PM Nigeria time</b> for your final stage setup.\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n⚠️ If you miss it, you wait another full week! Join the group now so you don't miss it 🔥`
+        `⚠️ <b>IMPORTANT — Final Stage Setup with the EEM26 team!</b>\n\nThe EEM26 team holds a <b>live group session every Saturday at 8:30 PM Nigeria time</b> for your final stage setup.\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n⚠️ If you miss it, you wait another full week! Join the group now so you don't miss it 🔥`
       );
     }
     return;
@@ -286,7 +286,7 @@ async function sendGrandFinale(student: Student, chatId: number): Promise<void> 
   );
   await typeMessage(
     chatId,
-    `🎯 <b>One last thing — your Final Stage Setup with Coach Victor!</b>\n\nEvery <b>Saturday at 8:30 PM Nigeria time</b>, Coach Victor holds a live session for EEM26 graduates.\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group now</a>\n\n⚠️ Miss it and you wait another full week — don't miss it! 🏆`
+    `🎯 <b>One last thing — your Final Stage Setup with the EEM26 team!</b>\n\nEvery <b>Saturday at 8:30 PM Nigeria time</b>, the EEM26 team holds a live session for EEM26 graduates.\n\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group now</a>\n\n⚠️ Miss it and you wait another full week — don't miss it! 🏆`
   );
   await typeMessage(
     chatId,
@@ -321,7 +321,7 @@ async function handleFailed(
       student.full_name,
       `Student stuck on Day 4 Step ${student.current_step} after ${attempts} attempts.\n\nLast screenshot showed: "${reason}"\n\nRecent conversation:\n${recentText}`
     );
-    await typeMessage(chatId, `I've passed this straight to Coach Victor 🙏 He'll check your situation and I'll bring his answer right back to you — just hold on! 😊`);
+    await typeMessage(chatId, `I've passed this straight to the EEM26 team 🙏 They'll check your situation and I'll bring their answer right back to you — just hold on! 😊`);
     return;
   }
 

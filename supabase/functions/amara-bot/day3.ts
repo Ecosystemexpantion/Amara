@@ -292,7 +292,7 @@ async function handleFailedScreenshot(
       `Student stuck on Day ${student.current_day} Step ${student.current_step} after ${attempts} attempts.\n\nLast screenshot showed: "${reason}"\n\nRecent conversation:\n${recentText}`
     );
 
-    await typeMessage(chatId, `I've passed this straight to Coach Victor 🙏 He'll check your situation and I'll bring his answer right back to you — just hold on! 😊`);
+    await typeMessage(chatId, `I've passed this straight to the EEM26 team 🙏 They'll check your situation and I'll bring their answer right back to you — just hold on! 😊`);
     return;
   }
 

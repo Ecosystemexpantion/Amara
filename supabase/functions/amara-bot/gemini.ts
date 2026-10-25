@@ -94,7 +94,7 @@ async function handleResponse(raw: string, studentId?: string, question?: string
 
   if (shouldEscalate && studentId && question) {
     // Do NOT send the AI response — Amara stays quiet until admin answers
-    const holdMsg = "Let me check that with Coach Victor for you 🙏 I'll come back to you shortly!";
+    const holdMsg = "Let me check that with the EEM26 team for you 🙏 I'll come back to you shortly!";
     saveConversation(studentId, "assistant", holdMsg).catch(() => {});
 
     // Look up student, create escalation (fire-and-forget)

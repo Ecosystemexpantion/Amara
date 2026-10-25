@@ -5,7 +5,7 @@ import { PREMIUM_TEMPLATE } from "../github-oauth/premium_template.ts";
 import { LIQUID_GLASS_CSS } from "./liquid-glass.ts";
 
 // Bump when the page design changes — the cron re-publishes every student's pages.
-export const PAGES_VERSION = 3;
+export const PAGES_VERSION = 4;
 
 export const PAGE_REPOS = { normal: "EEM26page", premium: "EEM26premium" } as const;
 
@@ -231,7 +231,7 @@ export async function syncStudentPages(token: string, payhipLink: string | null,
 
     stage = "prism";
     await report("prism", "working", "Building your premium page from the Tech Stack premium template…");
-    await report("prism", "done", "Premium page built — Coach Victor's done-with-you offer, timeline and slot tracker.");
+    await report("prism", "done", "Premium page built — the EEM26 team's done-with-you offer, timeline and slot tracker.");
 
     stage = "link";
     await report("link", "working", "Wiring every buy button to your link…");

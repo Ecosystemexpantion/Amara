@@ -205,9 +205,9 @@ export async function generateCertificate(
   // === SIGNATURES SECTION ===
   const sigY = height - 400;
 
-  // LEFT: Coach Victor signature section
-  const victorSigLabel = "Coach Victor";
-  page.drawText(victorSigLabel, {
+  // LEFT: EEM26 team signature section
+  const teamSigLabel = "EEM26 Team";
+  page.drawText(teamSigLabel, {
     x: 60,
     y: sigY + 40,
     font: fontBold,
@@ -231,7 +231,7 @@ export async function generateCertificate(
     color: navy,
   });
 
-  page.drawText("EEM26 Founder — Lead Coach", {
+  page.drawText("Lead Coaching Team", {
     x: 60,
     y: sigY - 10,
     font: fontRegular,

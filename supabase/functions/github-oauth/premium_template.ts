@@ -183,7 +183,7 @@ footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#
 
 <a href="#" class="float-btn buy-trigger">⚡ Download the Premium Version Now</a>
 
-<div class="ticker"><div class="ticker-inner">🔴 ONLY 3 SLOTS REMAINING &nbsp;•&nbsp; 2 OF 5 ALREADY TAKEN &nbsp;•&nbsp; COACH VICTOR PERSONALLY HANDLES YOUR FINAL SETUP &nbsp;•&nbsp; 4 DAYS — SETUP COMPLETE &nbsp;•&nbsp; START EARNING IMMEDIATELY AFTER &nbsp;&nbsp;&nbsp;&nbsp;🔴 ONLY 3 SLOTS REMAINING &nbsp;•&nbsp; 2 OF 5 ALREADY TAKEN &nbsp;•&nbsp; COACH VICTOR PERSONALLY HANDLES YOUR FINAL SETUP &nbsp;•&nbsp; 4 DAYS — SETUP COMPLETE &nbsp;•&nbsp; START EARNING IMMEDIATELY AFTER &nbsp;&nbsp;&nbsp;&nbsp;</div></div>
+<div class="ticker"><div class="ticker-inner">🔴 ONLY 3 SLOTS REMAINING &nbsp;•&nbsp; 2 OF 5 ALREADY TAKEN &nbsp;•&nbsp; THE EEM26 TEAM PERSONALLY HANDLES YOUR FINAL SETUP &nbsp;•&nbsp; 4 DAYS — SETUP COMPLETE &nbsp;•&nbsp; START EARNING IMMEDIATELY AFTER &nbsp;&nbsp;&nbsp;&nbsp;🔴 ONLY 3 SLOTS REMAINING &nbsp;•&nbsp; 2 OF 5 ALREADY TAKEN &nbsp;•&nbsp; THE EEM26 TEAM PERSONALLY HANDLES YOUR FINAL SETUP &nbsp;•&nbsp; 4 DAYS — SETUP COMPLETE &nbsp;•&nbsp; START EARNING IMMEDIATELY AFTER &nbsp;&nbsp;&nbsp;&nbsp;</div></div>
 
 <nav>
   <div class="nav-logo">EEM26</div>
@@ -229,8 +229,8 @@ footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#
   <p class="hero-sub reveal">You're not buying a product. You're getting a <strong>complete done-with-you setup</strong> — AI systems, premium tools, and <strong>4 personal coaches</strong> who work with you every day for <strong>4 days</strong> until you're earning.</p>
 
   <div class="victor-promise reveal">
-    <div class="vp-label">◆ The Victor Guarantee</div>
-    <div class="vp-text">Your final and most important setup stage is handled by <span>Coach Victor himself</span> — the EEM26 founder. Not a team member. Victor. Personally.</div>
+    <div class="vp-label">◆ The EEM26 Team Guarantee</div>
+    <div class="vp-text">Your final and most important setup stage is handled by <span>the EEM26 team</span> — the people who built EEM26. Not an outsourced helper. The EEM26 team. Personally.</div>
   </div>
 
   <div class="cta-stack reveal">
@@ -246,7 +246,7 @@ footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#
 
 <div class="trust-bar">
   <div class="trust-item">✅ Instant Access</div>
-  <div class="trust-item">👑 Victor Handles Day 4</div>
+  <div class="trust-item">👑 EEM26 Team Handles Day 4</div>
   <div class="trust-item">⚡ 4 Days To Complete</div>
   <div class="trust-item">💰 Earn Immediately After</div>
 </div>
@@ -276,14 +276,14 @@ footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#
       <div class="tl-day">3</div>
       <div class="tl-content">
         <div class="tl-title">Your Sales Page Goes Live</div>
-        <div class="tl-desc">You get a <strong>domain hosted sales page</strong> — the exact same type Coach Victor himself uses. Professional. Fast. Built to convert automatically.</div>
+        <div class="tl-desc">You get a <strong>domain hosted sales page</strong> — the exact same type the EEM26 team uses. Professional. Fast. Built to convert automatically.</div>
       </div>
     </div>
     <div class="tl-item reveal">
       <div class="tl-day gold">4</div>
       <div class="tl-content">
-        <div class="tl-title">👑 Coach Victor — Your Final Setup</div>
-        <div class="tl-desc"><strong>The most important stage.</strong> Coach Victor personally handles and completes your final setup. After this — you start earning. Same day. This is why only 5 people get this.</div>
+        <div class="tl-title">👑 EEM26 Team — Your Final Setup</div>
+        <div class="tl-desc"><strong>The most important stage.</strong> The EEM26 team personally handles and completes your final setup. After this — you start earning. Same day. This is why only 5 people get this.</div>
       </div>
     </div>
   </div>
@@ -291,15 +291,15 @@ footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#
   <div class="victor-card reveal">
     <span class="vc-crown">👑</span>
     <div class="vc-role">EEM26 Founder — Lead Coach</div>
-    <div class="vc-name">Coach Victor</div>
-    <div class="vc-promise">Your final setup is handled by Coach Victor <strong>personally.</strong> Not a team member. Not an assistant. <em>Victor himself.</em> This is what makes these 5 slots different from everything else EEM26 offers. He cannot do this for everyone — which is why only 5 people get access.</div>
+    <div class="vc-name">EEM26 Team</div>
+    <div class="vc-promise">Your final setup is handled by the EEM26 team <strong>personally.</strong> Not an outsourced helper. Not a bot. <em>The EEM26 team itself.</em> This is what makes these 5 slots different from everything else EEM26 offers. He cannot do this for everyone — which is why only 5 people get access.</div>
   </div>
 
   <div class="domain-card reveal">
     <div class="dc-icon">🌐</div>
     <div>
       <div class="dc-title">Your Own Domain Hosted Sales Page</div>
-      <div class="dc-desc">You get the <strong>exact same type of hosted sales page</strong> Coach Victor himself uses to run EEM26. Built on Day 3. Selling for you automatically from Day 4 onwards.</div>
+      <div class="dc-desc">You get the <strong>exact same type of hosted sales page</strong> the EEM26 team uses to run EEM26. Built on Day 3. Selling for you automatically from Day 4 onwards.</div>
     </div>
   </div>
 </div>
@@ -319,23 +319,23 @@ footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#
   </div>
 </div>
 
-<!-- COACH VICTOR VIDEO -->
+<!-- EEM26 TEAM VIDEO -->
 <div class="video-section">
   <div class="section-tag reveal">See The Proof</div>
   <div class="divider-line reveal"></div>
-  <h2 class="section-title reveal">Coach Victor<br><span>₦1M+ Withdrawn Live.</span></h2>
+  <h2 class="section-title reveal">The EEM26 Team<br><span>₦1M+ Withdrawn Live.</span></h2>
   <p class="reveal" style="color:var(--muted);font-size:.88rem;line-height:1.7;margin-bottom:20px">The man who will personally handle your final setup — watch what his system generates.</p>
   <div class="video-card reveal">
     <div class="vc-top">
       <div class="vc-label">◆ Live Withdrawal — Real Proof</div>
-      <div class="vc-title">Coach Victor — EEM26 Founder</div>
+      <div class="vc-title">EEM26 Team — Live Withdrawal</div>
       <div class="vc-sub">Your Day 4 coach. On camera. Showing you exactly what's possible.</div>
     </div>
     <div class="vf-wide"><iframe src="https://www.youtube.com/embed/Xp1q8xigFO8" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture" loading="lazy"></iframe></div>
   </div>
   <div style="text-align:center;margin-top:28px" class="reveal">
     <a href="#" class="dl-btn buy-trigger" style="max-width:480px;margin:0 auto;display:flex">⚡ Download the Premium Version Now</a>
-    <p style="font-size:.7rem;color:var(--muted);margin-top:10px;letter-spacing:.5px">Only 3 slots left · ₦39,820 · Victor handles Day 4</p>
+    <p style="font-size:.7rem;color:var(--muted);margin-top:10px;letter-spacing:.5px">Only 3 slots left · ₦39,820 · EEM26 team handles Day 4</p>
   </div>
 </div>
 
@@ -344,8 +344,8 @@ footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#
   <div class="urgency-inner">
     <div class="urgency-title reveal">⚠ 3 Slots. That's It.</div>
     <div class="urgency-box reveal">
-      <div class="urgency-item"><div class="u-icon">🚫</div><div class="u-text"><strong>Only 5 slots exist.</strong> 2 are already taken. Once the last 3 go — Coach Victor closes this permanently. No waitlist. No second batch.</div></div>
-      <div class="urgency-item"><div class="u-icon">👑</div><div class="u-text">Coach Victor cannot personally handle more than 5 setups at a time. <strong>This exclusivity is the entire point.</strong> You get his direct attention on Day 4.</div></div>
+      <div class="urgency-item"><div class="u-icon">🚫</div><div class="u-text"><strong>Only 5 slots exist.</strong> 2 are already taken. Once the last 3 go — the EEM26 team closes this permanently. No waitlist. No second batch.</div></div>
+      <div class="urgency-item"><div class="u-icon">👑</div><div class="u-text">The EEM26 team cannot personally handle more than 5 setups at a time. <strong>This exclusivity is the entire point.</strong> You get his direct attention on Day 4.</div></div>
       <div class="urgency-item"><div class="u-icon">💸</div><div class="u-text">Every second you wait, someone else gets closer to taking your slot. <strong>The slot marked YOU disappears the moment someone else clicks first.</strong></div></div>
     </div>
   </div>
@@ -355,7 +355,7 @@ footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#
 <section class="final-section">
   <div class="exclusive-badge" style="margin-bottom:24px">◆ 3 Slots Remaining ◆</div>
   <h2 class="reveal">YOUR SLOT IS<br><span>WAITING.</span></h2>
-  <p class="final-sub reveal">4 days. Coach Victor personally on Day 4. Your own hosted sales page. Your AI running. You earning. This is not a course. This is your complete setup — done with you, start to finish.</p>
+  <p class="final-sub reveal">4 days. The EEM26 team personally on Day 4. Your own hosted sales page. Your AI running. You earning. This is not a course. This is your complete setup — done with you, start to finish.</p>
 
   <div class="timer-wrap reveal">
     <div class="timer-label">⏳ Slot Closes In</div>
@@ -375,7 +375,7 @@ footer{background:#030306;text-align:center;padding:16px;font-size:.6rem;color:#
       <span class="save-badge">TODAY ONLY</span>
     </div>
     <a href="#" class="dl-btn buy-trigger">⚡ Download the Premium Version Now</a>
-    <div class="btn-note">🔒 Paystack & Flutterwave &nbsp;·&nbsp; ✅ Instant Access &nbsp;·&nbsp; 👑 Victor on Day 4</div>
+    <div class="btn-note">🔒 Paystack & Flutterwave &nbsp;·&nbsp; ✅ Instant Access &nbsp;·&nbsp; 👑 EEM26 Team on Day 4</div>
   </div>
 </section>
 

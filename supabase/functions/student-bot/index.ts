@@ -98,10 +98,10 @@ const TRAINING_PHRASES = [
 const VIDEOS = {
   withdrawal: [
     { fileId: "BAACAgQAAxkBAAIJjmnrvBjY1Hwe1wx1XwVogsuEtzD2AALnJAACdDphU40vfxI34PsmOwQ", caption: "Watch Coach Stanley make a withdrawal of over ₦650k 👀" },
-    { fileId: "BAACAgQAAxkBAAIJkGnrveF3De6Dbl6RyUnpoJWunFwYAALoJAACdDphUxNIpX_mtARTOwQ", caption: "You will be surprised how much Coach Victor made this morning 😮" },
-    { fileId: "BAACAgQAAxkBAAIJlmnrv4ZKrmurWAnNgNFHCkbY2-pzAALtJAACdDphU0s96kvbbKG6OwQ", caption: "Coach Victor showing his upcoming payout and how much his student made today 💰" },
-    { fileId: "BAACAgQAAxkBAAIJmGnrwB28mZOxlJNS2fXOj1DM27aVAALwJAACdDphU_zk2eW3LRE4OwQ", caption: "Coach Victor currently has 1 million naira sitting in his wallet 👀" },
-    { fileId: "BAACAgQAAxkBAAIJmmnrwKgJSlPMQ_fKZA39NGI17nklAALyJAACdDphU0sAATRyGE8pnDsE", caption: "Watch how much Coach Victor has made overall — over 40 million naira plus earnings in other currencies 🤯" },
+    { fileId: "BAACAgQAAxkBAAIJkGnrveF3De6Dbl6RyUnpoJWunFwYAALoJAACdDphUxNIpX_mtARTOwQ", caption: "You will be surprised how much the EEM26 team made this morning 😮" },
+    { fileId: "BAACAgQAAxkBAAIJlmnrv4ZKrmurWAnNgNFHCkbY2-pzAALtJAACdDphU0s96kvbbKG6OwQ", caption: "The EEM26 team showing an upcoming payout and how much a student made today 💰" },
+    { fileId: "BAACAgQAAxkBAAIJmGnrwB28mZOxlJNS2fXOj1DM27aVAALwJAACdDphU_zk2eW3LRE4OwQ", caption: "The EEM26 team currently has 1 million naira sitting in the wallet 👀" },
+    { fileId: "BAACAgQAAxkBAAIJmmnrwKgJSlPMQ_fKZA39NGI17nklAALyJAACdDphU0sAATRyGE8pnDsE", caption: "Watch how much the EEM26 team has made overall — over 40 million naira plus earnings in other currencies 🤯" },
     { fileId: "BAACAgQAAxkBAAIJnGnrwuxtY6cZozD1FIPhpQSnjjUVAAL1JAACdDphUx4zcDqjiKpoOwQ", caption: "Mr Stanley showing his total earned in 2 months — ₦5,275,485 from 246 affiliate sales 📈" },
     { fileId: "BAACAgQAAxkBAAIJoGnrxLFLffFKDdPtBy5tpc_5oCFLAAL3JAACdDphU1S_fMbM2kC4OwQ", caption: "Harry Obilonu made a screen record of his wallet balance 💳" },
     { fileId: "BAACAgQAAxkBAAIJomnrxahWCjZ6M1C4OzuI5Hbs7RrrAAL5JAACdDphU9jBISvJqFNGOwQ", caption: "Watch Ego as she makes a withdrawal of over ₦300k 💸" },
@@ -112,7 +112,7 @@ const VIDEOS = {
     { fileId: "BAACAgQAAxkBAAIJlGnrvubQWnr20UBV6bsnWnGTThxcAALrJAACdDphU27GUpCFsGM5OwQ", caption: "She was shocked at how much she made on day 6 😱" },
     { fileId: "BAACAgQAAxkBAAIJnmnrxDXN-N39kSnyUfpUkW87OCVJAAL2JAACdDphU8x756aXYBRMOwQ", caption: "Miracle Nelson showing how much he made in a single day after his 4-day setup 🔥" },
     { fileId: "BAACAgQAAxkBAAIJpmnryA1j6t1ZWyQ7VNa6MZae2BofAAL-JAACdDphU3xVAnrcQQ3iOwQ", caption: "We just finished his setup and he already has ₦61k ready to withdraw 🚀" },
-    { fileId: "BAACAgQAAxkBAAIJqGnrykKeBgABXpl5qAoMyk4erzQH8wACASUAAnQ6YVOvTQx3KZ-pWDsE", caption: "Coach Victor guiding Oluranti to make her withdrawal of over ₦140k after just 4 days of setup 🙌" },
+    { fileId: "BAACAgQAAxkBAAIJqGnrykKeBgABXpl5qAoMyk4erzQH8wACASUAAnQ6YVOvTQx3KZ-pWDsE", caption: "The EEM26 team guiding Oluranti to make her withdrawal of over ₦140k after just 4 days of setup 🙌" },
   ],
 };
 
@@ -170,7 +170,7 @@ EEM26 runs on two systems:
 Day 1: SRE + AAM Systems Configured — AI starts working from day one
 Day 2: Full Integration and Tools Setup — coaches handle everything
 Day 3: Sales Page Goes Live — domain hosted, built to convert automatically
-Day 4: Coach Victor personally handles final setup — student starts earning same day. Only 5 people per batch.
+Day 4: the EEM26 team personally handles final setup — student starts earning same day. Only 5 people per batch.
 
 REAL STUDENT RESULTS (match to country or struggle):
 - Harry Obilonu from Owerri Nigeria — ₦264,560 + GH₵330 + CFA 17,869
@@ -186,7 +186,7 @@ LINKS:
 - Tech Stack download: ${downloadLink}
 - Premium Tech Stack (use for closing): ${PREMIUM_LINK}
 - Sunday training (free): ${SUNDAY_TRAINING}
-- Book Coach Victor: https://calendly.com/victornwaji7/30min
+- Book a call with the EEM26 team: https://calendly.com/victornwaji7/30min
 
 ===
 
@@ -228,7 +228,7 @@ Your ONLY job: close the sale. Handle everything yourself.
 - Reference Sunday training naturally to show you know they attended
 - Speak directly to their specific pain point: ${lead?.struggle ?? "making money online"}
 - Handle objections immediately and confidently
-- Create urgency: Coach Victor's Day 4 personal setup — only 5 slots per batch
+- Create urgency: the EEM26 team's Day 4 personal setup — only 5 slots per batch
 
 SETUP FLOW (when ATTENDED lead responds positively to your setup invite):
 If your recent message contained "Should I continue", "I'm going to do that same setup for you", or "Are you ready to move" — AND lead replied positively (yes, ready, okay, let's go):
@@ -248,7 +248,7 @@ ${PREMIUM_LINK}"
 Stage C — If they HAVE downloaded: Ask them to send a screenshot to verify.
 
 PREMIUM LINK TACTIC (when pushing for download):
-Tell them you are sending a premium link right now. Say this link expires in 4 minutes. Say it has extra packages not in the regular version — including a new setup Coach Victor discovered that boosts student sales within 2 days of activation. Make it feel exclusive and time-sensitive. Send the link IMMEDIATELY after.
+Tell them you are sending a premium link right now. Say this link expires in 4 minutes. Say it has extra packages not in the regular version — including a new setup the EEM26 team discovered that boosts student sales within 2 days of activation. Make it feel exclusive and time-sensitive. Send the link IMMEDIATELY after.
 Premium link: ${PREMIUM_LINK}
 
 PAYMENT: When they say they downloaded/paid/bought → say EXACTLY: "Send me a quick screenshot of your payment and I'll confirm it with the coaches right now so your 4-day setup can begin. 📸"
@@ -269,7 +269,7 @@ Scam concern (any stage): Never be defensive. "Smart to verify. This is not a hu
 
 No money / too expensive (Stage 2+): "Nweze was an older man who didn't even fully understand the tech — he still made ₦277,468 in his first month. The system does the work, not you." Share download link.
 
-Want to speak to Coach Victor: "Coach Victor's time is very limited but you can book directly here: https://calendly.com/victornwaji7/30min — grab a slot before they fill up."
+Want to speak to the EEM26 team: "The EEM26 team's time is very limited but you can book a call directly here: https://calendly.com/victornwaji7/30min — grab a slot before they fill up."
 
 ===
 

@@ -667,17 +667,17 @@ async function announceSaturday(
 
   const announcement = liveLink
     ? `🔴 <b>WE'RE LIVE NOW!</b>\n\n` +
-      `Coach Victor's <b>Final Stage Setup training has started</b> 🎯\n\n` +
+      `The EEM26 team's <b>Final Stage Setup training has started</b> 🎯\n\n` +
       `👉 <a href="${escapeHtml(liveLink)}">Tap here to join the call now</a>\n\n` +
       `Join right away — this is where your business goes live! 🔥`
     : movedTo
     ? `📢 <b>Change of plan</b>\n\n` +
-      `Coach Victor's <b>Final Stage Setup session</b> has moved to <b>${movedTo} at ${timeLabel} Nigeria time</b> — we had technical issues with Telegram Live. Sorry for the change 🙏\n\n` +
+      `The EEM26 team's <b>Final Stage Setup session</b> has moved to <b>${movedTo} at ${timeLabel} Nigeria time</b> — we had technical issues with Telegram Live. Sorry for the change 🙏\n\n` +
       `Same group, same link 👇\n👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n` +
       `See you ${movedTo} — this is where your business goes live! 🔥`
     :
     `🚨 <b>TODAY is the day!</b>\n\n` +
-    `Coach Victor's <b>Final Stage Setup session</b> is <b>TONIGHT at ${timeLabel} Nigeria time!</b> 🎯\n\n` +
+    `The EEM26 team's <b>Final Stage Setup session</b> is <b>TONIGHT at ${timeLabel} Nigeria time!</b> 🎯\n\n` +
     `👉 <a href="https://t.me/+kU414VXm1N0zYjQ8">Join the group here</a>\n\n` +
     `Be there — this is where your business goes live! 🔥`;
 

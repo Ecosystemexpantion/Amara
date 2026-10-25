@@ -340,12 +340,12 @@ footer{background:#000;text-align:center;padding:16px;font-size:.65rem;color:#33
 <div class="video-section">
   <div class="section-tag reveal">Watch Before You Buy</div>
   <div class="divider-line reveal"></div>
-  <h2 class="section-title reveal">Coach Victor Withdraws<br><span>₦1,000,000+ Live.</span></h2>
-  <p class="reveal" style="color:var(--muted);font-size:.88rem;line-height:1.7;margin-bottom:24px">Watch this first. Coach Victor shows you the business in action and pulls out a real ₦1,000,000 withdrawal on camera. Not theory. Not screenshots. Live.</p>
+  <h2 class="section-title reveal">The EEM26 Team Withdraws<br><span>₦1,000,000+ Live.</span></h2>
+  <p class="reveal" style="color:var(--muted);font-size:.88rem;line-height:1.7;margin-bottom:24px">Watch this first. The EEM26 team shows you the business in action and pulls out a real ₦1,000,000 withdrawal on camera. Not theory. Not screenshots. Live.</p>
   <div class="video-card reveal">
     <div class="vc-top">
       <div class="vc-label">💰 Live Withdrawal — Real Proof</div>
-      <div class="vc-title">Coach Victor — EEM26 Founder</div>
+      <div class="vc-title">EEM26 Team — Live Withdrawal</div>
       <div class="vc-sub">Showing exactly what this business pays. Live. On camera.</div>
     </div>
     <div class="vf-wide"><iframe src="https://www.youtube.com/embed/Xp1q8xigFO8" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture" loading="lazy"></iframe></div>
@@ -535,7 +535,7 @@ footer{background:#000;text-align:center;padding:16px;font-size:.65rem;color:#33
   <h2 class="section-title reveal">Your 4 Personal <span>Coaches</span></h2>
   <p class="reveal" style="color:var(--muted);font-size:.88rem;line-height:1.7;max-width:500px">This is what makes Tech Stack different. You don't figure it out alone. Four real coaches work with you personally until you're making money.</p>
   <div class="coaches-grid">
-    <div class="coach-card reveal"><div class="coach-av">V</div><div class="coach-role">Lead Coach</div><div class="coach-name">Coach Victor</div><div class="coach-desc">EEM26 founder. Oversees your entire setup from start to money.</div></div>
+    <div class="coach-card reveal"><div class="coach-av">E</div><div class="coach-role">Lead Coaches</div><div class="coach-name">EEM26 Team</div><div class="coach-desc">The EEM26 founding team. Oversees your entire setup from start to money.</div></div>
     <div class="coach-card reveal"><div class="coach-av">M</div><div class="coach-role">Coach 2</div><div class="coach-name">Michael Akazua</div><div class="coach-desc">Your SRE and AAM specialist. Configures your AI systems.</div></div>
     <div class="coach-card reveal"><div class="coach-av">E</div><div class="coach-role">Coach 3</div><div class="coach-name">Ego</div><div class="coach-desc">Integration expert. Connects all your systems step by step.</div></div>
     <div class="coach-card reveal"><div class="coach-av">T</div><div class="coach-role">Coach 4</div><div class="coach-name">Tochi Okpalauwaeke</div><div class="coach-desc">Ensures your full setup is complete and generating results.</div></div>
@@ -558,7 +558,7 @@ footer{background:#000;text-align:center;padding:16px;font-size:.65rem;color:#33
 <section class="final-section">
   <div class="proof-bar" style="margin-bottom:24px"><span class="live-dot"></span>You've Seen The Proof. You've Seen The Results.</div>
   <h2 class="reveal">WHAT ARE YOU<br><span>WAITING FOR?</span></h2>
-  <p class="final-sub reveal">Your coaches are ready. Your systems are waiting. Coach Victor already showed you what this business pays. The students above showed you it works. Now it's your turn.</p>
+  <p class="final-sub reveal">Your coaches are ready. Your systems are waiting. The EEM26 team already showed you what this business pays. The students above showed you it works. Now it's your turn.</p>
   <div class="timer-wrap reveal">
     <div class="timer-label">⏳ Link Expires In</div>
     <div class="timer-row">
