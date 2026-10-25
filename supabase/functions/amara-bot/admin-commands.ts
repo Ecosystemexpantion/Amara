@@ -16,6 +16,8 @@ import { WEB_APP_REPO, SRE_CHAT_REPO } from "../_shared/runs.ts";
 import { SRE_CHAT_HTML } from "../_shared/chat-page.ts";
 import { isWebVisitor } from "../_shared/web-inbox.ts";
 import { issueLoginCode, CODE_MINUTES } from "../_shared/web-auth.ts";
+import { BOOKING_URL, BOOKING_REPO, cancelBooking, upcomingBookings, getSettings, updateSettings, formatNigeria, waLink } from "../_shared/booking.ts";
+import { BOOKING_HTML } from "../_shared/book-page.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const supabase = createClient(
@@ -58,6 +60,27 @@ export async function handleAdminCommand(chatId: number, text: string, replyToTe
   const approveMatch = t.match(/^approve\s+(w?\d{5,})$/i);
   if (approveMatch) {
     await approveById(chatId, approveMatch[1]);
+    return;
+  }
+
+  // Booking page (our Calendly): bookings · block / unblock YYYY-MM-DD · hours 10 18 · booking days mon-sat
+  if (/^bookings?$/i.test(t)) {
+    await listBookings(chatId);
+    return;
+  }
+  const blockMatch = t.match(/^(block|unblock)\s+(\d{4}-\d{2}-\d{2})$/i);
+  if (blockMatch) {
+    await blockDate(chatId, blockMatch[2], blockMatch[1].toLowerCase() === "block");
+    return;
+  }
+  const hoursMatch = t.match(/^hours\s+(\d{1,2})\s*(?:-|to|\s)\s*(\d{1,2})$/i);
+  if (hoursMatch) {
+    await setBookingHours(chatId, Number(hoursMatch[1]), Number(hoursMatch[2]));
+    return;
+  }
+  const daysMatch = t.match(/^booking\s+days\s+([a-z,\s-]+)$/i);
+  if (daysMatch) {
+    await setBookingDays(chatId, daysMatch[1]);
     return;
   }
 
@@ -205,6 +228,18 @@ export async function handleAdminCallback(
     return;
   }
 
+  if (data.startsWith("bkc:")) {
+    const b = await cancelBooking(data.slice(4));
+    await sendMessage(
+      chatId,
+      b
+        ? `🚫 Call with <b>${escapeHtml(b.name)}</b> on ${formatNigeria(b.slot_start)} cancelled — the time is free again.\n\nLet them know: <a href="${waLink(b.phone, `Hi ${b.name}, this is the EEM26 team. We need to move our call — please pick a new time here: ${BOOKING_URL}`)}">message ${escapeHtml(b.name)} on WhatsApp</a>`
+        : "ℹ️ That call was already cancelled."
+    );
+    if (messageId) await removeButtons(chatId, messageId);
+    return;
+  }
+
   if (data.startsWith("lpa:") || data.startsWith("lpr:")) {
     await decideLeadPayment(chatId, data.slice(4), data.startsWith("lpa:"));
     return;
@@ -284,6 +319,9 @@ async function sendHelp(chatId: number): Promise<void> {
     `<code>web [ID]</code> → That student's private link to watch their AI agents build live.\n` +
     `<code>web publish</code> → Re-publish the web app (${WEB_APP_URL}) and the AI assistant chat page.\n` +
     `<code>code [ID]</code> → A one-time web login code to give a student (forgot password).\n` +
+    `<code>bookings</code> → Upcoming calls from the booking page (${BOOKING_URL}).\n` +
+    `<code>block 2026-11-02</code> / <code>unblock 2026-11-02</code> → Close or reopen a day for bookings.\n` +
+    `<code>hours 10 18</code> → Booking hours (Nigeria time). <code>booking days mon-sat</code> → Booking days.\n` +
     `<code>premium preview</code> → Publish the new Premium Tech Stack sales page to a preview link.\n` +
     `<code>premium live</code> → Put the new Premium Tech Stack page on the live link.\n\n` +
     `<b>Other</b>\n` +
@@ -502,6 +540,7 @@ async function publishToAdminPages(adminChatId: number, repo: string, descriptio
 async function publishWebApp(adminChatId: number): Promise<void> {
   await publishToAdminPages(adminChatId, WEB_APP_REPO, "EEM26 — 4-day business setup on the web", AMARA_WEB_HTML, "✅ The EEM26 web app is published");
   await publishToAdminPages(adminChatId, SRE_CHAT_REPO, "EEM26 — AI sales assistant chat", SRE_CHAT_HTML, "✅ The AI assistant chat page is published");
+  await publishToAdminPages(adminChatId, BOOKING_REPO, "EEM26 — book a call with the team", BOOKING_HTML, "✅ The booking page is published");
   // Older private links (?k=…) still point here.
   await publishToAdminPages(adminChatId, "amara-live", "EEM26 — live AI setup", AMARA_WEB_HTML, "✅ Old build-room links updated");
 }
@@ -717,4 +756,58 @@ async function listStudents(chatId: number): Promise<void> {
   );
 
   await sendMessage(chatId, `<b>Active students (${data.length}):</b>\n\n${lines.join("\n")}`);
+}
+
+// ── Booking page (our replacement for Calendly) ──────────────────────────────
+
+const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+async function listBookings(adminChatId: number): Promise<void> {
+  const [list, s] = await Promise.all([upcomingBookings(), getSettings()]);
+  const open = `🕘 Open ${s.days.map((d) => DAY_NAMES[d]).join(", ")} · ${s.start_hour}:00–${s.end_hour}:00 Nigeria time · ${s.slot_minutes}-min calls` +
+    (s.blocked_dates.length ? `\n🚫 Closed: ${s.blocked_dates.join(", ")}` : "");
+  if (!list.length) {
+    await sendMessage(adminChatId, `📅 No upcoming calls.\n\n${open}\n\n🔗 ${BOOKING_URL}`);
+    return;
+  }
+  const lines = list.map((b) => `• <b>${formatNigeria(b.slot_start)}</b> — ${escapeHtml(b.name)} · <a href="${waLink(b.phone)}">${escapeHtml(b.phone)}</a>${b.topic ? `\n   <i>${escapeHtml(b.topic.slice(0, 120))}</i>` : ""}`);
+  await sendMessage(adminChatId, `📅 <b>Upcoming calls (${list.length})</b>\n\n${lines.join("\n")}\n\n${open}`);
+}
+
+async function blockDate(adminChatId: number, date: string, block: boolean): Promise<void> {
+  const s = await getSettings();
+  const dates = new Set(s.blocked_dates);
+  if (block) dates.add(date);
+  else dates.delete(date);
+  await updateSettings({ blocked_dates: [...dates].sort() });
+  const booked = (await upcomingBookings(100)).filter((b) => new Date(new Date(b.slot_start).getTime() + 3600_000).toISOString().slice(0, 10) === date);
+  await sendMessage(
+    adminChatId,
+    `${block ? "🚫 Closed" : "✅ Reopened"} <b>${date}</b> for bookings.` +
+      (block && booked.length ? `\n\n⚠️ ${booked.length} call(s) are already booked that day — send <code>bookings</code> to see them and cancel if needed.` : "")
+  );
+}
+
+async function setBookingHours(adminChatId: number, start: number, end: number): Promise<void> {
+  if (start < 0 || end > 24 || start >= end) {
+    await sendMessage(adminChatId, "❌ Use hours in 24-hour time, e.g. <code>hours 10 18</code> for 10 AM to 6 PM.");
+    return;
+  }
+  await updateSettings({ start_hour: start, end_hour: end });
+  await sendMessage(adminChatId, `✅ Booking hours are now <b>${start}:00 to ${end}:00</b> Nigeria time.`);
+}
+
+async function setBookingDays(adminChatId: number, spec: string): Promise<void> {
+  const days = new Set<number>();
+  for (const part of spec.toLowerCase().split(/[\s,]+/).filter(Boolean)) {
+    const [a, b] = part.split("-").map((x) => DAY_NAMES.indexOf(x.slice(0, 3)));
+    if (a < 0 || (part.includes("-") && b < 0)) {
+      await sendMessage(adminChatId, "❌ Use day names, e.g. <code>booking days mon-sat</code> or <code>booking days mon,wed,fri</code>.");
+      return;
+    }
+    if (part.includes("-")) for (let d = a; ; d = (d + 1) % 7) { days.add(d); if (d === b) break; }
+    else days.add(a);
+  }
+  await updateSettings({ days: [...days].sort() });
+  await sendMessage(adminChatId, `✅ Bookings are open on <b>${[...days].sort().map((d) => DAY_NAMES[d]).join(", ")}</b>.`);
 }

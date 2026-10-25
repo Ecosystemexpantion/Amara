@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Book a call · EEM26</title>
+<meta name="description" content="Book a free 30-minute WhatsApp call with the EEM26 team.">
+<meta name="theme-color" content="#000000">
+<style>
+:root{
+  --blue:#0A84FF;--green:#30D158;--orange:#FF9F0A;--purple:#BF5AF2;--pink:#FF375F;--teal:#64D2FF;--red:#FF453A;
+  --label:#fff;--label2:rgba(235,235,245,.62);--label3:rgba(235,235,245,.34);
+  --glass:rgba(255,255,255,.065);--edge:rgba(255,255,255,.13);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#000}
+body{background:#000;color:var(--label);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;letter-spacing:-.01em;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;
+  background:radial-gradient(35% 30% at 20% 8%,rgba(10,132,255,.3),transparent 70%),radial-gradient(30% 28% at 88% 22%,rgba(191,90,242,.24),transparent 70%),radial-gradient(40% 30% at 55% 100%,rgba(48,209,88,.14),transparent 70%);filter:blur(40px)}
+.wrap{max-width:720px;margin:0 auto;padding:14px 16px 48px}
+.glass{background:var(--glass);border:1px solid var(--edge);border-radius:22px;-webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 20px 50px rgba(0,0,0,.45)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.02em;padding:6px 2px 18px}
+.logo{width:28px;height:28px;border-radius:9px;background:conic-gradient(from 210deg,var(--blue),var(--purple),var(--pink),var(--orange),var(--green),var(--blue));display:grid;place-items:center;box-shadow:0 0 18px rgba(10,132,255,.5)}
+.logo::after{content:"";width:12px;height:12px;border-radius:50%;background:#000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.9)}
+h1{font-size:clamp(1.7rem,6.4vw,2.4rem);line-height:1.08;font-weight:700;letter-spacing:-.03em}
+h1 span{background:linear-gradient(90deg,var(--teal),var(--blue) 40%,var(--purple));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--label2);margin-top:10px;line-height:1.5}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 18px}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:.8rem;font-weight:600;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--label2)}
+.chip svg{flex:0 0 auto}
+.card{padding:18px;margin-bottom:14px}
+.card h2{font-size:1.02rem;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.card h2 .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.76rem;font-weight:700;background:var(--blue)}
+.quick{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:12px 14px;margin-bottom:12px;border-radius:14px;border:1px solid rgba(48,209,88,.35);background:rgba(48,209,88,.1);color:var(--label);font:600 .92rem -apple-system,Inter,sans-serif;cursor:pointer;text-align:left}
+.quick small{display:block;color:var(--green);font-size:.74rem;font-weight:600;margin-bottom:2px}
+.days{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.days::-webkit-scrollbar{display:none}
+.day{flex:0 0 64px;scroll-snap-align:start;padding:10px 4px;border-radius:16px;border:1px solid var(--edge);background:rgba(0,0,0,.35);color:var(--label);text-align:center;cursor:pointer;font-family:inherit}
+.day b{display:block;font-size:1.3rem;font-weight:700;margin:2px 0}
+.day span{font-size:.68rem;font-weight:600;letter-spacing:.06em;color:var(--label3)}
+.day i{display:block;font-style:normal;font-size:.66rem;color:var(--green);margin-top:3px}
+.day.on{background:var(--blue);border-color:var(--blue)}
+.day.on span,.day.on i{color:rgba(255,255,255,.85)}
+.day:disabled{opacity:.3;cursor:default}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:6px}
+.slot{padding:12px 6px;border-radius:12px;border:1px solid rgba(10,132,255,.45);background:rgba(10,132,255,.1);color:var(--label);font:600 .95rem -apple-system,Inter,sans-serif;cursor:pointer}
+.slot small{display:block;font-size:.66rem;color:var(--label3);font-weight:500;margin-top:2px}
+.slot.on{background:var(--blue);border-color:var(--blue)}
+.slot.on small{color:rgba(255,255,255,.8)}
+.tz{color:var(--label3);font-size:.78rem;margin-top:10px;line-height:1.45}
+.field{margin-top:12px}
+.field label{display:block;font-size:.8rem;color:var(--label2);margin-bottom:7px}
+.field label em{font-style:normal;color:var(--label3)}
+.field input,.field textarea{width:100%;font:500 1rem -apple-system,Inter,sans-serif;color:var(--label);background:rgba(0,0,0,.45);border:1px solid var(--edge);border-radius:14px;padding:13px 12px;outline:none}
+.field textarea{min-height:84px;resize:vertical}
+.field input:focus,.field textarea:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(10,132,255,.25)}
+.picked{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:rgba(10,132,255,.12);border:1px solid rgba(10,132,255,.35);font-weight:600;font-size:.94rem}
+.picked button{margin-left:auto;background:none;border:0;color:var(--teal);font:600 .84rem -apple-system,Inter,sans-serif;cursor:pointer}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:14px;padding:15px 18px;border:0;border-radius:14px;cursor:pointer;font:600 1.02rem -apple-system,Inter,sans-serif;color:#fff;background:var(--blue);text-decoration:none;box-shadow:0 8px 24px rgba(10,132,255,.35)}
+.btn:disabled{opacity:.55;cursor:wait}
+.btn.tinted{background:rgba(255,255,255,.12);box-shadow:none}
+.btn.danger{background:rgba(255,69,58,.16);color:var(--red);box-shadow:none}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row2 .btn{font-size:.9rem;padding:13px 10px}
+.err{margin-top:10px;color:var(--red);font-size:.88rem;line-height:1.45}
+.done{text-align:center;padding:26px 18px}
+.done .big{width:68px;height:68px;margin:0 auto 10px;border-radius:22px;display:grid;place-items:center;background:linear-gradient(160deg,rgba(48,209,88,.34),rgba(48,209,88,.1));border:1px solid rgba(48,209,88,.45)}
+.done.off .big{background:linear-gradient(160deg,rgba(255,69,58,.3),rgba(255,69,58,.08));border-color:rgba(255,69,58,.45)}
+.done h2{font-size:1.4rem;letter-spacing:-.02em;justify-content:center}
+.when{font-size:1.06rem;font-weight:600;margin:6px 0 2px}
+.done p{color:var(--label2);line-height:1.5;margin-top:6px}
+.save{margin-top:14px;padding:12px;border-radius:14px;background:rgba(255,255,255,.06);font-size:.84rem;color:var(--label2);line-height:1.45;text-align:left}
+.copy{display:flex;align-items:center;gap:8px;width:100%;margin-top:8px;font:500 .78rem ui-monospace,monospace;color:var(--label);background:rgba(0,0,0,.4);border:1px solid var(--edge);border-radius:10px;padding:9px 10px;cursor:pointer;text-align:left;overflow-wrap:anywhere}
+.copy em{margin-left:auto;font:600 .72rem -apple-system,Inter,sans-serif;font-style:normal;color:var(--blue);white-space:nowrap}
+.empty{color:var(--label2);font-size:.92rem;line-height:1.5;padding:4px 0}
+.skel{height:60px;border-radius:14px;background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.1),rgba(255,255,255,.05));background-size:200% 100%;animation:sh 1.2s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+.foot{text-align:center;color:var(--label3);font-size:.76rem;margin-top:22px;line-height:1.6}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="logo"></div>EEM26</div>
+
+  <header id="intro">
+    <h1>Book a call with <span>the EEM26 team</span></h1>
+    <p class="sub">Pick a time that suits you. We'll call you on WhatsApp — no app or account needed.</p>
+    <div class="chips">
+      <span class="chip" id="chipTime"></span>
+      <span class="chip" id="chipWa"></span>
+      <span class="chip" id="chipFree"></span>
+    </div>
+  </header>
+
+  <section class="card glass" id="pickCard">
+    <h2><span class="n">1</span><span id="pickTitle">Choose a day and time</span></h2>
+    <div id="loading"><div class="skel"></div></div>
+    <button class="quick hidden" id="quick"></button>
+    <div class="days" id="days"></div>
+    <div class="slots" id="slots"></div>
+    <p class="tz" id="tzNote"></p>
+    <div class="err hidden" id="pickErr"></div>
+  </section>
+
+  <section class="card glass hidden" id="formCard">
+    <h2><span class="n">2</span>Your details</h2>
+    <div class="picked"><span id="pickedText"></span><button id="changeBtn">Change</button></div>
+    <div class="field"><label for="fName">Your name</label><input id="fName" autocomplete="name" maxlength="80"></div>
+    <div class="field"><label for="fPhone">WhatsApp number <em>(with country code)</em></label><input id="fPhone" type="tel" autocomplete="tel" placeholder="+234 801 234 5678" maxlength="25"></div>
+    <div class="field"><label for="fEmail">Email <em>(optional)</em></label><input id="fEmail" type="email" autocomplete="email" maxlength="120"></div>
+    <div class="field"><label for="fTopic">What would you like to talk about? <em>(optional)</em></label><textarea id="fTopic" maxlength="600" placeholder="e.g. I want to start EEM26 but I have a few questions about the setup"></textarea></div>
+    <button class="btn" id="bookBtn">Confirm my call</button>
+    <div class="err hidden" id="bookErr"></div>
+  </section>
+
+  <section class="card glass done hidden" id="doneCard">
+    <div class="big" id="doneIcon"></div>
+    <h2 id="doneTitle"></h2>
+    <div class="when" id="doneWhen"></div>
+    <p id="doneText"></p>
+    <div id="doneActions">
+      <div class="row2">
+        <a class="btn tinted" id="gcalBtn" target="_blank" rel="noopener">Google Calendar</a>
+        <button class="btn tinted" id="icsBtn">Apple / Outlook</button>
+      </div>
+      <div class="save">
+        <b>Save your booking link</b> — open it any time to see, move or cancel your call.
+        <button class="copy" id="manageLink"></button>
+      </div>
+      <div class="row2">
+        <button class="btn tinted" id="moveBtn">Change time</button>
+        <button class="btn danger" id="cancelBtn">Cancel call</button>
+      </div>
+    </div>
+    <a class="btn hidden" id="againBtn">Book a new time</a>
+    <div class="err hidden" id="doneErr"></div>
+  </section>
+
+  <p class="foot">Times are shown in your phone's time zone.<br>EEM26 · Ecosystem Expansion Model</p>
+</div>
+<script>
+(function () {
+  // Icons: Lucide (https://github.com/lucide-icons/lucide), ISC License.
+  var API = "https://leqizarzgfpiriknpnxw.supabase.co/functions/v1/booking";
+  var ICON = {
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    phone: '<path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/>',
+    gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>'
+  };
+  function svg(name, color, size) {
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[name] + "</svg>";
+  }
+  var $ = function (id) { return document.getElementById(id); };
+  function vis(id, on) { $(id).classList.toggle("hidden", !on); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  var params = new URLSearchParams(location.search);
+  var VIA = params.get("via");
+  var TOKEN = params.get("m");
+  var MINUTES = 30, slots = [], days = [], dayIdx = 0, picked = null, mode = "book";
+  var LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+
+  $("chipTime").innerHTML = svg("clock", "#64D2FF", 15) + "<span id='mins'>30 min</span>";
+  $("chipWa").innerHTML = svg("phone", "#30D158", 15) + "WhatsApp call";
+  $("chipFree").innerHTML = svg("gift", "#FF9F0A", 15) + "Free";
+
+  function dayKey(d) { return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+  function fmtTime(iso, tz) { return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: tz }); }
+  function fmtLong(iso) { return new Date(iso).toLocaleString([], { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }); }
+  function relDay(d) {
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - today) / 86400000);
+    return diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : d.toLocaleDateString([], { weekday: "long" });
+  }
+  function wrap(r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); }
+  function post(body) { return fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(wrap); }
+
+  // ── Picking a time ──────────────────────────────────────────────────────────
+  function loadSlots() {
+    vis("loading", true); vis("pickErr", false);
+    return fetch(API).then(wrap).then(function (res) {
+      vis("loading", false);
+      if (!res.ok) { $("pickErr").textContent = res.j.error || "Couldn't load the calendar. Please refresh."; return vis("pickErr", true); }
+      MINUTES = res.j.minutes || 30; $("mins").textContent = MINUTES + " min";
+      slots = res.j.slots || [];
+      groupDays();
+      renderDays();
+    }).catch(function () { vis("loading", false); $("pickErr").textContent = "Couldn't connect. Check your internet and refresh."; vis("pickErr", true); });
+  }
+  function groupDays() {
+    var map = {}; days = [];
+    slots.forEach(function (iso) {
+      var d = new Date(iso), k = dayKey(d);
+      if (!map[k]) { map[k] = { date: new Date(d.getFullYear(), d.getMonth(), d.getDate()), slots: [] }; days.push(map[k]); }
+      map[k].slots.push(iso);
+    });
+    dayIdx = 0;
+  }
+  function renderDays() {
+    if (!days.length) {
+      $("days").innerHTML = ""; $("slots").innerHTML = ""; vis("quick", false);
+      $("tzNote").innerHTML = '<span class="empty">All times are booked right now — please check back tomorrow.</span>';
+      return;
+    }
+    var first = slots[0];
+    $("quick").innerHTML = "<span><small>" + svg("zap", "#30D158", 12) + " NEXT AVAILABLE</small>" + esc(relDay(new Date(first)) + " at " + fmtTime(first)) + "</span><span>Pick ›</span>";
+    vis("quick", mode === "book" || mode === "move");
+    $("days").innerHTML = days.map(function (d, i) {
+      return '<button class="day' + (i === dayIdx ? " on" : "") + '" data-i="' + i + '"><span>' + esc(d.date.toLocaleDateString([], { weekday: "short" }).toUpperCase()) +
+        "</span><b>" + d.date.getDate() + "</b><span>" + esc(d.date.toLocaleDateString([], { month: "short" }).toUpperCase()) + "</span><i>" + d.slots.length + " free</i></button>";
+    }).join("");
+    renderSlots();
+  }
+  function renderSlots() {
+    var d = days[dayIdx];
+    $("slots").innerHTML = d.slots.map(function (iso) {
+      return '<button class="slot' + (picked === iso ? " on" : "") + '" data-iso="' + iso + '">' + esc(fmtTime(iso)) +
+        (fmtTime(iso) === fmtTime(iso, "Africa/Lagos") ? "" : "<small>" + esc(fmtTime(iso, "Africa/Lagos")) + " Nigeria</small>") + "</button>";
+    }).join("");
+    $("tzNote").textContent = relDay(d.date) + ", " + d.date.toLocaleDateString([], { day: "numeric", month: "long" }) + " · " + d.slots.length + " times free · shown in your time zone" + (LOCAL_TZ ? " (" + LOCAL_TZ.replace(/_/g, " ") + ")" : "");
+  }
+  $("days").addEventListener("click", function (e) {
+    var b = e.target.closest(".day"); if (!b) return;
+    dayIdx = Number(b.dataset.i); renderDays();
+  });
+  $("slots").addEventListener("click", function (e) {
+    var b = e.target.closest(".slot"); if (!b) return;
+    choose(b.dataset.iso);
+  });
+  $("quick").addEventListener("click", function () { if (slots[0]) choose(slots[0]); });
+
+  function choose(iso) {
+    picked = iso;
+    if (mode === "move") return moveTo(iso);
+    $("pickedText").textContent = fmtLong(iso);
+    vis("pickCard", false); vis("formCard", true); vis("intro", false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTimeout(function () { $("fName").focus(); }, 300);
+  }
+  $("changeBtn").addEventListener("click", function () {
+    vis("formCard", false); vis("pickCard", true); vis("intro", true); renderSlots();
+  });
+
+  // ── Booking ─────────────────────────────────────────────────────────────────
+  $("bookBtn").addEventListener("click", function () {
+    var btn = $("bookBtn"); vis("bookErr", false);
+    btn.disabled = true; btn.textContent = "Booking…";
+    post({ action: "book", start: picked, name: $("fName").value, phone: $("fPhone").value, email: $("fEmail").value, topic: $("fTopic").value, via: VIA })
+      .then(function (res) {
+        btn.disabled = false; btn.textContent = "Confirm my call";
+        if (!res.ok) {
+          $("bookErr").textContent = res.j.error || "Something went wrong. Please try again."; vis("bookErr", true);
+          if (res.j.taken) { picked = null; loadSlots(); setTimeout(function () { $("changeBtn").click(); }, 1800); }
+          return;
+        }
+        TOKEN = res.j.token;
+        try { localStorage.setItem("eem26-booking", TOKEN); } catch (e) {}
+        history.replaceState(null, "", location.pathname + "?m=" + TOKEN);
+        showBooking(res.j.booking, true);
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = "Confirm my call"; $("bookErr").textContent = "Couldn't connect. Check your internet and try again."; vis("bookErr", true); });
+  });
+
+  // ── A booking (just made, or opened from its private link) ─────────────────
+  var current = null;
+  function showBooking(b, fresh) {
+    current = b; mode = "view";
+    vis("intro", false); vis("pickCard", false); vis("formCard", false); vis("doneCard", true);
+    var off = b.status !== "booked";
+    $("doneCard").classList.toggle("off", off);
+    $("doneIcon").innerHTML = svg(off ? "x" : "check", off ? "#FF453A" : "#30D158", 32);
+    $("doneTitle").textContent = off ? "This call was cancelled" : fresh ? "You're booked, " + b.name.split(" ")[0] + "!" : "Your call with the EEM26 team";
+    $("doneWhen").textContent = fmtLong(b.start);
+    $("doneText").textContent = off
+      ? "Want to talk to us? Pick a new time below."
+      : "The EEM26 team will call you on WhatsApp at " + b.phone + ". Keep your phone close at that time.";
+    vis("doneActions", !off); vis("againBtn", off);
+    $("againBtn").href = location.pathname + (VIA ? "?via=" + encodeURIComponent(VIA) : "");
+    var link = location.origin + location.pathname + "?m=" + TOKEN;
+    $("manageLink").innerHTML = esc(link) + "<em>Copy</em>"; $("manageLink").dataset.copy = link;
+    $("gcalBtn").href = gcalLink(b);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function stamp(iso) { return new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); }
+  function details(b) { return "WhatsApp call with the EEM26 team. We'll call you on " + b.phone + "." + (b.topic ? "\n\nTopic: " + b.topic : "") + "\n\nManage your booking: " + location.origin + location.pathname + "?m=" + TOKEN; }
+  function gcalLink(b) {
+    return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent("Call with the EEM26 team") +
+      "&dates=" + stamp(b.start) + "/" + stamp(b.end) + "&details=" + encodeURIComponent(details(b));
+  }
+  $("icsBtn").addEventListener("click", function () {
+    var b = current; if (!b) return;
+    var ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//EEM26//Booking//EN", "BEGIN:VEVENT", "UID:" + TOKEN.slice(0, 16) + "@eem26", "DTSTAMP:" + stamp(new Date().toISOString()),
+      "DTSTART:" + stamp(b.start), "DTEND:" + stamp(b.end), "SUMMARY:Call with the EEM26 team", "DESCRIPTION:" + details(b).replace(/\n/g, "\\n"),
+      "BEGIN:VALARM", "TRIGGER:-PT15M", "ACTION:DISPLAY", "DESCRIPTION:Call with the EEM26 team", "END:VALARM", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+    var url = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
+    var a = document.createElement("a"); a.href = url; a.download = "eem26-call.ics"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  });
+  $("cancelBtn").addEventListener("click", function () {
+    if (!confirm("Cancel your call with the EEM26 team?")) return;
+    var btn = $("cancelBtn"); btn.disabled = true; vis("doneErr", false);
+    post({ action: "cancel", token: TOKEN }).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { $("doneErr").textContent = res.j.error; return vis("doneErr", true); }
+      showBooking(res.j.booking, false);
+    }).catch(function () { btn.disabled = false; });
+  });
+  $("moveBtn").addEventListener("click", function () {
+    mode = "move"; picked = null;
+    $("pickTitle").textContent = "Choose your new time";
+    vis("doneCard", false); vis("pickCard", true);
+    loadSlots();
+  });
+  function moveTo(iso) {
+    vis("pickErr", false);
+    $("tzNote").textContent = "Moving your call…";
+    post({ action: "reschedule", token: TOKEN, start: iso }).then(function (res) {
+      if (!res.ok) { $("pickErr").textContent = res.j.error; vis("pickErr", true); if (res.j.taken) loadSlots(); return; }
+      $("pickTitle").textContent = "Choose a day and time";
+      showBooking(res.j.booking, false);
+      $("doneTitle").textContent = "Your call has been moved";
+    }).catch(function () { $("pickErr").textContent = "Couldn't connect. Try again."; vis("pickErr", true); });
+  }
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-copy]"); if (!b) return;
+    (navigator.clipboard ? navigator.clipboard.writeText(b.dataset.copy) : Promise.reject()).catch(function () {}).then(function () {
+      var em = b.querySelector("em"); if (em) { em.textContent = "Copied ✓"; setTimeout(function () { em.textContent = "Copy"; }, 1400); }
+    });
+  });
+
+  if (TOKEN) {
+    fetch(API + "?m=" + encodeURIComponent(TOKEN)).then(wrap).then(function (res) {
+      if (res.ok) return showBooking(res.j.booking, false);
+      TOKEN = null; history.replaceState(null, "", location.pathname); loadSlots();
+    }).catch(loadSlots);
+  } else loadSlots();
+})();
+</script>
+</body>
+</html>

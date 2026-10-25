@@ -4,6 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChat } from "../_shared/ai.ts";
 import { isWebChat, pushInbox } from "../_shared/web-inbox.ts";
+import { BOOKING_URL } from "../_shared/booking.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -186,7 +187,7 @@ LINKS:
 - Tech Stack download: ${downloadLink}
 - Premium Tech Stack (use for closing): ${PREMIUM_LINK}
 - Sunday training (free): ${SUNDAY_TRAINING}
-- Book a call with the EEM26 team: https://calendly.com/victornwaji7/30min
+- Book a call with the EEM26 team: ${BOOKING_URL}?via=${student.id}
 
 ===
 
@@ -269,7 +270,7 @@ Scam concern (any stage): Never be defensive. "Smart to verify. This is not a hu
 
 No money / too expensive (Stage 2+): "Nweze was an older man who didn't even fully understand the tech — he still made ₦277,468 in his first month. The system does the work, not you." Share download link.
 
-Want to speak to the EEM26 team: "The EEM26 team's time is very limited but you can book a call directly here: https://calendly.com/victornwaji7/30min — grab a slot before they fill up."
+Want to speak to the EEM26 team: "The EEM26 team's time is very limited but you can book a call directly here: ${BOOKING_URL}?via=${student.id} — grab a slot before they fill up."
 
 ===
 

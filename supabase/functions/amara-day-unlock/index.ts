@@ -10,6 +10,7 @@ import {
 } from "../amara-bot/day1-content.ts";
 import { aiHealthCheck } from "../_shared/ai.ts";
 import { isWebChat, pushInbox } from "../_shared/web-inbox.ts";
+import { formatNigeria, waLink } from "../_shared/booking.ts";
 import { deliverRunAnnouncement, sendAnnouncement } from "../amara-bot/announce.ts";
 import { getStudentById } from "../amara-bot/db.ts";
 import { PAGES_VERSION, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
@@ -32,6 +33,7 @@ const supabase = createClient(
 );
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
+const ADMIN_CHAT_ID = Deno.env.get("ADMIN_CHAT_ID") ?? "5870771695";
 const TG_BASE   = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // ── Day-unlock messages (sent at 8AM Nigeria) ──────────────────────────────────
@@ -301,6 +303,24 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       }
       results.techStackSales = salesCount;
     }
+
+    // ── 1c. Booked calls: remind the admin 30 minutes before each one ─────────
+    const { data: soonCalls } = await supabase
+      .from("bookings")
+      .select("id, slot_start, name, phone, topic")
+      .eq("status", "booked")
+      .is("reminded_at", null)
+      .gte("slot_start", nowIso)
+      .lte("slot_start", new Date(now.getTime() + 30 * 60_000).toISOString());
+    for (const b of soonCalls ?? []) {
+      const { data: claimed } = await supabase.from("bookings").update({ reminded_at: nowIso }).eq("id", b.id).is("reminded_at", null).select("id");
+      if (!claimed?.length) continue;
+      await sendTelegram(
+        ADMIN_CHAT_ID,
+        `⏰ <b>Call soon — ${formatNigeria(b.slot_start)}</b>\n\n👤 ${b.name.replace(/[<>&]/g, "")}${b.topic ? `\n💬 "${b.topic.replace(/[<>&]/g, "").slice(0, 300)}"` : ""}\n\n📞 <a href="${waLink(b.phone)}">Call or message ${b.name.replace(/[<>&]/g, "")} on WhatsApp</a>`
+      );
+    }
+    results.callReminders = soonCalls?.length ?? 0;
 
     // ── 2. Evening check-in (6PM Nigeria = 17:00 UTC) ─────────────────────────
 
