@@ -7,6 +7,8 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 // The general link of the standalone web app (students sign in with email + password).
 export const WEB_APP_URL = "https://ecosystemexpantion.github.io/eem26-setup/";
 export const WEB_APP_REPO = "eem26-setup";
+// The same app for Tech Stack buyers: Day 2 opens without a payment screenshot.
+export const BUYER_APP_URL = "https://ecosystemexpantion.github.io/Product_page/";
 // Each web-only student's AI sales assistant: <SRE_CHAT_URL>?s=<sre_slug>
 export const SRE_CHAT_URL = "https://ecosystemexpantion.github.io/eem26-chat/";
 export const SRE_CHAT_REPO = "eem26-chat";

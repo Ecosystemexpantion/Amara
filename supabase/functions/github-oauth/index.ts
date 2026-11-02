@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { NORMAL_TEMPLATE } from "./normal_template.ts";
 import { PREMIUM_TEMPLATE } from "./premium_template.ts";
 import { modifyForStudent, publishPage, syncStudentPages, recordPageSync } from "../_shared/pages.ts";
-import { startRun, reporter, finishRun, WEB_APP_URL, holdAnnouncement, type Announcement } from "../_shared/runs.ts";
+import { startRun, reporter, finishRun, WEB_APP_URL, BUYER_APP_URL, holdAnnouncement, type Announcement } from "../_shared/runs.ts";
 import { isWebChat, pushInbox } from "../_shared/web-inbox.ts";
 import { sendAnnouncement } from "../amara-bot/announce.ts";
 
@@ -213,10 +213,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const params = url.searchParams;
 
   const code = params.get("code");
-  // telegram_chat_id — prefixed "web." when the student connected from the web app.
+  // telegram_chat_id — prefixed "web." when the student connected from the web app,
+  // or "buyer." from the Tech Stack buyers' copy of it (they go back to that page).
   const rawState = params.get("state");
-  const fromWeb = !!rawState?.startsWith("web.");
-  const state = fromWeb ? rawState!.slice(4) : rawState;
+  const fromBuyerPage = !!rawState?.startsWith("buyer.");
+  const fromWeb = fromBuyerPage || !!rawState?.startsWith("web.");
+  const state = fromWeb ? rawState!.slice(fromBuyerPage ? 6 : 4) : rawState;
   const oauthError = params.get("error");
 
   // Must have at minimum a state param for anything useful
@@ -353,7 +355,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // From the web app the student goes back to watch the Day 2 agents; the build runs in the background.
   // Telegram students stay on Telegram: they get a success page and Amara's message when it's done.
-  const back = fromWeb ? `${WEB_APP_URL}${student.password_hash ? "" : `?k=${student.web_key}`}#pages` : null;
+  const back = fromWeb ? `${fromBuyerPage ? BUYER_APP_URL : WEB_APP_URL}${student.password_hash ? "" : `?k=${student.web_key}`}#pages` : null;
   const runId = await startRun(student.id, "pages", fromWeb ? "web" : "telegram", isRepair ? "Repairing your sales pages" : "Building your two sales pages");
   const work = buildPages(student, githubToken, runId, isRepair, fromWeb).catch((e) => console.error("Page build error:", e));
   if (back && typeof EdgeRuntime !== "undefined") {
