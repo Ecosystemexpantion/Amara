@@ -2,7 +2,7 @@
 // Students sign in with email + password (a session token), or use an older private
 // link key (?k=…). Web-only students have no Telegram: Amara's messages land in web_inbox.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildSreFromWeb, buildWebSreFromWeb, attachTelegramFromWeb, webPaymentProof, isGated } from "../amara-bot/day1.ts";
+import { buildSreFromWeb, buildWebSreFromWeb, attachTelegramFromWeb, webPaymentProof, isGated, unlockDay2 } from "../amara-bot/day1.ts";
 import { handleDay3 } from "../amara-bot/day3.ts";
 import { handleDay4, testWebSre } from "../amara-bot/day4.ts";
 import { routeMessage } from "../amara-bot/state-machine.ts";
@@ -364,7 +364,9 @@ async function pageState(student: Student, url: URL): Promise<Response> {
     step: student.current_step,
     botfather: { link: BOTFATHER_LINK, displayName: names.displayName, username: names.username },
     techStackUrl: TECH_STACK_URL,
-    githubConnectUrl: phase === "build_pages" || phase === "pages_live" ? buildGitHubAuthUrl(`web.${chatId}`) : null,
+    githubConnectUrl: phase === "build_pages" || phase === "pages_live"
+      ? buildGitHubAuthUrl(`${url.searchParams.get("page") === "buyer" ? "buyer" : "web"}.${chatId}`)
+      : null,
     pages: student.github_repo_normal ? { normal: student.github_repo_normal, premium: student.github_repo_premium } : null,
     sre: {
       name: student.sre_name ?? null,
@@ -440,6 +442,18 @@ async function act(student: Student, body: Record<string, unknown>, req: Request
     const msg: TelegramMessage = { message_id: 0, chat: { id: 0, type: "private" }, date: Math.floor(Date.now() / 1000), text };
     background(routeMessage(msg, student, chatId));
     return json({ ok: true });
+  }
+
+  // The Tech Stack buyers' page (ecosystemexpantion.github.io/Product_page) opens Day 2 without a
+  // payment screenshot: everyone sent that link has already bought the Tech Stack.
+  if (body.action === "buyer_unlock") {
+    if (!isGated(student)) return json({ ok: true, unlocked: false });
+    background((async () => {
+      if (await unlockDay2(student, chatId, "Auto-unlocked: Tech Stack buyers' page")) {
+        await notifyAdmin(`🔓 <b>Day 2 auto-unlocked</b> — opened the Tech Stack buyers' page\n\n${studentLabel(student.full_name, student.telegram_chat_id)}`);
+      }
+    })());
+    return json({ ok: true, unlocked: true });
   }
 
   // Day 3 begins with "ready" — the student starts the Selar step from the page.
