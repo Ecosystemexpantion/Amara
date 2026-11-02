@@ -304,6 +304,44 @@ details.alt[open] summary{margin-bottom:12px}
 .stack-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;padding:10px 20px 6px;border-top:1px solid var(--edge)}
 .stack-foot span{color:var(--label3);font-size:.8rem}
 .stack-foot button{background:none;border:0;color:var(--accent);font:600 .84rem Inter,system-ui,sans-serif;cursor:pointer;padding:6px 0;white-space:nowrap}
+/* Coach messages: a chat look */
+#msgPanel{padding:0;overflow:hidden}
+.wa-head{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#202C33;border-bottom:1px solid rgba(255,255,255,.05)}
+.wa-av{flex:0 0 40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;background:linear-gradient(135deg,#00A884,#25D366)}
+.wa-head b{display:block;font-size:.98rem;font-weight:600;color:#E9EDEF}
+.wa-head small{display:block;font-size:.78rem;color:#8696A0}
+#msgPanel .msgs{gap:2px;max-height:460px;min-height:220px;padding:12px 16px 14px 18px;align-content:start;background-color:#0B141A;background-image:radial-gradient(circle at 12px 12px,rgba(255,255,255,.035) 2.2px,transparent 2.6px),radial-gradient(circle at 44px 36px,rgba(255,255,255,.035) 1.6px,transparent 2px),radial-gradient(circle at 30px 58px,rgba(255,255,255,.035) 3px,transparent 3.4px);background-size:64px 70px}
+#msgPanel .msg{position:relative;max-width:82%;padding:6px 8px 8px 9px;margin-top:2px;border:0;border-radius:7.5px;background:#202C33;color:#E9EDEF;font-size:.93rem;line-height:1.38;box-shadow:0 1px .5px rgba(0,0,0,.3)}
+#msgPanel .msg.first{margin-top:10px;border-top-left-radius:0}
+#msgPanel .msg.first::before{content:"";position:absolute;top:0;left:-8px;border-right:8px solid #202C33;border-bottom:10px solid transparent}
+#msgPanel .msg.me{background:#005C4B}
+#msgPanel .msg.me.first{border-top-left-radius:7.5px;border-top-right-radius:0}
+#msgPanel .msg.me.first::before{left:auto;right:-8px;border-right:0;border-left:8px solid #005C4B}
+#msgPanel .msg a{color:#53BDEB}
+#msgPanel .msg.me a{color:#E9EDEF;text-decoration:underline}
+#msgPanel .msg time{float:right;display:inline-flex;align-items:center;gap:3px;margin:6px 0 -4px 10px;position:relative;top:4px;font-size:.68rem;color:rgba(233,237,239,.6)}
+#msgPanel .msg time svg{color:#53BDEB}
+#msgPanel .msg .doc{background:#00A884}
+#msgPanel .empty{justify-self:center;margin-top:8px;padding:6px 12px;border-radius:7.5px;background:#182229;color:#FFD279;font-size:.78rem}
+#msgPanel .compose{margin:0;padding:8px 10px;background:#202C33;align-items:center}
+#msgPanel .compose input{border:0;border-radius:24px;background:#2A3942;color:#E9EDEF;padding:12px 16px}
+#msgPanel .compose input:focus{box-shadow:none}
+#msgPanel .compose button{flex:0 0 46px;height:46px;border-radius:50%;background:#00A884}
+#msgPanel .err{margin:8px 12px}
+
+/* "You have the Tech Stack" pop-up */
+.congrats{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:20px;background:rgba(3,5,10,.74);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:cgFade .25s ease}
+.cg-card{position:relative;overflow:hidden;width:100%;max-width:400px;padding:32px 24px 24px;text-align:center;border-radius:24px;background:linear-gradient(180deg,#141B2B,#0E121B);border:1px solid var(--edge2);box-shadow:0 30px 80px -20px rgba(0,0,0,.85);animation:cgPop .55s cubic-bezier(.2,1.4,.4,1)}
+.cg-badge{position:relative;width:78px;height:78px;margin:0 auto 16px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 30% 30%,#4ADE80,#16A34A);box-shadow:0 0 0 8px rgba(60,203,127,.12),0 0 44px rgba(60,203,127,.5);animation:cgBadge .7s .15s cubic-bezier(.2,1.6,.4,1) both}
+.cg-card .cg-kicker{font:700 .7rem Inter,system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--green)}
+.cg-card h2{font-size:1.45rem;font-weight:800;letter-spacing:-.02em;margin-top:6px}
+.cg-card p{color:var(--label2);margin-top:8px;font-size:.95rem}
+.cg-card .cg-next{color:var(--label);font-weight:600;font-size:1rem;margin-top:14px}
+.cg-confetti{position:absolute;inset:0;pointer-events:none}
+.cg-confetti i{position:absolute;top:-14px;width:7px;height:12px;border-radius:2px;animation:fall 2.8s ease-in forwards}
+@keyframes cgFade{from{opacity:0}}
+@keyframes cgPop{from{transform:scale(.7);opacity:0}}
+@keyframes cgBadge{from{transform:scale(0) rotate(-30deg)}}
 #authPanel{margin-top:22px}
 .hidden{display:none!important}
 .foot{margin-top:28px;text-align:center;color:var(--label3);font-size:.78rem;line-height:1.6}
@@ -464,11 +502,23 @@ details.alt[open] summary{margin-bottom:12px}
   </section>
 
   <section class="panel glass hidden" id="msgPanel">
-    <h2>Messages from your coach</h2>
+    <div class="wa-head"><div class="wa-av">C</div><div><b>Your EEM26 coach</b><small>Messages from your coach</small></div></div>
     <div class="msgs" id="msgList"><div class="empty">No messages yet.</div></div>
     <div class="compose" id="compose"><input id="msgText" placeholder="Ask your coach…" maxlength="1500" autocomplete="off"><button id="msgBtn" aria-label="Send"></button></div>
     <div class="err hidden" id="msgErr"></div>
   </section>
+
+  <div class="congrats hidden" id="congrats" role="dialog" aria-modal="true" aria-labelledby="cgTitle">
+    <div class="cg-card">
+      <div class="cg-confetti" id="cgConfetti"></div>
+      <div class="cg-badge" id="cgBadge"></div>
+      <div class="cg-kicker">Tech Stack unpacked</div>
+      <h2 id="cgTitle">Congratulations! 🎉</h2>
+      <p id="cgText">You have the Tech Stack now — all 21 tools and resources are ready.</p>
+      <p class="cg-next">Let's start your setup.</p>
+      <button class="btn" id="cgBtn">Start my setup →</button>
+    </div>
+  </div>
 
   <section class="stage glass">
     <div class="stage-top"><h2 id="stageTitle">Your AI agents</h2><small id="stageNote">Standing by</small></div>
@@ -1555,7 +1605,8 @@ details.alt[open] summary{margin-bottom:12px}
     }
     return walk(root, !!inLink);
   }
-  var inboxLast = 0, inboxCount = 0;
+  var inboxLast = 0, inboxCount = 0, inboxLastKind = "";
+  var TICKS = '<svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><path d="M11.07.65 4.6 8.6 1.9 6.02.8 7.17l3.9 3.7L12.3 1.7zM14.9.65 8.43 8.6l-.95-.9-1.1 1.15 2.15 2.03L16.13 1.7z"/></svg>';
   function addMessages(items) {
     if (!items || !items.length) return;
     var list = $("msgList"), atEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 40 || !inboxCount;
@@ -1564,14 +1615,17 @@ details.alt[open] summary{margin-bottom:12px}
       if (m.id <= inboxLast) return;
       inboxLast = m.id; inboxCount++;
       var el = document.createElement("div");
-      el.className = "msg" + (m.kind === "me" ? " me" : "");
+      var mine = m.kind === "me";
+      el.className = "msg" + (mine ? " me" : "") + (inboxLastKind !== (mine ? "me" : "coach") ? " first" : "");
+      inboxLastKind = mine ? "me" : "coach";
       if (m.text) el.appendChild(safeHtml(m.text));
       if (m.kind === "doc") {
         var b = document.createElement("button"); b.className = "doc"; b.textContent = "Download " + (m.filename || "file");
         b.addEventListener("click", function () { downloadDoc(m.id, b); });
         el.appendChild(document.createElement("br")); el.appendChild(b);
       }
-      var tm = document.createElement("time"); tm.textContent = new Date(m.created_at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+      var tm = document.createElement("time"), when = new Date(m.created_at);
+      tm.innerHTML = esc((when.toDateString() === new Date().toDateString() ? "" : when.toLocaleDateString([], { weekday: "short" }) + " ") + when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) + (mine ? " " + TICKS : "");
       el.appendChild(tm);
       list.appendChild(el);
     });
@@ -1803,33 +1857,55 @@ details.alt[open] summary{margin-bottom:12px}
     stack.state = "playing"; stack.html = "";
     vis("stackPanel", true);
     $("stackTitle").textContent = "Unpacking your Tech Stack";
-    $("stackSub").textContent = STACK.length + " tools and resources your AI agents use to build your business.";
+    $("stackSub").textContent = "Getting " + STACK.length + " tools and resources ready for you…";
     $("stackCount").textContent = "0 / " + STACK.length; $("stackCount").classList.remove("full");
     $("stackBar").style.width = "0";
-    $("stackList").innerHTML = ""; $("stackNote").textContent = ""; $("stackBtn").textContent = "Skip";
+    $("stackList").innerHTML = ""; $("stackNote").textContent = "Keep this page open — it takes about a minute."; $("stackBtn").textContent = "Skip";
     $("stackPanel").scrollIntoView({ behavior: "smooth", block: "start" });
     (function next() {
       if (tk !== stack.token) return;
-      if (i >= STACK.length) { setTimeout(function () { if (tk === stack.token) finishUnpack(); }, 1100); return; }
-      var it = STACK[i], n = ++i;
+      if (i >= STACK.length) { setTimeout(function () { if (tk === stack.token) finishUnpack(); }, 700); return; }
+      var it = STACK[i], n = ++i, dur = (1300 + ((n * 7919) % 1500)) / SPEED;
       var holder = document.createElement("div"); holder.innerHTML = stackRow(it, "loading", true);
-      var row = holder.firstChild; $("stackList").appendChild(row);
-      requestAnimationFrame(function () { requestAnimationFrame(function () { row.querySelector(".pb i").style.width = "100%"; }); });
+      var row = holder.firstChild, bar = row.querySelector(".pb i");
+      bar.style.transition = "width " + dur + "ms linear";
+      $("stackList").appendChild(row);
+      $("stackSub").textContent = "Unpacking " + it.n + "…";
+      requestAnimationFrame(function () { requestAnimationFrame(function () { bar.style.width = "100%"; }); });
       setTimeout(function () {
         if (tk !== stack.token) return;
         row.className = "sitem " + (it.day ? "ready" : "active"); row.querySelector(".ss").textContent = STACK_LABEL[it.day ? "ready" : "active"];
         $("stackCount").textContent = n + " / " + STACK.length;
         $("stackBar").style.width = (n / STACK.length * 100) + "%";
-      }, 720 / SPEED);
-      setTimeout(next, 380 / SPEED);
+        next();
+      }, dur);
     })();
   }
   function finishUnpack() {
     stack.token++; stack.state = "done"; stack.html = "";
     try { localStorage.setItem(stack.key, "1"); } catch (e) {}
     renderStack();
+    showCongrats();
     load();
   }
+  function showCongrats() {
+    var colors = [C.blue, C.purple, C.pink, C.green, C.orange, C.teal], html = "";
+    for (var k = 0; k < 60; k++) html += '<i style="left:' + (Math.random() * 100) + "%;background:" + colors[k % 6] + ";animation-delay:" + (Math.random() * .9) + 's"></i>';
+    $("cgConfetti").innerHTML = html;
+    $("cgBadge").innerHTML = svg("circle-check", "#ffffff", 40, 2.2);
+    $("cgTitle").textContent = "Congratulations" + (data && data.firstName ? ", " + data.firstName : "") + "! 🎉";
+    $("cgText").textContent = "You have the Tech Stack now — all " + STACK.length + " tools and resources are unpacked and ready.";
+    vis("congrats", true);
+    $("cgBtn").focus();
+  }
+  function closeCongrats() {
+    vis("congrats", false);
+    var nextPanel = ["buildPanel", "pagesPanel", "day3Panel", "uploadPanel", "testPanel"].filter(function (id) { return !$(id).classList.contains("hidden"); })[0];
+    ($(nextPanel || "stackPanel")).scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  $("cgBtn").addEventListener("click", closeCongrats);
+  $("congrats").addEventListener("click", function (e) { if (e.target === $("congrats")) closeCongrats(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("congrats").classList.contains("hidden")) closeCongrats(); });
   $("stackBtn").addEventListener("click", function () {
     if (stack.state === "playing") return finishUnpack();
     stack.open = !stack.open; renderStack();
@@ -1902,7 +1978,7 @@ details.alt[open] summary{margin-bottom:12px}
   function signedIn(res) {
     setSession(res.j.session);
     vis("authPanel", false);
-    data = null; inboxLast = 0; inboxCount = 0; $("msgList").innerHTML = '<div class="empty">No messages yet.</div>';
+    data = null; inboxLast = 0; inboxCount = 0; inboxLastKind = ""; $("msgList").innerHTML = '<div class="empty">No messages yet.</div>';
     load();
   }
   function busyBtn(btn, on, label) { btn.disabled = on; if (label) btn.textContent = label; }
@@ -1939,7 +2015,7 @@ details.alt[open] summary{margin-bottom:12px}
   });
   $("logoutBtn").addEventListener("click", function () {
     post({ action: "logout" }).catch(function () {});
-    setSession(null); data = null; show.runId = null; inboxLast = 0; inboxCount = 0;
+    setSession(null); data = null; show.runId = null; inboxLast = 0; inboxCount = 0; inboxLastKind = "";
     $("msgList").innerHTML = '<div class="empty">No messages yet.</div>';
     showAuth();
   });
