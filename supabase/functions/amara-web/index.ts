@@ -513,6 +513,8 @@ async function act(student: Student, body: Record<string, unknown>, req: Request
     }
     const name = String(body.name ?? "").trim().replace(/[<>]/g, "").replace(/\s+/g, " ").slice(0, 40) || `${student.full_name?.split(" ")[0] ?? "My"}'s Assistant`;
     const slug = student.sre_slug ?? (await freeSlug(slugBase(student.full_name)));
+    // Built from the free Smart Reply Engine page: it answers as a test AI, not the training funnel.
+    if (body.demo === true) await supabase.from("amara_students").update({ sre_demo: true }).eq("id", student.id);
     const { runId, done } = await buildWebSreFromWeb(student, name, slug);
     background(done);
     return json({ runId });

@@ -17,6 +17,8 @@ interface Student {
   bot_token: string | null;
   sre_slug: string | null;
   sre_name: string | null;
+  /** Built from the free Smart Reply Engine page: a test AI that shows off its replies, with no training funnel. */
+  sre_demo?: boolean;
   status: string;
   current_day: number;
 }
@@ -135,7 +137,14 @@ async function getBotDisplayName(token: string): Promise<string> {
   }
 }
 
-function buildOpeningHook(botName: string): string {
+function buildOpeningHook(botName: string, demo = false): string {
+  if (demo) {
+    return (
+      `Hi! I'm <b>${botName}</b> 👋\n\n` +
+      `I'm an AI sales assistant. Tell me what you sell, then message me like a customer would: ask the price, ` +
+      `say it's too expensive, ask if it's legit. Watch how I reply 😊`
+    );
+  }
   return (
     `Hello dear,\n\nMy name is <b>${botName}</b>! 😊\n\n` +
     `What's your name so I can register you for Sunday's setup? 👇`
@@ -515,7 +524,7 @@ async function upsertLead(supabase: SupabaseClient, studentId: string, chatId: s
 // ─── Credit limits (reset at midnight Nigeria time) ───────────────────────────
 
 const OWNER_AI_PER_DAY = 3;
-const STUDENT_COLUMNS = "id, telegram_chat_id, full_name, payhip_link, sales_page_link, bot_token, sre_slug, sre_name, status, current_day";
+const STUDENT_COLUMNS = "id, telegram_chat_id, full_name, payhip_link, sales_page_link, bot_token, sre_slug, sre_name, sre_demo, status, current_day";
 const UNPAID_BOT_REPLIES_PER_DAY = 20;
 const UNPAID_HOLD_MSG = "Thanks for your message! 🙏 I'll get back to you tomorrow with everything you need.";
 
@@ -624,6 +633,35 @@ async function handleAdmin(student: Student, chatId: number, msg: TelegramMessag
 
 // ─── Lead handler ─────────────────────────────────────────────────────────────
 
+// ─── Free Smart Reply Engine: test AI ─────────────────────────────────────────
+// The free page's engines show what an AI sales assistant can do. They never run the EEM26 training funnel.
+
+function buildDemoPrompt(student: Student, botName: string): string {
+  const owner = student.full_name?.split(" ")[0] ?? "the owner";
+  return `You are ${botName}, an AI sales assistant (Smart Reply Engine) built for ${owner}. The person chatting is usually ${owner} testing you, or a customer.
+
+Show what an excellent AI sales assistant can do:
+- Answer any question clearly, accurately and helpfully, like a top salesperson for a small online business.
+- If you don't yet know what they sell, ask what product or service it is and its price. Then act as the sales assistant for THAT product: greet like a customer just messaged, answer price and product questions, and handle objections ("too expensive", "let me think about it", "is this legit?") with empathy and a clear reason to buy.
+- When the customer is ready, guide them to pay: say you'll share the payment link and write it as [your Selar payment link].
+- If asked what you are: you are ${botName}, an AI sales assistant that replies to customers in seconds, answers their questions and guides them to pay, 24/7.
+
+Rules:
+- Standard, clear English. Warm, confident and human. 2 to 4 short sentences per message.
+- Never mention any training, webinar, class, Sunday, registration, EEM26 programmes, coaches or a Tech Stack. Never ask for their email.
+- Never invent results, testimonials or prices; ask for the real price if you need it.`;
+}
+
+async function handleDemo(student: Student, chatIdStr: string, userText: string, supabase: SupabaseClient, ch: Channel): Promise<void> {
+  const history = await getHistory(supabase, student.id, chatIdStr);
+  const raw = await callGroq(buildDemoPrompt(student, await ch.name()), history, userText);
+  // The demo prompt asks for plain replies; drop any stray signal lines all the same.
+  const reply = String(raw).split("\n").filter((l) => !/^\s*(DATA|INTEREST|OBJECTION|HOT_LEAD|LINK_SENT|ESCALATE)\b/i.test(l)).join("\n").trim()
+    || "Sorry, could you say that again?";
+  await ch.send(reply);
+  await saveConv(supabase, student.id, chatIdStr, userText, reply);
+}
+
 async function handleLead(
   student: Student,
   lead: Lead | null,
@@ -640,7 +678,7 @@ async function handleLead(
   // Commands → opening hook
   if (userText.startsWith("/")) {
     const botName = await ch.name();
-    const openingMsg = buildOpeningHook(botName);
+    const openingMsg = buildOpeningHook(botName, !!student.sre_demo);
     await ch.send(openingMsg);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
     await saveConv(supabase, student.id, chatIdStr, userText, openingMsg);
@@ -716,7 +754,7 @@ async function handleLead(
   if (!userText) {
     if (!lead) {
       const botName = await ch.name();
-      const openingMsg = buildOpeningHook(botName);
+      const openingMsg = buildOpeningHook(botName, !!student.sre_demo);
       await ch.send(openingMsg);
       await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
       await saveConv(supabase, student.id, chatIdStr, "[started]", openingMsg);
@@ -727,7 +765,7 @@ async function handleLead(
   // Brand new lead → send opening hook first
   if (!lead) {
     const botName = await ch.name();
-    const openingMsg = buildOpeningHook(botName);
+    const openingMsg = buildOpeningHook(botName, !!student.sre_demo);
     await ch.send(openingMsg);
     await upsertLead(supabase, student.id, chatIdStr, { stage: "NEW", wind_down_count: 0 });
     await saveConv(supabase, student.id, chatIdStr, userText, openingMsg);
@@ -735,6 +773,8 @@ async function handleLead(
   }
 
   // ── LLM handles all conversation logic ───────────────────────────────────────
+
+  if (student.sre_demo) return await handleDemo(student, chatIdStr, userText, supabase, ch);
 
   // If this customer is already waiting on an escalation answer, stay quiet
   if (await hasCustomerPendingEscalation(supabase, student.id, chatIdStr)) {
