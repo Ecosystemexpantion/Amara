@@ -142,7 +142,7 @@ function buildOpeningHook(botName: string, demo = false): string {
     return (
       `Hi! I'm <b>${botName}</b> 👋\n\n` +
       `I'm an AI sales assistant. Tell me what you sell, then message me like a customer would: ask the price, ` +
-      `say it's too expensive, ask if it's legit. Watch how I reply 😊`
+      `say it's too expensive, ask if it's legit. Watch how I reply 😊` + DEMO_CLOSER
     );
   }
   return (
@@ -634,6 +634,9 @@ async function handleAdmin(student: Student, chatId: number, msg: TelegramMessag
 // ─── Lead handler ─────────────────────────────────────────────────────────────
 
 // ─── Free Smart Reply Engine: test AI ─────────────────────────────────────────
+// Every test reply ends with this: the full version (a connected token for longer conversations) is set up live on Sunday.
+const DEMO_SUNDAY_LINK = "https://ecosystemexpantion.github.io/Google-Meet/class.html?e=sunday";
+const DEMO_CLOSER = `\n\n👉 Want me handling longer conversations with your real customers? Join the free Sunday training (8PM WAT): we connect your token live.\n${DEMO_SUNDAY_LINK}`;
 // The free page's engines show what an AI sales assistant can do. They never run the EEM26 training funnel.
 
 function buildDemoPrompt(student: Student, botName: string): string {
@@ -648,17 +651,33 @@ Show what an excellent AI sales assistant can do:
 
 Rules:
 - Standard, clear English. Warm, confident and human. 2 to 4 short sentences per message.
-- Never mention any training, webinar, class, Sunday, registration, EEM26 programmes, coaches or a Tech Stack. Never ask for their email.
+- Don't mention any training, Sunday, registration, EEM26 programmes, coaches or a Tech Stack yourself: a line about the Sunday training is added after every reply automatically. Never ask for their email.
 - Never invent results, testimonials or prices; ask for the real price if you need it.`;
 }
 
+/** Test replies each visitor gets (after the greeting); then only the Sunday message, where the token is connected. */
+const DEMO_MAX_REPLIES = 5;
+const DEMO_LIMIT_MSG = `That's the end of your free test 🙌\n\nTo connect your token so I can handle unlimited, longer conversations with your real customers, join the free Sunday training (8PM WAT). We set it up live:\n${DEMO_SUNDAY_LINK}`;
+
 async function handleDemo(student: Student, chatIdStr: string, userText: string, supabase: SupabaseClient, ch: Channel): Promise<void> {
+  const { count } = await supabase
+    .from("student_bot_conversations")
+    .select("id", { count: "exact", head: true })
+    .eq("student_id", student.id)
+    .eq("chat_id", chatIdStr)
+    .eq("role", "assistant");
+  // The greeting is one assistant message, so the test is over after greeting + DEMO_MAX_REPLIES answers.
+  if ((count ?? 0) >= DEMO_MAX_REPLIES + 1) {
+    await ch.send(DEMO_LIMIT_MSG);
+    await saveConv(supabase, student.id, chatIdStr, userText, DEMO_LIMIT_MSG);
+    return;
+  }
   const history = await getHistory(supabase, student.id, chatIdStr);
   const raw = await callGroq(buildDemoPrompt(student, await ch.name()), history, userText);
   // The demo prompt asks for plain replies; drop any stray signal lines all the same.
   const reply = String(raw).split("\n").filter((l) => !/^\s*(DATA|INTEREST|OBJECTION|HOT_LEAD|LINK_SENT|ESCALATE)\b/i.test(l)).join("\n").trim()
     || "Sorry, could you say that again?";
-  await ch.send(reply);
+  await ch.send(reply + DEMO_CLOSER);
   await saveConv(supabase, student.id, chatIdStr, userText, reply);
 }
 
